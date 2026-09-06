@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Live Mining Web POS</title>
-  <meta name="description" content="Mobile-first Web POS for live sellers with instant mining entry, thermal label printing, customer balance tracking, and itemized invoices." />
+  <meta name="description" content="Mobile-first Web POS for live sellers with multiple business profiles, home dashboard, instant mining entry, thermal label printing, customer balance tracking, and itemized invoices." />
   <meta property="og:title" content="Live Mining Web POS" />
-  <meta property="og:description" content="Mobile-first Web POS for live sellers with instant mining entry, thermal label printing, customer balance tracking, and itemized invoices." />
+  <meta property="og:description" content="Mobile-first Web POS for live sellers with multiple business profiles, home dashboard, instant mining entry, thermal label printing, customer balance tracking, and itemized invoices." />
   <meta property="og:type" content="website" />
 
   <!-- PWA & Mobile Web App Meta -->
@@ -147,33 +147,58 @@
     
     <!-- TOP APP HEADER -->
     <header class="screen-ui sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-zinc-200 px-3 sm:px-4 py-2 flex items-center justify-between">
-      <div class="flex items-center space-x-2.5">
-        <div class="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center font-bold text-white text-xs tracking-wider shrink-0">
-          POS
-        </div>
-        <div>
-          <div class="flex items-center space-x-1.5 sm:space-x-2 flex-wrap">
-            <h1 class="font-bold text-sm tracking-tight text-zinc-900 leading-tight">LiveSell POS</h1>
-            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
-              Session #{{ sessionDate }}
-            </span>
-            <!-- Connectivity Status Pill -->
-            <span v-if="isOnline" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200" title="Connected: all records saved locally">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>
-              Online
-            </span>
-            <span v-else class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse" title="Internet disconnected: saving locally to device">
-              <span class="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1"></span>
-              Offline Mode
-            </span>
+      <!-- Store Identity & Profile Switcher on POS Logo -->
+      <div class="flex items-center space-x-2 sm:space-x-3 min-w-0">
+        <!-- Interactive POS Logo Button for Switching Profiles -->
+        <button 
+          @click="openProfileModal" 
+          type="button"
+          :title="'Current Store: ' + activeProfile.name + ' • Click to switch business profile'"
+          class="group relative flex items-center p-1 -m-1 rounded-xl hover:bg-zinc-100 active:bg-zinc-200 transition-all text-left focus:outline-none focus:ring-2 focus:ring-zinc-900 cursor-pointer">
+          
+          <!-- POS Badge with Profile Color Indicator & Dropdown Chevron -->
+          <div class="relative w-9 h-9 rounded-xl bg-zinc-900 group-hover:bg-black text-white flex items-center justify-center font-black text-xs tracking-wider shrink-0 shadow-xs transition-transform group-hover:scale-105 active:scale-95">
+            POS
+            <!-- Active Profile Color Dot Indicator -->
+            <span class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white shadow-xs"
+                  :class="getProfileDotClass(activeProfile.color)"
+                  :title="'Profile: ' + activeProfile.name"></span>
           </div>
-          <p class="text-[11px] text-zinc-500 font-mono leading-none mt-0.5">
-            {{ sessionStats.totalMines }} items • ₱{{ sessionStats.totalSales.toLocaleString() }} sales • ₱{{ sessionStats.totalBalance.toLocaleString() }} due
-          </p>
-        </div>
+
+          <!-- Business Info & Switch Indicator -->
+          <div class="ml-2.5 min-w-0">
+            <div class="flex items-center space-x-1.5 flex-wrap">
+              <span class="font-bold text-sm tracking-tight text-zinc-900 leading-tight group-hover:text-black flex items-center space-x-1">
+                <span class="truncate max-w-[130px] sm:max-w-[220px]">{{ activeProfile.name }}</span>
+                <svg class="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-900 transition-transform group-hover:translate-y-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </span>
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
+                #{{ sessionDate }}
+              </span>
+              <!-- Online/Offline Badge -->
+              <span v-if="isOnline" class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200" title="Connected: saves locally">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>
+                Online
+              </span>
+              <span v-else class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse" title="Offline mode">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1"></span>
+                Offline
+              </span>
+            </div>
+            <p class="text-[11px] text-zinc-500 font-mono leading-none mt-0.5 truncate">
+              <span class="font-medium text-zinc-700">{{ activeProfile.category }}</span>
+              <span class="mx-1">•</span>
+              <span>{{ sessionStats.totalMines }} items</span>
+              <span class="mx-1">•</span>
+              <span class="font-bold text-zinc-800">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</span>
+            </p>
+          </div>
+        </button>
       </div>
 
-      <!-- Quick Action Controls -->
+      <!-- Quick Action Controls (Clean and Uncrowded) -->
       <div class="flex items-center space-x-1.5">
         <!-- Install App Button (Android/Chrome/Edge/Desktop) -->
         <button 
@@ -229,28 +254,41 @@
       </span>
     </div>
 
-    <!-- TAB NAVIGATION BAR -->
-    <nav id="app-navigation" class="screen-ui sticky top-[53px] z-30 bg-white border-b border-zinc-200 px-2 sm:px-4 pt-1">
-      <div class="grid grid-cols-3 gap-2">
+    <!-- TAB NAVIGATION BAR (Removed on Home/Dashboard; shown when inside workspaces for fast tab switching) -->
+    <nav v-if="currentTab !== 'dashboard'" id="app-navigation" class="screen-ui sticky top-[53px] z-30 bg-white border-b border-zinc-200 px-2 sm:px-4 pt-1 shadow-2xs">
+      <div class="grid grid-cols-4 gap-1 sm:gap-2">
+        <!-- Return to Home Dashboard -->
+        <button @click="currentTab = 'dashboard'"
+          class="relative py-2 px-1 flex flex-col items-center justify-center rounded-t-lg transition-all text-xs font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 border-b-2 border-transparent">
+          <div class="flex items-center space-x-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <span>Home</span>
+          </div>
+          <span class="text-[10px] opacity-75 font-mono text-zinc-500">Dashboard</span>
+        </button>
+
         <!-- Tab 1: Live Mining -->
         <button @click="currentTab = 'mining'"
-          class="relative py-2.5 px-2 flex flex-col items-center justify-center rounded-t-lg transition-all text-xs font-semibold"
+          class="relative py-2 px-1 flex flex-col items-center justify-center rounded-t-lg transition-all text-xs font-semibold"
           :class="currentTab === 'mining' 
             ? 'bg-zinc-100/80 text-zinc-900 border-b-2 border-zinc-900 font-bold' 
             : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'">
-          <span>Live Mining</span>
+          <div class="flex items-center space-x-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            <span>Mining</span>
+          </div>
           <span class="text-[10px] opacity-75 font-mono text-zinc-500">{{ recentMines.length }} logged</span>
         </button>
 
         <!-- Tab 2: Customer Balances -->
         <button @click="currentTab = 'balances'"
-          class="relative py-2.5 px-2 flex flex-col items-center justify-center rounded-t-lg transition-all text-xs font-semibold"
+          class="relative py-2 px-1 flex flex-col items-center justify-center rounded-t-lg transition-all text-xs font-semibold"
           :class="currentTab === 'balances' 
             ? 'bg-zinc-100/80 text-zinc-900 border-b-2 border-zinc-900 font-bold' 
             : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'">
           <div class="flex items-center space-x-1">
-            <span class="truncate">Customer Balances</span>
-            <span v-if="owingBuyersCount > 0" class="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold bg-amber-100 text-amber-800 border border-amber-200">
+            <span class="truncate">Balances</span>
+            <span v-if="owingBuyersCount > 0" class="px-1 py-0.2 rounded-full text-[9px] font-mono font-bold bg-amber-100 text-amber-800 border border-amber-200">
               {{ owingBuyersCount }}
             </span>
           </div>
@@ -261,11 +299,11 @@
 
         <!-- Tab 3: Mined Items -->
         <button @click="currentTab = 'mined_items'"
-          class="relative py-2.5 px-2 flex flex-col items-center justify-center rounded-t-lg transition-all text-xs font-semibold"
+          class="relative py-2 px-1 flex flex-col items-center justify-center rounded-t-lg transition-all text-xs font-semibold"
           :class="currentTab === 'mined_items' 
             ? 'bg-zinc-100/80 text-zinc-900 border-b-2 border-zinc-900 font-bold' 
             : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'">
-          <span>Mined Items</span>
+          <span>Items</span>
           <span class="text-[10px] opacity-75 font-mono text-zinc-500">{{ allMines.length }} items</span>
         </button>
       </div>
@@ -281,6 +319,467 @@
 
     <!-- MAIN APP SCREEN BODY -->
     <main id="main-screen" class="screen-ui flex-1 p-3.5 pb-24 overflow-y-auto space-y-4">
+
+      <!-- =============================================================== -->
+      <!-- SCREEN 0: HOME DASHBOARD                                       -->
+      <!-- =============================================================== -->
+      <div v-if="currentTab === 'dashboard'" class="space-y-4">
+
+        <!-- WORKSPACE REDIRECTION HUB (Direct 1-Click Access to the 3 Workspaces) -->
+        <div class="bg-zinc-900 text-white border border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3.5">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-zinc-800 pb-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">Live Selling Workspaces</span>
+              </div>
+              <h2 class="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">Stream & Sales Controls</h2>
+            </div>
+            <div class="text-xs text-zinc-400 font-mono flex items-center space-x-2">
+              <span>Active Business:</span>
+              <span class="font-bold text-white bg-zinc-800 px-2 py-0.5 rounded border border-zinc-700 flex items-center space-x-1.5 cursor-pointer hover:bg-zinc-700 transition-colors" @click="openProfileModal">
+                <span class="w-2 h-2 rounded-full" :class="getProfileDotClass(activeProfile.color)"></span>
+                <span>{{ activeProfile.name }}</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- The 3 Redirection Buttons -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <!-- 1. Redirect Button to Mining Tab -->
+            <button 
+              @click="goToMining" 
+              type="button"
+              class="group p-3.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-800 active:scale-[0.99] text-left transition-all border border-zinc-700/80 hover:border-amber-400/60 shadow-xs flex items-center justify-between cursor-pointer">
+              <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-amber-400/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-400/20 group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-white group-hover:text-amber-300 transition-colors flex items-center space-x-1.5">
+                    <span>Live Mining</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-700 text-zinc-300 font-mono font-normal">{{ recentMines.length }} logged</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-400 truncate">Speed tag & price logger</div>
+                </div>
+              </div>
+              <svg class="w-4 h-4 text-zinc-500 group-hover:text-amber-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+
+            <!-- 2. Redirect Button to Balances Tab -->
+            <button 
+              @click="currentTab = 'balances'" 
+              type="button"
+              class="group p-3.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-800 active:scale-[0.99] text-left transition-all border border-zinc-700/80 hover:border-emerald-400/60 shadow-xs flex items-center justify-between cursor-pointer">
+              <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-emerald-400/10 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-400/20 group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors flex items-center space-x-1.5">
+                    <span>Customer Balances</span>
+                    <span v-if="owingBuyersCount > 0" class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-300 font-mono font-bold">{{ owingBuyersCount }} owing</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-400 truncate">{{ buyerBasketsList.length }} buyers • Invoicing & Pay</div>
+                </div>
+              </div>
+              <svg class="w-4 h-4 text-zinc-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+
+            <!-- 3. Redirect Button to Mined Items Tab -->
+            <button 
+              @click="currentTab = 'mined_items'" 
+              type="button"
+              class="group p-3.5 rounded-xl bg-zinc-800/90 hover:bg-zinc-800 active:scale-[0.99] text-left transition-all border border-zinc-700/80 hover:border-blue-400/60 shadow-xs flex items-center justify-between cursor-pointer">
+              <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-blue-400/10 text-blue-400 flex items-center justify-center shrink-0 border border-blue-400/20 group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-white group-hover:text-blue-300 transition-colors flex items-center space-x-1.5">
+                    <span>Mined Items</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-700 text-zinc-300 font-mono font-normal">{{ allMines.length }} items</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-400 truncate">Notion CSV • Thermal labels</div>
+                </div>
+              </div>
+              <svg class="w-4 h-4 text-zinc-500 group-hover:text-blue-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 1. Active Business Profile Hero Banner -->
+        <div class="bg-white border border-zinc-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4 relative overflow-hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-zinc-100">
+            <div class="flex items-center space-x-3">
+              <div class="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-white text-lg shrink-0 shadow-xs" :class="getProfileDotClass(activeProfile.color)">
+                {{ activeProfile.name.charAt(0) }}
+              </div>
+              <div>
+                <div class="flex items-center space-x-2 flex-wrap">
+                  <h2 class="font-bold text-base sm:text-lg text-zinc-900 tracking-tight leading-tight">{{ activeProfile.name }}</h2>
+                  <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold border" :class="getProfileBadgeClass(activeProfile.color)">
+                    {{ activeProfile.category }}
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-zinc-100 text-zinc-700 border border-zinc-200">
+                    Currency: {{ activeProfile.currency }}
+                  </span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs text-zinc-500 font-mono mt-1">
+                  <span class="inline-flex items-center text-emerald-600 font-semibold">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                    Live Session #{{ sessionDate }}
+                  </span>
+                  <span>•</span>
+                  <span>Started at {{ sessionStartTime }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <button 
+                @click="openProfileModal"
+                type="button"
+                class="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-semibold transition-colors flex items-center space-x-1.5 border border-zinc-200">
+                <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                <span>Switch Shop ({{ profiles.length }})</span>
+              </button>
+              <button 
+                @click="goToMining"
+                type="button"
+                class="px-3.5 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-all flex items-center space-x-1.5 shadow-sm">
+                <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                <span>Start Mining</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. Primary KPI Summary Cards -->
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <!-- Metric 1: Total Gross Sales -->
+            <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80">
+              <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Total Sales</div>
+              <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
+                {{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">{{ sessionStats.totalMines }} items sold</div>
+            </div>
+
+            <!-- Metric 2: Payments Collected -->
+            <div class="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80">
+              <div class="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider">Cash Collected</div>
+              <div class="text-xl sm:text-2xl font-black font-mono text-emerald-700 mt-1">
+                {{ activeProfile.currency }}{{ sessionStats.totalPayments.toLocaleString() }}
+              </div>
+              <div class="text-[11px] text-emerald-600 mt-0.5 font-mono">{{ allPayments.length }} payments received</div>
+            </div>
+
+            <!-- Metric 3: Outstanding Unpaid Balance -->
+            <div class="p-3.5 rounded-xl border" :class="sessionStats.totalBalance > 0 ? 'bg-amber-50/60 border-amber-200/90' : 'bg-zinc-50/80 border-zinc-200/80'">
+              <div class="text-[11px] font-semibold uppercase tracking-wider" :class="sessionStats.totalBalance > 0 ? 'text-amber-900' : 'text-zinc-500'">Due Balance</div>
+              <div class="text-xl sm:text-2xl font-black font-mono mt-1" :class="sessionStats.totalBalance > 0 ? 'text-amber-800' : 'text-zinc-700'">
+                {{ activeProfile.currency }}{{ sessionStats.totalBalance.toLocaleString() }}
+              </div>
+              <div class="text-[11px] mt-0.5 font-mono" :class="sessionStats.totalBalance > 0 ? 'text-amber-700 font-semibold' : 'text-zinc-500'">
+                {{ owingBuyersCount }} buyers owing
+              </div>
+            </div>
+
+            <!-- Metric 4: Total Mined Items -->
+            <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80">
+              <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Mined Items</div>
+              <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
+                {{ sessionStats.totalMines }} <span class="text-sm font-semibold text-zinc-500">pcs</span>
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">Next code: {{ nextControlCode }}</div>
+            </div>
+
+            <!-- Metric 5: Unique Active Buyers -->
+            <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80">
+              <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Active Buyers</div>
+              <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
+                {{ sessionStats.uniqueBuyers }} <span class="text-sm font-semibold text-zinc-500">miners</span>
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">{{ settledBuyersCount }} fully paid</div>
+            </div>
+
+            <!-- Metric 6: Average Item Value -->
+            <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80">
+              <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Avg Price / Item</div>
+              <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
+                {{ activeProfile.currency }}{{ avgMinePrice }}
+              </div>
+              <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">Based on current stream</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Quick Action Hub -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button 
+            @click="goToMining" 
+            class="p-3 rounded-xl bg-white hover:bg-zinc-50 border border-zinc-200 text-left transition-all hover:border-zinc-300 shadow-2xs flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-lg bg-zinc-900 text-white flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-zinc-900 truncate">Speed Mining</div>
+              <div class="text-[10px] text-zinc-500">Log tags & prices</div>
+            </div>
+          </button>
+
+          <button 
+            @click="currentTab = 'balances'" 
+            class="p-3 rounded-xl bg-white hover:bg-zinc-50 border border-zinc-200 text-left transition-all hover:border-zinc-300 shadow-2xs flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-800 flex items-center justify-center shrink-0 border border-zinc-200">
+              <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-zinc-900 truncate">Balances</div>
+              <div class="text-[10px] text-zinc-500">{{ owingBuyersCount }} owing payments</div>
+            </div>
+          </button>
+
+          <button 
+            @click="printLastMinedSticker" 
+            :disabled="allMines.length === 0"
+            class="p-3 rounded-xl bg-white hover:bg-zinc-50 border border-zinc-200 text-left transition-all hover:border-zinc-300 shadow-2xs flex items-center space-x-2.5 disabled:opacity-50 disabled:cursor-not-allowed">
+            <div class="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-800 flex items-center justify-center shrink-0 border border-zinc-200">
+              <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-zinc-900 truncate">Reprint Label</div>
+              <div class="text-[10px] text-zinc-500">Last mined sticker</div>
+            </div>
+          </button>
+
+          <button 
+            @click="openAddProfileModal" 
+            class="p-3 rounded-xl bg-white hover:bg-zinc-50 border border-zinc-200 text-left transition-all hover:border-zinc-300 shadow-2xs flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-lg bg-zinc-100 text-zinc-800 flex items-center justify-center shrink-0 border border-zinc-200">
+              <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-bold text-zinc-900 truncate">New Business</div>
+              <div class="text-[10px] text-zinc-500">Add shop profile</div>
+            </div>
+          </button>
+        </div>
+
+        <!-- 4. Top Buyers Leaderboard & Recent Activity (2-Column Grid on desktop) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+          <!-- TOP BUYERS LEADERBOARD -->
+          <div class="bg-white border border-zinc-200 rounded-xl p-4 shadow-xs space-y-3">
+            <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-xs text-zinc-900 uppercase tracking-wider">Top Miners Leaderboard</span>
+                <span class="text-[10px] font-mono text-zinc-400">({{ topBuyersList.length }} buyers)</span>
+              </div>
+              <button @click="currentTab = 'balances'" class="text-[11px] font-semibold text-zinc-700 hover:text-zinc-900 flex items-center space-x-0.5">
+                <span>View all</span>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+
+            <!-- Empty state -->
+            <div v-if="topBuyersList.length === 0" class="py-8 text-center text-zinc-400 text-xs">
+              No buyer transactions logged yet for this business.
+            </div>
+
+            <!-- Leaderboard Items -->
+            <div v-else class="space-y-2">
+              <div 
+                v-for="(buyer, idx) in topBuyersList.slice(0, 5)" 
+                :key="buyer.handle"
+                class="flex items-center justify-between p-2.5 rounded-lg border border-zinc-100 hover:border-zinc-200 bg-zinc-50/50 hover:bg-zinc-50 transition-colors">
+                <div class="flex items-center space-x-2.5 min-w-0">
+                  <!-- Rank Badge -->
+                  <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 font-mono"
+                    :class="idx === 0 ? 'bg-amber-100 text-amber-900 border border-amber-300' : idx === 1 ? 'bg-zinc-200 text-zinc-800' : idx === 2 ? 'bg-orange-100 text-orange-900' : 'bg-zinc-100 text-zinc-500'">
+                    {{ idx + 1 }}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="font-bold text-xs text-zinc-900 truncate font-mono">{{ buyer.handle }}</div>
+                    <div class="text-[10px] text-zinc-500 font-mono">{{ buyer.items.length }} pcs mined</div>
+                  </div>
+                </div>
+
+                <div class="flex items-center space-x-2 shrink-0">
+                  <div class="text-right">
+                    <div class="font-bold text-xs font-mono text-zinc-900">{{ activeProfile.currency }}{{ buyer.totalAmount.toLocaleString() }}</div>
+                    <span class="inline-block px-1.5 py-0.2 rounded text-[9px] font-mono font-bold"
+                      :class="buyer.balance > 0 ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'">
+                      {{ buyer.balance > 0 ? ('DUE ' + activeProfile.currency + buyer.balance) : 'PAID' }}
+                    </span>
+                  </div>
+                  <button 
+                    @click="openInvoiceModal(buyer)" 
+                    type="button" 
+                    title="View invoice"
+                    class="p-1 rounded hover:bg-zinc-200 text-zinc-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECENT LIVE MINES FEED -->
+          <div class="bg-white border border-zinc-200 rounded-xl p-4 shadow-xs space-y-3">
+            <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
+              <div class="flex items-center space-x-2">
+                <span class="font-bold text-xs text-zinc-900 uppercase tracking-wider">Recent Live Activity</span>
+                <span class="text-[10px] font-mono text-zinc-400">({{ recentMines.length }} items)</span>
+              </div>
+              <button @click="currentTab = 'mined_items'" class="text-[11px] font-semibold text-zinc-700 hover:text-zinc-900 flex items-center space-x-0.5">
+                <span>View all</span>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+              </button>
+            </div>
+
+            <!-- Empty state -->
+            <div v-if="recentMines.length === 0" class="py-8 text-center space-y-2">
+              <p class="text-xs text-zinc-400">Ready to start streaming? Click below to log your first mine!</p>
+              <button @click="goToMining" class="px-3 py-1.5 rounded-lg bg-zinc-900 text-white text-xs font-semibold hover:bg-black">
+                Start Mining
+              </button>
+            </div>
+
+            <!-- Recent list -->
+            <div v-else class="space-y-2">
+              <div 
+                v-for="mine in recentMines.slice(0, 5)" 
+                :key="mine.id"
+                class="flex items-center justify-between p-2.5 rounded-lg border border-zinc-100 bg-zinc-50/40 hover:bg-zinc-50 transition-colors">
+                <div class="flex items-center space-x-2.5 min-w-0">
+                  <span class="px-2 py-0.5 rounded bg-zinc-900 text-white font-mono font-bold text-xs shrink-0">
+                    {{ mine.tag }}
+                  </span>
+                  <div class="min-w-0">
+                    <div class="flex items-center space-x-1.5">
+                      <span class="font-bold text-xs text-zinc-900 font-mono truncate">{{ mine.buyer }}</span>
+                      <span class="text-[10px] font-mono text-zinc-400">• {{ mine.controlCode }}</span>
+                    </div>
+                    <div class="text-[10px] text-zinc-500">
+                      {{ mine.description || 'Decor' }} • {{ mine.time }}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="flex items-center space-x-2 shrink-0">
+                  <span class="font-mono font-bold text-xs text-zinc-900">
+                    {{ activeProfile.currency }}{{ mine.price.toLocaleString() }}
+                  </span>
+                  <button 
+                    @click="triggerStickerPrint(mine)" 
+                    type="button" 
+                    title="Print sticker label"
+                    class="p-1 rounded hover:bg-zinc-200 text-zinc-600 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. Multi-Business Profiles Hub Section -->
+        <div class="bg-white border border-zinc-200 rounded-xl p-4 shadow-xs space-y-3">
+          <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
+            <div>
+              <h3 class="font-bold text-xs text-zinc-900 uppercase tracking-wider">My Business Profiles</h3>
+              <p class="text-[11px] text-zinc-500">Separate sessions, inventory, and customer tabs for each of your businesses</p>
+            </div>
+            <button 
+              @click="openAddProfileModal" 
+              type="button"
+              class="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-semibold flex items-center space-x-1 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+              <span>Add Shop</span>
+            </button>
+          </div>
+
+          <!-- Cards Grid for All Configured Profiles -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div 
+              v-for="profile in profilesOverview" 
+              :key="profile.id"
+              class="p-3.5 rounded-xl border transition-all relative flex flex-col justify-between"
+              :class="profile.isActive ? 'bg-zinc-50 border-zinc-900 ring-1 ring-zinc-900' : 'bg-white border-zinc-200 hover:border-zinc-300'">
+              
+              <div>
+                <div class="flex items-start justify-between">
+                  <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 rounded-full shrink-0" :class="getProfileDotClass(profile.color)"></span>
+                    <h4 class="font-bold text-xs text-zinc-900 truncate">{{ profile.name }}</h4>
+                  </div>
+                  <span v-if="profile.isActive" class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-zinc-900 text-white shrink-0">
+                    Active
+                  </span>
+                </div>
+                
+                <div class="mt-2 flex items-center space-x-1.5 flex-wrap">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-medium border" :class="getProfileBadgeClass(profile.color)">
+                    {{ profile.category }}
+                  </span>
+                  <span class="text-[10px] font-mono text-zinc-500">
+                    {{ profile.currency }}
+                  </span>
+                </div>
+
+                <div class="mt-3 grid grid-cols-2 gap-2 text-[11px] font-mono pt-2 border-t border-zinc-100">
+                  <div>
+                    <span class="text-zinc-400 block text-[10px]">ITEMS</span>
+                    <span class="font-bold text-zinc-800">{{ profile.minesCount }} pcs</span>
+                  </div>
+                  <div>
+                    <span class="text-zinc-400 block text-[10px]">TOTAL SALES</span>
+                    <span class="font-bold text-zinc-800">{{ profile.currency }}{{ profile.totalSales.toLocaleString() }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-3.5 pt-2 border-t border-zinc-100 flex items-center space-x-1.5">
+                <button 
+                  v-if="!profile.isActive"
+                  @click="switchProfile(profile.id)"
+                  type="button"
+                  class="flex-1 py-1.5 px-2 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-semibold transition-colors text-center">
+                  Switch to Shop
+                </button>
+                <div v-else class="flex-1 py-1.5 text-xs font-bold text-emerald-700 flex items-center justify-center space-x-1">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Currently Active</span>
+                </div>
+
+                <button 
+                  @click="openEditProfileModal(profile)"
+                  type="button"
+                  title="Edit business details"
+                  class="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200 transition-colors">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Add Profile Card CTA -->
+            <button 
+              @click="openAddProfileModal"
+              type="button"
+              class="p-4 rounded-xl border-2 border-dashed border-zinc-200 hover:border-zinc-400 bg-zinc-50/50 hover:bg-zinc-50 transition-colors flex flex-col items-center justify-center text-center space-y-2 min-h-[140px]">
+              <div class="w-8 h-8 rounded-full bg-zinc-200 text-zinc-600 flex items-center justify-center">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+              </div>
+              <div>
+                <span class="text-xs font-bold text-zinc-800 block">Add New Business</span>
+                <span class="text-[10px] text-zinc-500 block">E.g. Vintage clothes, Crystals, Toys</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+      </div>
 
       <!-- =============================================================== -->
       <!-- SCREEN 1: LIVE MINING (HIGH SPEED DATA ENTRY)                    -->
@@ -315,11 +814,16 @@
                 Item Tag / Code <span class="text-zinc-400">*</span>
               </label>
               <!-- Quick prefix helpers -->
-              <div class="flex items-center space-x-1 text-[11px]">
-                <button type="button" @click="quickPrefix('A')" class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 font-mono font-medium">A</button>
-                <button type="button" @click="quickPrefix('B')" class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 font-mono font-medium">B</button>
-                <button type="button" @click="quickPrefix('C')" class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 font-mono font-medium">C</button>
-                <button type="button" @click="incrementTagNumber" class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 font-mono font-bold">+1</button>
+              <div class="flex items-center space-x-1 text-[11px] overflow-x-auto py-0.5">
+                <button 
+                  v-for="pfx in activeProfile.quickPrefixes" 
+                  :key="pfx"
+                  type="button" 
+                  @click="quickPrefix(pfx)" 
+                  class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 font-mono font-medium shrink-0">
+                  {{ pfx }}
+                </button>
+                <button type="button" @click="incrementTagNumber" class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 font-mono font-bold shrink-0">+1</button>
               </div>
             </div>
             <input 
@@ -340,7 +844,7 @@
               <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">
                 Description / Category
               </label>
-              <span class="text-[11px] text-zinc-400">Notion column</span>
+              <span class="text-[11px] text-zinc-400">Category</span>
             </div>
             <input 
               v-model="form.description" 
@@ -349,10 +853,10 @@
               placeholder="e.g. Decor, Dress, Top, Pants..." 
               class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl px-4 py-2.5 text-sm font-semibold text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors"
             />
-            <!-- Quick Description Presets matching Notion setup -->
+            <!-- Quick Description Presets matching active business profile -->
             <div class="flex flex-wrap gap-1 mt-1.5">
               <button 
-                v-for="desc in ['Decor', 'Top', 'Dress', 'Pants', 'Bag', 'Accessories', 'General']" 
+                v-for="desc in activeProfile.defaultCategories" 
                 :key="desc"
                 type="button"
                 @click="form.description = desc; focusPriceInput()"
@@ -365,13 +869,13 @@
             </div>
           </div>
 
-          <!-- INPUT 3: Price (₱) -->
+          <!-- INPUT 3: Price (Active Profile Currency) -->
           <div>
             <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">
-              Price (₱) <span class="text-zinc-400">*</span>
+              Price ({{ activeProfile.currency }}) <span class="text-zinc-400">*</span>
             </label>
             <div class="relative">
-              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-zinc-400 font-mono">₱</span>
+              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
               <input 
                 ref="priceInputRef"
                 v-model="form.price" 
@@ -383,7 +887,7 @@
               />
             </div>
 
-            <!-- Quick Price Presets Row (including ₱20 from Notion and common prices) -->
+            <!-- Quick Price Presets Row -->
             <div class="grid grid-cols-5 sm:grid-cols-10 gap-1.5 mt-2">
               <button 
                 v-for="p in [20, 50, 100, 150, 200, 250, 300, 350, 500, 785]" 
@@ -392,7 +896,7 @@
                 @click="form.price = p; focusBuyerInput()"
                 class="py-1.5 px-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 border border-zinc-200 text-xs font-mono font-semibold text-zinc-800 transition-colors text-center"
                 :class="Number(form.price) === p ? 'border-zinc-900 bg-zinc-900 text-white' : ''">
-                ₱{{ p }}
+                {{ activeProfile.currency }}{{ p }}
               </button>
             </div>
           </div>
@@ -440,7 +944,7 @@
                 class="w-full text-left px-3.5 py-2.5 hover:bg-zinc-50 active:bg-zinc-100 flex items-center justify-between text-zinc-800 text-sm transition-colors">
                 <span class="font-bold font-mono text-zinc-900">{{ b.handle }}</span>
                 <span class="text-xs text-zinc-500 font-mono">
-                  {{ b.itemCount }} pcs • ₱{{ b.totalSpent.toLocaleString() }}
+                  {{ b.itemCount }} pcs • {{ activeProfile.currency }}{{ b.totalSpent.toLocaleString() }}
                 </span>
               </button>
             </div>
@@ -520,7 +1024,7 @@
                       Tag: {{ mine.tag }}
                     </span>
                     <span class="text-sm font-bold text-zinc-900 font-mono">
-                      ₱{{ mine.price.toLocaleString() }}
+                      {{ activeProfile.currency }}{{ mine.price.toLocaleString() }}
                     </span>
                   </div>
                 </div>
@@ -570,15 +1074,15 @@
         <div class="grid grid-cols-3 gap-2 bg-white border border-zinc-200 rounded-xl p-3 shadow-xs text-center">
           <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
             <div class="text-[10px] text-zinc-500 font-semibold uppercase">Total Mined</div>
-            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">₱{{ sessionStats.totalSales.toLocaleString() }}</div>
+            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</div>
           </div>
           <div class="p-2 rounded-lg bg-emerald-50/60 border border-emerald-100">
             <div class="text-[10px] text-emerald-800 font-semibold uppercase">Total Paid</div>
-            <div class="text-sm font-bold font-mono text-emerald-700 mt-0.5">₱{{ sessionStats.totalPayments.toLocaleString() }}</div>
+            <div class="text-sm font-bold font-mono text-emerald-700 mt-0.5">{{ activeProfile.currency }}{{ sessionStats.totalPayments.toLocaleString() }}</div>
           </div>
           <div class="p-2 rounded-lg bg-amber-50/60 border border-amber-100">
             <div class="text-[10px] text-amber-800 font-semibold uppercase">Remaining Due</div>
-            <div class="text-sm font-bold font-mono text-amber-700 mt-0.5">₱{{ sessionStats.totalBalance.toLocaleString() }}</div>
+            <div class="text-sm font-bold font-mono text-amber-700 mt-0.5">{{ activeProfile.currency }}{{ sessionStats.totalBalance.toLocaleString() }}</div>
           </div>
         </div>
 
@@ -710,12 +1214,12 @@
 
                   <!-- 3. Total Amount -->
                   <td class="py-2.5 px-3 whitespace-nowrap text-right font-bold text-zinc-900 font-mono">
-                    ₱{{ b.totalAmount.toFixed(2) }}
+                    {{ activeProfile.currency }}{{ b.totalAmount.toFixed(2) }}
                   </td>
 
                   <!-- 4. Payment Amount -->
                   <td class="py-2.5 px-3 whitespace-nowrap text-right font-bold text-emerald-700 font-mono">
-                    ₱{{ b.totalPaid.toFixed(2) }}
+                    {{ activeProfile.currency }}{{ b.totalPaid.toFixed(2) }}
                   </td>
 
                   <!-- 5. Payment Date -->
@@ -725,7 +1229,7 @@
 
                   <!-- 6. Balance -->
                   <td class="py-2.5 px-3 whitespace-nowrap text-right font-bold font-mono" :class="getBalanceColorClass(b.balance)">
-                    ₱{{ Math.abs(b.balance).toFixed(2) }}
+                    {{ activeProfile.currency }}{{ Math.abs(b.balance).toFixed(2) }}
                   </td>
 
                   <!-- 7. Status Badge -->
@@ -818,16 +1322,16 @@
             <div class="bg-zinc-50 rounded-lg p-2 border border-zinc-200/80 grid grid-cols-3 gap-2 text-center text-xs font-mono">
               <div>
                 <span class="text-[10px] text-zinc-500 block uppercase">Total Mined</span>
-                <span class="font-bold text-zinc-800">₱{{ b.totalAmount.toLocaleString() }}</span>
+                <span class="font-bold text-zinc-800">{{ activeProfile.currency }}{{ b.totalAmount.toLocaleString() }}</span>
               </div>
               <div>
                 <span class="text-[10px] text-zinc-500 block uppercase">Total Paid</span>
-                <span class="font-bold text-emerald-700">₱{{ b.totalPaid.toLocaleString() }}</span>
+                <span class="font-bold text-emerald-700">{{ activeProfile.currency }}{{ b.totalPaid.toLocaleString() }}</span>
               </div>
               <div>
                 <span class="text-[10px] text-zinc-500 block uppercase">Balance Due</span>
                 <span class="font-bold" :class="getBalanceColorClass(b.balance)">
-                  ₱{{ Math.abs(b.balance).toLocaleString() }}
+                  {{ activeProfile.currency }}{{ Math.abs(b.balance).toLocaleString() }}
                 </span>
               </div>
             </div>
@@ -842,7 +1346,7 @@
                   class="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-xs font-mono text-zinc-800">
                   <span class="font-bold">{{ it.tag }}</span>
                   <span class="text-zinc-500">({{ it.description || 'Decor' }})</span>
-                  <span class="font-semibold">₱{{ it.price }}</span>
+                  <span class="font-semibold">{{ activeProfile.currency }}{{ it.price }}</span>
                 </span>
               </div>
             </div>
@@ -887,7 +1391,7 @@
           </div>
           <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
             <div class="text-[10px] text-zinc-500 font-semibold uppercase">Gross Value</div>
-            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">₱{{ sessionStats.totalSales.toLocaleString() }}</div>
+            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</div>
           </div>
           <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
             <div class="text-[10px] text-zinc-500 font-semibold uppercase">Active Customers</div>
@@ -986,7 +1490,7 @@
 
                   <!-- 5. Amount (e.g. ₱20.00) -->
                   <td class="py-2.5 px-3 whitespace-nowrap text-right font-bold text-zinc-900">
-                    ₱{{ item.price.toFixed(2) }}
+                    {{ activeProfile.currency }}{{ item.price.toFixed(2) }}
                   </td>
 
                   <!-- 6. Tag (e.g. B02) -->
@@ -1035,6 +1539,225 @@
     </main>
 
     <!-- =============================================================== -->
+    <!-- MODAL 0A: BUSINESS PROFILE SWITCHER MODAL                       -->
+    <!-- =============================================================== -->
+    <div v-if="profileModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-fadeIn">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-lg w-full p-4 sm:p-5 shadow-xl space-y-4 max-h-[90vh] flex flex-col">
+        
+        <div class="flex items-center justify-between border-b border-zinc-100 pb-3">
+          <div>
+            <h3 class="font-bold text-base text-zinc-900">Switch Business Profile</h3>
+            <p class="text-xs text-zinc-500 mt-0.5">Select a business to switch inventory, customer tabs, and receipts</p>
+          </div>
+          <button @click="closeProfileModal" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+        </div>
+
+        <div class="overflow-y-auto space-y-2.5 flex-1 pr-1">
+          <div 
+            v-for="prof in profilesOverview" 
+            :key="prof.id"
+            @click="switchProfile(prof.id)"
+            class="p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between"
+            :class="prof.isActive ? 'bg-zinc-50 border-zinc-900 ring-1 ring-zinc-900 shadow-xs' : 'bg-white border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50/50'">
+            <div class="flex items-center space-x-3 min-w-0">
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-base shrink-0 shadow-xs" :class="getProfileDotClass(prof.color)">
+                {{ prof.name.charAt(0) }}
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center space-x-2">
+                  <h4 class="font-bold text-sm text-zinc-900 truncate">{{ prof.name }}</h4>
+                  <span v-if="prof.isActive" class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-zinc-900 text-white shrink-0">Active</span>
+                </div>
+                <div class="flex items-center space-x-2 text-xs text-zinc-500 mt-0.5 font-mono">
+                  <span>{{ prof.category }}</span>
+                  <span>•</span>
+                  <span>{{ prof.minesCount }} items</span>
+                  <span>•</span>
+                  <span>{{ prof.currency }}{{ prof.totalSales.toLocaleString() }} sales</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex items-center space-x-2 shrink-0 ml-2" @click.stop>
+              <button 
+                v-if="!prof.isActive"
+                @click="switchProfile(prof.id)"
+                type="button"
+                class="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-semibold transition-colors">
+                Select
+              </button>
+              <button 
+                @click="openEditProfileModal(prof)"
+                type="button"
+                title="Edit shop details"
+                class="p-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 border border-zinc-200 transition-colors">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t border-zinc-100 flex items-center justify-between gap-2">
+          <button 
+            @click="openAddProfileModal"
+            type="button"
+            class="px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-semibold flex items-center space-x-1.5 border border-zinc-200 transition-colors">
+            <svg class="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            <span>Add New Business Profile</span>
+          </button>
+          <button 
+            @click="closeProfileModal"
+            type="button"
+            class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors">
+            Done
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 0B: ADD / EDIT BUSINESS PROFILE MODAL                     -->
+    <!-- =============================================================== -->
+    <div v-if="profileEditModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-fadeIn">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full p-4 sm:p-5 shadow-xl space-y-4 max-h-[92vh] flex flex-col">
+        
+        <div class="flex items-center justify-between border-b border-zinc-100 pb-3">
+          <div>
+            <h3 class="font-bold text-base text-zinc-900">
+              {{ editingProfileForm.isNew ? 'New Business Profile' : 'Edit Business Profile' }}
+            </h3>
+            <p class="text-xs text-zinc-500 mt-0.5">Customize shop name, currency, categories & payment instructions</p>
+          </div>
+          <button @click="profileEditModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+        </div>
+
+        <form @submit.prevent="saveProfile" class="overflow-y-auto space-y-3.5 flex-1 pr-1 text-xs">
+          
+          <!-- Store / Business Name -->
+          <div>
+            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Business Name *</label>
+            <input 
+              v-model="editingProfileForm.name"
+              type="text" 
+              placeholder="e.g., LiveStyle Boutique PH"
+              required
+              class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-sm text-zinc-900 font-medium focus:outline-none"
+            />
+          </div>
+
+          <!-- Business Category & Currency -->
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Industry / Category</label>
+              <input 
+                v-model="editingProfileForm.category"
+                type="text" 
+                placeholder="e.g. Apparel, Crystals, Toys"
+                class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-900 font-medium focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Currency Symbol</label>
+              <input 
+                v-model="editingProfileForm.currency"
+                type="text" 
+                placeholder="e.g. ₱, $, €, ¥"
+                maxlength="4"
+                class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-900 font-mono font-bold focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <!-- Color Accent -->
+          <div>
+            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1.5">Color Accent</label>
+            <div class="flex items-center space-x-2">
+              <button 
+                v-for="col in ['emerald', 'blue', 'purple', 'amber', 'rose', 'indigo']" 
+                :key="col"
+                type="button"
+                @click="editingProfileForm.color = col"
+                class="w-7 h-7 rounded-full transition-transform flex items-center justify-center"
+                :class="[getProfileDotClass(col), editingProfileForm.color === col ? 'ring-2 ring-offset-2 ring-zinc-900 scale-110' : 'opacity-80 hover:opacity-100']">
+                <span v-if="editingProfileForm.color === col" class="text-white text-[10px] font-bold">✓</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Tag Prefixes -->
+          <div>
+            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">
+              Quick Tag Prefixes (comma separated)
+            </label>
+            <input 
+              v-model="editingProfileForm.quickPrefixesText"
+              type="text" 
+              placeholder="e.g. A, B, C, D, VIP"
+              class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-900 font-mono font-medium focus:outline-none"
+            />
+            <p class="text-[10px] text-zinc-400 mt-0.5 font-mono">Generates speed mining prefix buttons (e.g. A -> A01)</p>
+          </div>
+
+          <!-- Default Categories -->
+          <div>
+            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">
+              Default Categories / Descriptions (comma separated)
+            </label>
+            <input 
+              v-model="editingProfileForm.defaultCategoriesText"
+              type="text" 
+              placeholder="e.g. Tops, Dresses, Bottoms, Jackets"
+              class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-900 font-medium focus:outline-none"
+            />
+          </div>
+
+          <!-- Payment Details / Store Accounts -->
+          <div>
+            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">
+              Payment Instructions (GCash / Maya / Bank)
+            </label>
+            <textarea 
+              v-model="editingProfileForm.paymentDetails"
+              rows="3"
+              placeholder="GCash: 09XX-XXX-XXXX (Store Name)&#10;Maya: 09XX-XXX-XXXX&#10;Bank: Account Name / Number"
+              class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-900 font-mono focus:outline-none leading-relaxed"
+            ></textarea>
+            <p class="text-[10px] text-zinc-400 mt-0.5">Printed on official invoices and appended to Messenger receipts</p>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="pt-2 border-t border-zinc-100 flex items-center justify-between gap-2">
+            <button 
+              v-if="!editingProfileForm.isNew && profiles.length > 1"
+              type="button" 
+              @click="deleteProfile(editingProfileForm.id)"
+              class="px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors">
+              Delete Profile
+            </button>
+            <div v-else></div>
+
+            <div class="flex items-center space-x-2">
+              <button 
+                type="button" 
+                @click="profileEditModalOpen = false"
+                class="px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold transition-colors">
+                Cancel
+              </button>
+              <button 
+                type="submit"
+                class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors shadow-xs">
+                Save Profile
+              </button>
+            </div>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
     <!-- MODAL 1: PAYMENT ENTRY MODAL                                    -->
     <!-- =============================================================== -->
     <div v-if="paymentModalOpen" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-fadeIn">
@@ -1051,23 +1774,23 @@
         <!-- Current Balance Summary -->
         <div class="bg-zinc-50 rounded-lg p-2.5 border border-zinc-200 flex justify-between items-center text-xs font-mono">
           <span class="text-zinc-500">Current Balance:</span>
-          <span class="text-sm font-bold text-amber-700">₱{{ activePaymentBuyer?.balance?.toLocaleString() }}</span>
+          <span class="text-sm font-bold text-amber-700">{{ activeProfile.currency }}{{ activePaymentBuyer?.balance?.toLocaleString() }}</span>
         </div>
 
-        <!-- Amount Paid (₱) -->
+        <!-- Amount Paid -->
         <div>
           <div class="flex justify-between items-center mb-1">
-            <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">Amount Paid (₱) *</label>
+            <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">Amount Paid ({{ activeProfile.currency }}) *</label>
             <button 
               v-if="activePaymentBuyer && activePaymentBuyer.balance > 0"
               @click="paymentForm.amount = activePaymentBuyer.balance"
               type="button" 
               class="text-[11px] font-medium text-zinc-700 hover:underline">
-              Pay Balance (₱{{ activePaymentBuyer.balance }})
+              Pay Balance ({{ activeProfile.currency }}{{ activePaymentBuyer.balance }})
             </button>
           </div>
           <div class="relative">
-            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-zinc-400 font-mono">₱</span>
+            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
             <input 
               v-model="paymentForm.amount"
               type="number"
@@ -1078,10 +1801,10 @@
 
           <!-- Quick Increment Buttons -->
           <div class="grid grid-cols-4 gap-1.5 mt-2">
-            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 100" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+₱100</button>
-            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 200" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+₱200</button>
-            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 500" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+₱500</button>
-            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 1000" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+₱1,000</button>
+            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 100" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}100</button>
+            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 200" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}200</button>
+            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 500" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}500</button>
+            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 1000" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}1k</button>
           </div>
         </div>
 
@@ -1299,8 +2022,8 @@
           <!-- Invoice Header -->
           <div class="border-b border-zinc-200 pb-3 flex items-start justify-between">
             <div>
-              <div class="font-black text-base text-zinc-900 tracking-tight uppercase">{{ settings.storeName }}</div>
-              <div class="text-[11px] text-zinc-500 font-mono mt-0.5">Live Selling POS • Session #{{ sessionDate }}</div>
+              <div class="font-black text-base text-zinc-900 tracking-tight uppercase">{{ activeProfile.name || settings.storeName }}</div>
+              <div class="text-[11px] text-zinc-500 font-mono mt-0.5">{{ activeProfile.category }} • Session #{{ sessionDate }}</div>
             </div>
             <div class="text-right">
               <span 
@@ -1328,7 +2051,7 @@
           <div class="space-y-1.5">
             <div class="flex items-center justify-between font-semibold text-zinc-700 uppercase text-[11px] px-0.5">
               <span>What They Mined ({{ activeInvoiceBuyer.items.length }} Items)</span>
-              <span>Price (PHP)</span>
+              <span>Price ({{ activeProfile.currency }})</span>
             </div>
 
             <div class="border border-zinc-200 rounded-lg overflow-hidden divide-y divide-zinc-200">
@@ -1352,7 +2075,7 @@
                   </div>
                 </div>
                 <div class="flex items-center space-x-2 font-mono">
-                  <span class="font-bold text-sm text-zinc-900">₱{{ item.price.toLocaleString() }}</span>
+                  <span class="font-bold text-sm text-zinc-900">{{ activeProfile.currency }}{{ item.price.toLocaleString() }}</span>
                   <button @click="undoMine(item)" title="Void item" class="text-zinc-300 hover:text-red-600 p-0.5 text-xs">✕</button>
                 </div>
               </div>
@@ -1363,15 +2086,15 @@
           <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-1.5 font-mono text-xs">
             <div class="flex justify-between text-zinc-600">
               <span>Mined Subtotal:</span>
-              <span class="font-bold text-zinc-900">₱{{ activeInvoiceBuyer.totalAmount.toLocaleString() }}</span>
+              <span class="font-bold text-zinc-900">{{ activeProfile.currency }}{{ activeInvoiceBuyer.totalAmount.toLocaleString() }}</span>
             </div>
             <div class="flex justify-between text-emerald-800">
               <span>Total Payments Recorded:</span>
-              <span class="font-bold">₱{{ activeInvoiceBuyer.totalPaid.toLocaleString() }}</span>
+              <span class="font-bold">{{ activeProfile.currency }}{{ activeInvoiceBuyer.totalPaid.toLocaleString() }}</span>
             </div>
             <div class="flex justify-between text-sm font-bold pt-1.5 border-t border-zinc-200" :class="getBalanceColorClass(activeInvoiceBuyer.balance)">
               <span>Net Balance Due:</span>
-              <span>₱{{ Math.abs(activeInvoiceBuyer.balance).toLocaleString() }}</span>
+              <span>{{ activeProfile.currency }}{{ Math.abs(activeInvoiceBuyer.balance).toLocaleString() }}</span>
             </div>
           </div>
 
@@ -1381,15 +2104,15 @@
             <div class="border border-zinc-200 rounded-lg p-2.5 bg-white space-y-1 font-mono text-[11px]">
               <div v-for="p in activeInvoiceBuyer.payments" :key="p.id" class="flex items-center justify-between text-emerald-800">
                 <span>{{ p.method }} <span v-if="p.ref">({{ p.ref }})</span> - {{ p.time }}</span>
-                <span class="font-bold">+₱{{ p.amount.toLocaleString() }}</span>
+                <span class="font-bold">+{{ activeProfile.currency }}{{ p.amount.toLocaleString() }}</span>
               </div>
             </div>
           </div>
 
           <!-- Payment Details / Store Accounts -->
-          <div v-if="settings.paymentDetails" class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-1">
-            <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Payment Details (GCash / Maya / Bank)</div>
-            <div class="font-mono text-[11px] text-zinc-800 whitespace-pre-line leading-relaxed">{{ settings.paymentDetails }}</div>
+          <div v-if="activeProfile.paymentDetails || settings.paymentDetails" class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-1">
+            <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Payment Instructions ({{ activeProfile.name }})</div>
+            <div class="font-mono text-[11px] text-zinc-800 whitespace-pre-line leading-relaxed">{{ activeProfile.paymentDetails || settings.paymentDetails }}</div>
           </div>
 
         </div>
@@ -1457,7 +2180,7 @@
       <!-- Item Code & Price -->
       <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #000; padding-top: 0.8mm; margin-bottom: 0.8mm;">
         <span style="font-size: 10.5pt; font-weight: 900;">Tag: {{ activeStickerToPrint.tag }} <span v-if="activeStickerToPrint.description" style="font-size: 8.5pt; font-weight: 700;">({{ activeStickerToPrint.description }})</span></span>
-        <span style="font-size: 11pt; font-weight: 900;">₱{{ activeStickerToPrint.price }}</span>
+        <span style="font-size: 11pt; font-weight: 900;">{{ activeProfile.currency }}{{ activeStickerToPrint.price }}</span>
       </div>
 
       <!-- Monospace CSS/SVG Barcode Representation -->
@@ -1510,7 +2233,7 @@
     <!-- =============================================================== -->
     <div v-if="activePackingSlipToPrint" class="print-packing-slip">
       <div style="border-bottom: 2px solid #000; padding-bottom: 1mm; text-align: center;">
-        <div style="font-size: 8pt; font-weight: 700; text-transform: uppercase;">{{ settings.storeName }}</div>
+        <div style="font-size: 8pt; font-weight: 700; text-transform: uppercase;">{{ activeProfile.name || settings.storeName }}</div>
         <div style="font-size: 11pt; font-weight: 900; margin-top: 0.5mm;">PARCEL PACKING SLIP</div>
       </div>
 
@@ -1526,11 +2249,11 @@
       <div style="font-size: 8pt; margin-bottom: 2mm;">
         <div style="font-weight: 800; border-bottom: 1px solid #000; display: flex; justify-content: space-between; padding-bottom: 0.5mm; margin-bottom: 1mm;">
           <span>ITEM / TAG</span>
-          <span>PRICE</span>
+          <span>PRICE ({{ activeProfile.currency }})</span>
         </div>
         <div v-for="it in activePackingSlipToPrint.items" :key="it.id" style="display: flex; justify-content: space-between; margin-bottom: 0.8mm;">
           <span>{{ it.controlNum ? '#' + it.controlNum : it.controlCode }} [{{ it.tag }}]<span v-if="it.description"> ({{ it.description }})</span></span>
-          <span style="font-weight: 700;">₱{{ it.price }}</span>
+          <span style="font-weight: 700;">{{ activeProfile.currency }}{{ it.price }}</span>
         </div>
       </div>
 
@@ -1542,15 +2265,15 @@
         </div>
         <div style="display: flex; justify-content: space-between;">
           <span>Subtotal:</span>
-          <span style="font-weight: 900;">₱{{ activePackingSlipToPrint.totalAmount.toLocaleString() }}</span>
+          <span style="font-weight: 900;">{{ activeProfile.currency }}{{ activePackingSlipToPrint.totalAmount.toLocaleString() }}</span>
         </div>
         <div style="display: flex; justify-content: space-between;">
           <span>Paid:</span>
-          <span style="font-weight: 900;">₱{{ activePackingSlipToPrint.totalPaid.toLocaleString() }}</span>
+          <span style="font-weight: 900;">{{ activeProfile.currency }}{{ activePackingSlipToPrint.totalPaid.toLocaleString() }}</span>
         </div>
         <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 900; margin-top: 0.5mm; border-top: 1px dashed #000; padding-top: 0.5mm;">
           <span>Balance Due:</span>
-          <span>₱{{ Math.abs(activePackingSlipToPrint.balance).toLocaleString() }}</span>
+          <span>{{ activeProfile.currency }}{{ Math.abs(activePackingSlipToPrint.balance).toLocaleString() }}</span>
         </div>
       </div>
 
@@ -1565,7 +2288,7 @@
     <!-- =============================================================== -->
     <div v-if="activeInvoiceToPrint" class="print-invoice">
       <div style="border-bottom: 2px solid #000; padding-bottom: 1mm; text-align: center;">
-        <div style="font-size: 8pt; font-weight: 700; text-transform: uppercase;">{{ settings.storeName }}</div>
+        <div style="font-size: 8pt; font-weight: 700; text-transform: uppercase;">{{ activeProfile.name || settings.storeName }}</div>
         <div style="font-size: 11pt; font-weight: 900; margin-top: 0.5mm;">OFFICIAL INVOICE</div>
         <div style="font-size: 7.5pt; font-family: monospace;">#INV-{{ sessionDate }}-{{ activeInvoiceToPrint.handle.replace('@','').toUpperCase() }}</div>
       </div>
@@ -1582,11 +2305,11 @@
       <div style="font-size: 8pt; margin-bottom: 2mm;">
         <div style="font-weight: 800; border-bottom: 1px solid #000; display: flex; justify-content: space-between; padding-bottom: 0.5mm; margin-bottom: 1mm;">
           <span>ITEM / TAG</span>
-          <span>PRICE</span>
+          <span>PRICE ({{ activeProfile.currency }})</span>
         </div>
         <div v-for="it in activeInvoiceToPrint.items" :key="it.id" style="display: flex; justify-content: space-between; margin-bottom: 0.8mm;">
           <span>{{ it.controlNum ? '#' + it.controlNum : it.controlCode }} [{{ it.tag }}]<span v-if="it.description"> ({{ it.description }})</span></span>
-          <span style="font-weight: 700;">₱{{ it.price }}</span>
+          <span style="font-weight: 700;">{{ activeProfile.currency }}{{ it.price }}</span>
         </div>
       </div>
 
@@ -1598,22 +2321,22 @@
         </div>
         <div style="display: flex; justify-content: space-between;">
           <span>Subtotal:</span>
-          <span style="font-weight: 900;">₱{{ activeInvoiceToPrint.totalAmount.toLocaleString() }}</span>
+          <span style="font-weight: 900;">{{ activeProfile.currency }}{{ activeInvoiceToPrint.totalAmount.toLocaleString() }}</span>
         </div>
         <div v-if="activeInvoiceToPrint.totalPaid > 0" style="display: flex; justify-content: space-between;">
           <span>Total Paid:</span>
-          <span style="font-weight: 900;">₱{{ activeInvoiceToPrint.totalPaid.toLocaleString() }}</span>
+          <span style="font-weight: 900;">{{ activeProfile.currency }}{{ activeInvoiceToPrint.totalPaid.toLocaleString() }}</span>
         </div>
         <div style="display: flex; justify-content: space-between; font-size: 9.5pt; font-weight: 900; margin-top: 0.5mm; border-top: 1px dashed #000; padding-top: 0.5mm;">
           <span>Balance Due:</span>
-          <span>₱{{ Math.abs(activeInvoiceToPrint.balance).toLocaleString() }}</span>
+          <span>{{ activeProfile.currency }}{{ Math.abs(activeInvoiceToPrint.balance).toLocaleString() }}</span>
         </div>
       </div>
 
       <!-- Payment Instructions -->
-      <div v-if="settings.paymentDetails" style="margin-top: 2mm; border-top: 1px dashed #000; padding-top: 1mm; font-size: 7pt;">
+      <div v-if="activeProfile.paymentDetails || settings.paymentDetails" style="margin-top: 2mm; border-top: 1px dashed #000; padding-top: 1mm; font-size: 7pt;">
         <div style="font-weight: bold; margin-bottom: 0.5mm;">PAYMENT DETAILS:</div>
-        <div style="white-space: pre-line; line-height: 1.2;">{{ settings.paymentDetails }}</div>
+        <div style="white-space: pre-line; line-height: 1.2;">{{ activeProfile.paymentDetails || settings.paymentDetails }}</div>
       </div>
 
       <div style="margin-top: 2mm; text-align: center; border-top: 1px solid #000; padding-top: 1mm; font-size: 7pt;">
@@ -1630,8 +2353,108 @@
 
     createApp({
       setup() {
-        // App Navigation
-        const currentTab = ref('mining'); // 'mining', 'baskets', 'history'
+        // App Navigation: Default to Home Dashboard
+        const currentTab = ref('dashboard'); // 'dashboard', 'mining', 'balances', 'mined_items'
+
+        // Multi-Business Profiles Definition
+        const defaultProfiles = [
+          {
+            id: 'prof_main',
+            name: 'LiveStyle Boutique PH',
+            category: 'Fashion & Apparel',
+            currency: '₱',
+            color: 'emerald',
+            quickPrefixes: ['A', 'B', 'C', 'D', 'VIP'],
+            defaultCategories: ['Tops', 'Dresses', 'Bottoms', 'Jackets', 'Accessories'],
+            paymentDetails: 'GCash: 0917-123-4567 (LiveStyle PH)\nMaya: 0918-987-6543\nBDO: 0012-3456-7890'
+          },
+          {
+            id: 'prof_crystals',
+            name: 'Aura Crystals & Stones',
+            category: 'Crystals & Minerals',
+            currency: '₱',
+            color: 'purple',
+            quickPrefixes: ['CR', 'RAW', 'BR', 'TUM', 'SPEC'],
+            defaultCategories: ['Raw Cluster', 'Tower/Point', 'Sphere', 'Bracelet', 'Pocket Stone'],
+            paymentDetails: 'GCash: 0917-888-9999 (Aura Crystals)\nMaya: 0918-777-6666\nBPI: 1234-5678-90'
+          },
+          {
+            id: 'prof_collectibles',
+            name: 'Retro Treasures & Toys',
+            category: 'Collectibles & Toys',
+            currency: '₱',
+            color: 'amber',
+            quickPrefixes: ['TOY', 'FIG', 'PLUSH', 'CARD', 'RETRO'],
+            defaultCategories: ['Action Figure', 'Plushie', 'Trading Cards', 'Vinyl Toy', 'Vintage'],
+            paymentDetails: 'GCash: 0919-555-4321 (Retro Toys)\nUnionBank: 1098-7654-3210'
+          }
+        ];
+
+        let initialProfiles = defaultProfiles;
+        try {
+          const savedProfiles = localStorage.getItem('live_pos_profiles');
+          if (savedProfiles) {
+            const parsed = JSON.parse(savedProfiles);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              initialProfiles = parsed;
+            }
+          }
+        } catch (e) {}
+
+        const profiles = ref(initialProfiles);
+        const activeProfileId = ref(localStorage.getItem('live_pos_active_profile_id') || profiles.value[0].id);
+
+        const activeProfile = computed(() => {
+          const found = profiles.value.find(p => p.id === activeProfileId.value);
+          if (found) {
+            return {
+              ...defaultProfiles[0],
+              ...found,
+              currency: found.currency || '₱',
+              quickPrefixes: Array.isArray(found.quickPrefixes) && found.quickPrefixes.length > 0 ? found.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
+              defaultCategories: Array.isArray(found.defaultCategories) && found.defaultCategories.length > 0 ? found.defaultCategories : ['General', 'Decor']
+            };
+          }
+          if (profiles.value.length > 0) {
+            const first = profiles.value[0];
+            return {
+              ...defaultProfiles[0],
+              ...first,
+              currency: first.currency || '₱',
+              quickPrefixes: Array.isArray(first.quickPrefixes) && first.quickPrefixes.length > 0 ? first.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
+              defaultCategories: Array.isArray(first.defaultCategories) && first.defaultCategories.length > 0 ? first.defaultCategories : ['General', 'Decor']
+            };
+          }
+          return defaultProfiles[0];
+        });
+
+        function getProfileDotClass(color) {
+          const map = {
+            emerald: 'bg-emerald-500',
+            blue: 'bg-blue-500',
+            purple: 'bg-purple-500',
+            amber: 'bg-amber-500',
+            rose: 'bg-rose-500',
+            indigo: 'bg-indigo-500',
+            teal: 'bg-teal-500',
+            zinc: 'bg-zinc-600'
+          };
+          return map[color] || 'bg-zinc-800';
+        }
+
+        function getProfileBadgeClass(color) {
+          const map = {
+            emerald: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+            blue: 'bg-blue-50 text-blue-800 border-blue-200',
+            purple: 'bg-purple-50 text-purple-800 border-purple-200',
+            amber: 'bg-amber-50 text-amber-900 border-amber-200',
+            rose: 'bg-rose-50 text-rose-800 border-rose-200',
+            indigo: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+            teal: 'bg-teal-50 text-teal-800 border-teal-200',
+            zinc: 'bg-zinc-100 text-zinc-800 border-zinc-200'
+          };
+          return map[color] || 'bg-zinc-100 text-zinc-800 border-zinc-200';
+        }
 
         // Session Setup (MMDD format, e.g., "0905")
         const now = new Date();
@@ -1639,15 +2462,15 @@
         const dd = String(now.getDate()).padStart(2, '0');
         const defaultSessionDate = `${mm}${dd}`;
 
-        const sessionDate = ref(localStorage.getItem('live_pos_session_date') || defaultSessionDate);
-        const sessionStartTime = ref(localStorage.getItem('live_pos_session_start') || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        const sessionDate = ref(localStorage.getItem('live_pos_session_date_' + activeProfileId.value) || localStorage.getItem('live_pos_session_date') || defaultSessionDate);
+        const sessionStartTime = ref(localStorage.getItem('live_pos_session_start_' + activeProfileId.value) || localStorage.getItem('live_pos_session_start') || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
         // Sequence Counter for Control Code (e.g. 1 -> #0905-001)
-        const sequenceCounter = ref(Number(localStorage.getItem('live_pos_sequence_counter') || 1));
+        const sequenceCounter = ref(Number(localStorage.getItem('live_pos_sequence_counter_' + activeProfileId.value) || localStorage.getItem('live_pos_sequence_counter') || 1));
 
-        // Core Data Stores
-        const allMines = ref(JSON.parse(localStorage.getItem('live_pos_mines') || '[]'));
-        const allPayments = ref(JSON.parse(localStorage.getItem('live_pos_payments') || '[]'));
+        // Core Data Stores (Profile-isolated)
+        const allMines = ref(JSON.parse(localStorage.getItem('live_pos_mines_' + activeProfileId.value) || localStorage.getItem('live_pos_mines') || '[]'));
+        const allPayments = ref(JSON.parse(localStorage.getItem('live_pos_payments_' + activeProfileId.value) || localStorage.getItem('live_pos_payments') || '[]'));
 
         // Settings Store
         const settings = ref(JSON.parse(localStorage.getItem('live_pos_settings') || JSON.stringify({
@@ -2100,10 +2923,283 @@
         });
 
         function getStatusText(balance) {
+          const curr = activeProfile.value.currency || '₱';
           if (balance === 0) return 'SETTLED';
-          if (balance > 0) return `OWING: ₱${balance.toLocaleString()}`;
-          return `CREDIT: ₱${Math.abs(balance).toLocaleString()}`;
+          if (balance > 0) return `OWING: ${curr}${balance.toLocaleString()}`;
+          return `CREDIT: ${curr}${Math.abs(balance).toLocaleString()}`;
         }
+
+        // Multi-Business Profiles Overview (aggregated metrics for Home Dashboard)
+        const profilesOverview = computed(() => {
+          return profiles.value.map(p => {
+            const isActive = p.id === activeProfileId.value;
+            let mines = [];
+            if (isActive) {
+              mines = allMines.value;
+            } else {
+              try {
+                const stored = localStorage.getItem('live_pos_mines_' + p.id);
+                if (stored) mines = JSON.parse(stored);
+              } catch (e) {
+                mines = [];
+              }
+            }
+            const totalSales = mines.reduce((sum, m) => sum + (Number(m.price) || 0), 0);
+            return {
+              ...p,
+              isActive,
+              minesCount: mines.length,
+              totalSales
+            };
+          });
+        });
+
+        // Profile Storage Management
+        function saveProfileData(profId) {
+          if (!profId) return;
+          try {
+            localStorage.setItem('live_pos_mines_' + profId, JSON.stringify(allMines.value));
+            localStorage.setItem('live_pos_payments_' + profId, JSON.stringify(allPayments.value));
+            localStorage.setItem('live_pos_customer_notes_' + profId, JSON.stringify(customerNotes.value));
+            localStorage.setItem('live_pos_sequence_counter_' + profId, String(sequenceCounter.value));
+            localStorage.setItem('live_pos_session_date_' + profId, sessionDate.value);
+            localStorage.setItem('live_pos_session_start_' + profId, sessionStartTime.value);
+
+            // Sync with global keys
+            localStorage.setItem('live_pos_mines', JSON.stringify(allMines.value));
+            localStorage.setItem('live_pos_payments', JSON.stringify(allPayments.value));
+            localStorage.setItem('live_pos_customer_notes', JSON.stringify(customerNotes.value));
+            localStorage.setItem('live_pos_sequence_counter', String(sequenceCounter.value));
+            localStorage.setItem('live_pos_session_date', sessionDate.value);
+            localStorage.setItem('live_pos_session_start', sessionStartTime.value);
+            localStorage.setItem('live_pos_profiles', JSON.stringify(profiles.value));
+            localStorage.setItem('live_pos_active_profile_id', activeProfileId.value);
+          } catch (e) {
+            console.error('Error saving profile data:', e);
+          }
+        }
+
+        function loadProfileData(profId) {
+          try {
+            const storedMines = localStorage.getItem('live_pos_mines_' + profId);
+            if (storedMines) {
+              allMines.value = JSON.parse(storedMines);
+            } else if (profId === 'prof_main') {
+              const legacyMines = localStorage.getItem('live_pos_mines');
+              allMines.value = legacyMines ? JSON.parse(legacyMines) : [];
+            } else {
+              allMines.value = [];
+            }
+
+            const storedPayments = localStorage.getItem('live_pos_payments_' + profId);
+            if (storedPayments) {
+              allPayments.value = JSON.parse(storedPayments);
+            } else if (profId === 'prof_main') {
+              const legacyPayments = localStorage.getItem('live_pos_payments');
+              allPayments.value = legacyPayments ? JSON.parse(legacyPayments) : [];
+            } else {
+              allPayments.value = [];
+            }
+
+            const storedNotes = localStorage.getItem('live_pos_customer_notes_' + profId);
+            if (storedNotes) {
+              customerNotes.value = JSON.parse(storedNotes);
+            } else if (profId === 'prof_main') {
+              const legacyNotes = localStorage.getItem('live_pos_customer_notes');
+              customerNotes.value = legacyNotes ? JSON.parse(legacyNotes) : {};
+            } else {
+              customerNotes.value = {};
+            }
+
+            const storedSeq = localStorage.getItem('live_pos_sequence_counter_' + profId);
+            if (storedSeq) {
+              sequenceCounter.value = Number(storedSeq);
+            } else if (profId === 'prof_main') {
+              const legacySeq = localStorage.getItem('live_pos_sequence_counter');
+              sequenceCounter.value = legacySeq ? Number(legacySeq) : 1;
+            } else {
+              sequenceCounter.value = 1;
+            }
+
+            const storedDate = localStorage.getItem('live_pos_session_date_' + profId);
+            if (storedDate) {
+              sessionDate.value = storedDate;
+            } else if (profId === 'prof_main') {
+              sessionDate.value = localStorage.getItem('live_pos_session_date') || defaultSessionDate;
+            } else {
+              sessionDate.value = defaultSessionDate;
+            }
+
+            const storedStart = localStorage.getItem('live_pos_session_start_' + profId);
+            if (storedStart) {
+              sessionStartTime.value = storedStart;
+            } else if (profId === 'prof_main') {
+              sessionStartTime.value = localStorage.getItem('live_pos_session_start') || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else {
+              sessionStartTime.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+          } catch (e) {
+            console.error('Error loading profile data:', e);
+          }
+        }
+
+        function switchProfile(id) {
+          if (id === activeProfileId.value) return;
+          saveProfileData(activeProfileId.value);
+          activeProfileId.value = id;
+          localStorage.setItem('live_pos_active_profile_id', id);
+          loadProfileData(id);
+          profileModalOpen.value = false;
+          showToast(`Switched to business: ${activeProfile.value.name}`);
+        }
+
+        // Profile Modals & Form
+        const profileModalOpen = ref(false);
+        const profileEditModalOpen = ref(false);
+
+        const editingProfileForm = reactive({
+          id: '',
+          isNew: false,
+          name: '',
+          category: '',
+          currency: '₱',
+          color: 'emerald',
+          quickPrefixesText: '',
+          defaultCategoriesText: '',
+          paymentDetails: ''
+        });
+
+        function openProfileModal() {
+          profileModalOpen.value = true;
+        }
+
+        function closeProfileModal() {
+          profileModalOpen.value = false;
+        }
+
+        function openAddProfileModal() {
+          profileModalOpen.value = false;
+          editingProfileForm.isNew = true;
+          editingProfileForm.id = 'prof_' + Date.now();
+          editingProfileForm.name = '';
+          editingProfileForm.category = 'General Retail';
+          editingProfileForm.currency = activeProfile.value.currency || '₱';
+          editingProfileForm.color = 'blue';
+          editingProfileForm.quickPrefixesText = 'A, B, C, D, VIP';
+          editingProfileForm.defaultCategoriesText = 'Tops, Dresses, Bottoms, Jackets, Accessories';
+          editingProfileForm.paymentDetails = 'GCash: 09XX-XXX-XXXX\nMaya: 09XX-XXX-XXXX';
+          profileEditModalOpen.value = true;
+        }
+
+        function openEditProfileModal(p) {
+          profileModalOpen.value = false;
+          editingProfileForm.isNew = false;
+          editingProfileForm.id = p.id;
+          editingProfileForm.name = p.name;
+          editingProfileForm.category = p.category || 'Retail';
+          editingProfileForm.currency = p.currency || '₱';
+          editingProfileForm.color = p.color || 'emerald';
+          editingProfileForm.quickPrefixesText = (p.quickPrefixes || []).join(', ');
+          editingProfileForm.defaultCategoriesText = (p.defaultCategories || []).join(', ');
+          editingProfileForm.paymentDetails = p.paymentDetails || '';
+          profileEditModalOpen.value = true;
+        }
+
+        function saveProfile() {
+          const name = editingProfileForm.name.trim();
+          if (!name) {
+            showToast('Please enter a business name');
+            return;
+          }
+          const prefixes = editingProfileForm.quickPrefixesText
+            .split(',')
+            .map(s => s.trim().toUpperCase())
+            .filter(Boolean);
+          const categories = editingProfileForm.defaultCategoriesText
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+          const profileData = {
+            id: editingProfileForm.id,
+            name: name,
+            category: editingProfileForm.category.trim() || 'Retail',
+            currency: editingProfileForm.currency.trim() || '₱',
+            color: editingProfileForm.color || 'emerald',
+            quickPrefixes: prefixes.length ? prefixes : ['A', 'B', 'C'],
+            defaultCategories: categories.length ? categories : ['General'],
+            paymentDetails: editingProfileForm.paymentDetails.trim()
+          };
+
+          if (editingProfileForm.isNew) {
+            profiles.value.push(profileData);
+            saveAll();
+            switchProfile(profileData.id);
+            showToast(`Created new business: ${name}`);
+          } else {
+            const idx = profiles.value.findIndex(p => p.id === profileData.id);
+            if (idx !== -1) {
+              profiles.value[idx] = profileData;
+            }
+            saveAll();
+            showToast(`Updated business: ${name}`);
+          }
+          profileEditModalOpen.value = false;
+        }
+
+        function deleteProfile(id) {
+          if (profiles.value.length <= 1) {
+            showToast('You must keep at least one business profile.');
+            return;
+          }
+          const target = profiles.value.find(p => p.id === id);
+          if (!confirm(`Delete profile "${target?.name}"? All logs for this business will be removed.`)) {
+            return;
+          }
+
+          localStorage.removeItem('live_pos_mines_' + id);
+          localStorage.removeItem('live_pos_payments_' + id);
+          localStorage.removeItem('live_pos_customer_notes_' + id);
+          localStorage.removeItem('live_pos_sequence_counter_' + id);
+          localStorage.removeItem('live_pos_session_date_' + id);
+          localStorage.removeItem('live_pos_session_start_' + id);
+
+          profiles.value = profiles.value.filter(p => p.id !== id);
+
+          if (activeProfileId.value === id) {
+            activeProfileId.value = profiles.value[0].id;
+            localStorage.setItem('live_pos_active_profile_id', activeProfileId.value);
+            loadProfileData(activeProfileId.value);
+          }
+          saveAll();
+          profileEditModalOpen.value = false;
+          showToast('Business profile removed');
+        }
+
+        // Dashboard specific helpers
+        function goToMining() {
+          currentTab.value = 'mining';
+          nextTick(() => {
+            if (tagInputRef.value) tagInputRef.value.focus();
+          });
+        }
+
+        function printLastMinedSticker() {
+          if (allMines.value.length === 0) {
+            showToast('No mined items yet to reprint');
+            return;
+          }
+          triggerStickerPrint(allMines.value[allMines.value.length - 1]);
+        }
+
+        const topBuyersList = computed(() => {
+          return [...buyerBasketsList.value].sort((a, b) => b.totalAmount - a.totalAmount || b.items.length - a.items.length);
+        });
+
+        const avgMinePrice = computed(() => {
+          if (allMines.value.length === 0) return 0;
+          return Math.round(sessionStats.value.totalSales / allMines.value.length);
+        });
 
         function getStatusBadgeClass(balance) {
           if (balance === 0) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -2173,28 +3269,28 @@
           lines.push(`LIVE SALE INVOICE & RECEIPT`);
           lines.push(`----------------------------------------`);
           lines.push(`Customer: ${buyer.handle}`);
-          lines.push(`Date: ${sessionDate.value} | ${settings.value.storeName}`);
+          lines.push(`Date: ${sessionDate.value} | ${activeProfile.value.name || settings.value.storeName}`);
           lines.push(`----------------------------------------`);
           lines.push(`MINED ITEMS (${buyer.items.length} pcs):`);
           buyer.items.forEach((item, i) => {
             const desc = item.description ? ` (${item.description})` : '';
-            lines.push(`  ${i + 1}. ${item.controlCode} • Tag: ${item.tag}${desc} - PHP ${item.price.toLocaleString()}`);
+            lines.push(`  ${i + 1}. ${item.controlCode} • Tag: ${item.tag}${desc} - ${activeProfile.value.currency}${item.price.toLocaleString()}`);
           });
           lines.push(`----------------------------------------`);
-          lines.push(`Subtotal: PHP ${buyer.totalAmount.toLocaleString()}`);
+          lines.push(`Subtotal: ${activeProfile.value.currency}${buyer.totalAmount.toLocaleString()}`);
           if (buyer.totalPaid > 0) {
-            lines.push(`Payments Made: PHP ${buyer.totalPaid.toLocaleString()}`);
+            lines.push(`Payments Made: ${activeProfile.value.currency}${buyer.totalPaid.toLocaleString()}`);
           }
           if (buyer.balance > 0) {
-            lines.push(`REMAINING BALANCE: PHP ${buyer.balance.toLocaleString()} (OWING)`);
+            lines.push(`REMAINING BALANCE: ${activeProfile.value.currency}${buyer.balance.toLocaleString()} (OWING)`);
           } else if (buyer.balance < 0) {
-            lines.push(`ACCOUNT CREDIT: PHP ${Math.abs(buyer.balance).toLocaleString()}`);
+            lines.push(`ACCOUNT CREDIT: ${activeProfile.value.currency}${Math.abs(buyer.balance).toLocaleString()}`);
           } else {
             lines.push(`STATUS: FULLY SETTLED / PAID`);
           }
           lines.push(`----------------------------------------`);
           lines.push(`PAYMENT ACCOUNTS:`);
-          lines.push(settings.value.paymentDetails);
+          lines.push(activeProfile.value.paymentDetails || settings.value.paymentDetails);
           lines.push(`\nPlease send payment screenshot to confirm your parcel.`);
           lines.push(`Thank you!`);
 
@@ -2447,6 +3543,8 @@
             appName: 'Live Mining Web POS',
             version: '1.0',
             exportedAt: new Date().toISOString(),
+            profiles: profiles.value,
+            activeProfileId: activeProfileId.value,
             sessionDate: sessionDate.value,
             sequenceCounter: sequenceCounter.value,
             sessionStartTime: sessionStartTime.value,
@@ -2473,6 +3571,12 @@
           reader.onload = (e) => {
             try {
               const data = JSON.parse(e.target.result);
+              if (Array.isArray(data.profiles) && data.profiles.length > 0) {
+                profiles.value = data.profiles;
+              }
+              if (data.activeProfileId) {
+                activeProfileId.value = data.activeProfileId;
+              }
               if (Array.isArray(data.allMines)) {
                 allMines.value = data.allMines;
               }
@@ -2504,12 +3608,9 @@
 
         // Persistence in LocalStorage
         function saveAll() {
-          localStorage.setItem('live_pos_mines', JSON.stringify(allMines.value));
-          localStorage.setItem('live_pos_payments', JSON.stringify(allPayments.value));
-          localStorage.setItem('live_pos_customer_notes', JSON.stringify(customerNotes.value));
-          localStorage.setItem('live_pos_sequence_counter', String(sequenceCounter.value));
-          localStorage.setItem('live_pos_session_date', sessionDate.value);
-          localStorage.setItem('live_pos_session_start', sessionStartTime.value);
+          saveProfileData(activeProfileId.value);
+          localStorage.setItem('live_pos_profiles', JSON.stringify(profiles.value));
+          localStorage.setItem('live_pos_active_profile_id', activeProfileId.value);
           saveSettings();
         }
 
@@ -2527,6 +3628,26 @@
 
         return {
           currentTab,
+          profiles,
+          activeProfileId,
+          activeProfile,
+          getProfileDotClass,
+          getProfileBadgeClass,
+          profilesOverview,
+          switchProfile,
+          profileModalOpen,
+          profileEditModalOpen,
+          editingProfileForm,
+          openProfileModal,
+          closeProfileModal,
+          openAddProfileModal,
+          openEditProfileModal,
+          saveProfile,
+          deleteProfile,
+          goToMining,
+          printLastMinedSticker,
+          topBuyersList,
+          avgMinePrice,
           sessionDate,
           sessionStartTime,
           sequenceCounter,
