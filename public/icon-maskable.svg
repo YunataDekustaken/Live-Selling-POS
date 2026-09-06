@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#18181b"/>
+  <!-- Safe zone inner content -->
+  <rect x="120" y="140" width="272" height="130" rx="20" fill="#ffffff"/>
+  <!-- Barcode lines -->
+  <rect x="145" y="165" width="10" height="80" fill="#18181b"/>
+  <rect x="165" y="165" width="22" height="80" fill="#18181b"/>
+  <rect x="195" y="165" width="8" height="80" fill="#18181b"/>
+  <rect x="212" y="165" width="18" height="80" fill="#18181b"/>
+  <rect x="240" y="165" width="28" height="80" fill="#18181b"/>
+  <rect x="278" y="165" width="10" height="80" fill="#18181b"/>
+  <rect x="298" y="165" width="22" height="80" fill="#18181b"/>
+  <rect x="330" y="165" width="10" height="80" fill="#18181b"/>
+  <rect x="350" y="165" width="12" height="80" fill="#18181b"/>
+  <!-- Text -->
+  <text x="256" y="360" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="64" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="3">LIVE POS</text>
+  <circle cx="390" cy="120" r="14" fill="#10b981"/>
+</svg>
