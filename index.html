@@ -169,119 +169,72 @@
   <div id="app" v-cloak class="flex flex-col min-h-screen max-w-4xl mx-auto relative bg-white border-x border-zinc-200/80 shadow-sm">
     
     <!-- TOP APP HEADER -->
-    <header class="screen-ui sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-zinc-200 px-3 sm:px-4 py-2 flex items-center justify-between">
-      <!-- Store Identity & Profile Switcher on POS Logo -->
-      <div class="flex items-center space-x-2 sm:space-x-3 min-w-0">
-        <!-- Interactive POS Logo Button for Switching Profiles -->
-        <div 
+    <header class="screen-ui sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-zinc-200 px-2.5 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between">
+      <!-- Store Identity, Profile & Session Info (Space-Efficient Multi-Line Flex Container) -->
+      <div class="flex items-center space-x-2 sm:space-x-2.5 min-w-0">
+        <!-- Compact Interactive POS Logo Button for Switching Profiles -->
+        <button 
           @click="openProfileModal" 
-          @keydown.enter="openProfileModal"
-          role="button"
-          tabindex="0"
-          :title="'Current Store: ' + activeProfile.name + ' • Click to switch business profile'"
-          class="group relative flex items-center p-1 -m-1 rounded-xl hover:bg-zinc-100 active:bg-zinc-200 transition-all text-left focus:outline-none focus:ring-2 focus:ring-zinc-900 cursor-pointer">
-          
-          <!-- POS Badge with Profile Color Indicator & Dropdown Chevron -->
-          <div class="relative w-9 h-9 rounded-xl bg-zinc-900 group-hover:bg-black text-white flex items-center justify-center font-black text-xs tracking-wider shrink-0 shadow-xs transition-transform group-hover:scale-105 active:scale-95">
-            POS
-            <!-- Active Profile Color Dot Indicator -->
-            <span class="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white shadow-xs"
-                  :class="getProfileDotClass(activeProfile.color)"
-                  :title="'Profile: ' + activeProfile.name"></span>
+          type="button"
+          :title="'Current Store: ' + activeProfile.name + ' • Click to switch profile'"
+          class="relative w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-lg bg-zinc-900 hover:bg-black text-white flex items-center justify-center font-black text-[11px] sm:text-xs tracking-wider shrink-0 shadow-2xs transition-transform active:scale-95 cursor-pointer">
+          POS
+          <!-- Active Profile Color Dot Indicator -->
+          <span class="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border-2 border-white shadow-xs"
+                :class="getProfileDotClass(activeProfile.color)"
+                :title="'Profile: ' + activeProfile.name"></span>
+        </button>
+
+        <!-- Cohesive Multi-Line Business & Session Flex Container -->
+        <div class="min-w-0 flex flex-col justify-center">
+          <!-- Line 1: Store Name & Session Sequence -->
+          <div class="flex items-center space-x-1.5 min-w-0">
+            <button 
+              @click="openProfileModal" 
+              type="button"
+              class="group font-bold text-xs sm:text-sm tracking-tight text-zinc-900 hover:text-black flex items-center space-x-1 cursor-pointer truncate">
+              <span class="truncate max-w-[120px] sm:max-w-[200px]">{{ activeProfile.name }}</span>
+              <svg class="w-3 h-3 text-zinc-400 group-hover:text-zinc-800 transition-transform group-hover:translate-y-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            <!-- Session Date Badge -->
+            <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-medium bg-zinc-100 text-zinc-700 border border-zinc-200 shrink-0">
+              #{{ sessionDate }}
+            </span>
           </div>
 
-          <!-- Business Info & Switch Indicator -->
-          <div class="ml-2.5 min-w-0">
-            <div class="flex items-center space-x-1.5 flex-wrap">
-              <span class="font-bold text-sm tracking-tight text-zinc-900 leading-tight group-hover:text-black flex items-center space-x-1">
-                <span class="truncate max-w-[130px] sm:max-w-[220px]">{{ activeProfile.name }}</span>
-                <svg class="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-900 transition-transform group-hover:translate-y-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </span>
-              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-zinc-100 text-zinc-700 border border-zinc-200">
-                #{{ sessionDate }}
-              </span>
-              <!-- Online/Offline Badge -->
-              <span v-if="isOnline" class="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200" title="Connected: saves locally">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1"></span>
-                Online
-              </span>
-              <span v-else class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 animate-pulse" title="Offline mode">
-                <span class="w-1.5 h-1.5 rounded-full bg-amber-600 mr-1"></span>
-                Offline
-              </span>
-
-              <!-- Supabase Cloud Sync Badge -->
-              <button 
-                type="button"
-                @click.stop="openSettingsModal"
-                class="hidden md:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors border cursor-pointer"
-                :class="supabaseStatus === 'connected' ? 'bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100' : (supabaseStatus === 'syncing' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-zinc-100 text-zinc-600 border-zinc-200 hover:bg-zinc-200')"
-                :title="'Supabase Cloud Sync: ' + (supabaseStatus === 'connected' ? 'Connected & Active (Last: ' + (lastSyncedAt || 'Ready') + ')' : supabaseStatus)">
-                <svg class="w-2.5 h-2.5 mr-1 text-sky-600 shrink-0" :class="{'animate-spin': supabaseStatus === 'syncing'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
-                <span>{{ supabaseStatus === 'connected' ? 'Supabase Synced' : (supabaseStatus === 'syncing' ? 'Syncing...' : 'Local Cache') }}</span>
-              </button>
-            </div>
-            <p class="text-[11px] text-zinc-500 font-mono leading-none mt-0.5 truncate">
-              <span class="font-medium text-zinc-700">{{ activeProfile.category }}</span>
-              <span class="mx-1">•</span>
-              <span>{{ sessionStats.totalMines }} items</span>
-              <span class="mx-1">•</span>
-              <span class="font-bold text-zinc-800">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</span>
-            </p>
+          <!-- Line 2: Session Status & Business Info Metrics -->
+          <div class="text-[10px] sm:text-[11px] text-zinc-500 font-mono leading-tight flex items-center space-x-1 truncate mt-0.5">
+            <span class="font-medium text-zinc-700 truncate max-w-[80px] sm:max-w-[110px]">{{ activeProfile.category }}</span>
+            <span class="text-zinc-300">•</span>
+            <span class="text-zinc-600">{{ allMines.length }} items</span>
+            <span class="text-zinc-300">•</span>
+            <span class="font-bold text-zinc-900">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</span>
           </div>
         </div>
       </div>
 
-      <!-- Quick Action Controls (Clean and Uncrowded) -->
-      <div class="flex items-center space-x-1.5">
-        <!-- Install App Button (Android/Chrome/Edge/Desktop) -->
-        <button 
-          v-if="isInstallable && !isInstalled"
-          @click="promptPWAInstall" 
-          type="button"
-          title="Install POS app to device"
-          class="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-semibold transition-colors flex items-center space-x-1 shadow-xs">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          <span class="hidden sm:inline">Install App</span>
-        </button>
-
-        <!-- Install App on iOS button -->
-        <button 
-          v-else-if="isIOS && !isInstalled"
-          @click="showIOSGuide = true" 
-          type="button"
-          title="Install POS on iPhone/iPad"
-          class="px-2 py-1.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 text-xs font-medium transition-colors flex items-center space-x-1 border border-zinc-200">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          <span class="hidden sm:inline">Install</span>
-        </button>
-
-        <!-- Audio Feedback Toggle -->
+      <!-- Quick Action Controls (Compact Icon-Based Approach) -->
+      <div class="flex items-center space-x-1 shrink-0">
+        <!-- Audio Feedback Toggle (Compact Icon) -->
         <button 
           @click="toggleSound" 
-          :title="settings.soundEnabled ? 'Mute audio' : 'Enable audio'"
-          class="p-2 rounded-lg border text-xs transition-colors flex items-center justify-center"
-          :class="settings.soundEnabled ? 'bg-zinc-50 text-zinc-900 border-zinc-300' : 'bg-white text-zinc-400 border-zinc-200'">
+          :title="settings.soundEnabled ? 'Sound is on (Click to mute)' : 'Sound is muted (Click to enable)'"
+          type="button"
+          class="w-8 h-8 rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+          :class="settings.soundEnabled ? 'text-zinc-800 hover:bg-zinc-100 active:bg-zinc-200' : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 active:bg-zinc-200'">
           <svg v-if="settings.soundEnabled" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
           <svg v-else class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l4-4m0 4l-4-4" /></svg>
         </button>
 
-        <!-- Supabase Cloud Sync Button -->
-        <button 
-          @click="syncAllWithSupabase(true)" 
-          :title="supabaseStatus === 'syncing' ? 'Syncing with Supabase...' : 'Sync with Supabase Cloud' + (lastSyncedAt ? ' (Last: ' + lastSyncedAt + ')' : '')"
-          class="p-2 rounded-lg border text-xs transition-colors flex items-center justify-center cursor-pointer"
-          :class="supabaseStatus === 'syncing' ? 'bg-sky-50 text-sky-700 border-sky-300' : 'bg-white hover:bg-zinc-50 text-zinc-600 border-zinc-200'">
-          <svg class="w-4 h-4" :class="{'animate-spin text-sky-600': supabaseStatus === 'syncing'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-        </button>
-
-        <!-- Session Settings -->
+        <!-- Session Settings & Cloud Sync (Compact Icon) -->
         <button 
           @click="openSettingsModal" 
-          title="Session settings"
-          class="p-2 rounded-lg bg-white hover:bg-zinc-50 text-zinc-600 border border-zinc-200 text-xs transition-colors flex items-center justify-center">
+          title="Session settings & Cloud Sync"
+          type="button"
+          class="w-8 h-8 rounded-lg text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 active:bg-zinc-200 transition-colors flex items-center justify-center cursor-pointer">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
         </button>
       </div>
@@ -300,7 +253,7 @@
     </div>
 
     <!-- TAB NAVIGATION BAR (Removed on Home/Dashboard; shown when inside workspaces for fast tab switching) -->
-    <nav v-if="currentTab !== 'dashboard'" id="app-navigation" class="screen-ui sticky top-[53px] z-30 bg-white border-b border-zinc-200 px-2 sm:px-4 pt-1 shadow-2xs">
+    <nav v-if="currentTab !== 'dashboard'" id="app-navigation" class="screen-ui sticky top-[45px] sm:top-[49px] z-30 bg-white border-b border-zinc-200 px-2 sm:px-4 pt-1 shadow-2xs">
       <div class="grid grid-cols-4 gap-1 sm:gap-2">
         <!-- Return to Home Dashboard -->
         <button @click="currentTab = 'dashboard'"
@@ -370,29 +323,89 @@
       <!-- =============================================================== -->
       <div v-if="currentTab === 'dashboard'" class="space-y-4">
 
-        <!-- WORKSPACE LAUNCH BUTTON (Single Button Redirecting to Workspaces) -->
-        <div class="bg-zinc-900 text-white border border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-sm">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <!-- LIVE SELLING WORKSPACES (Stream & Sales Controls Header matching screenshot) -->
+        <div class="bg-zinc-900 text-white border border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
             <div>
               <div class="flex items-center space-x-2">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span class="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">Live Stream Active</span>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-semibold">Live Selling Workspaces</span>
               </div>
-              <h2 class="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">Live Selling Workspaces</h2>
-              <p class="text-xs text-zinc-400 mt-0.5">
-                Speed logger, buyer baskets, customer balances, and thermal sticker printing.
-              </p>
+              <h2 class="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">Stream & Sales Controls</h2>
             </div>
-            <div>
+            <div class="text-xs text-zinc-400 font-mono flex items-center space-x-2">
+              <span>Active Business:</span>
               <button 
-                @click="goToMining" 
                 type="button"
-                class="w-full sm:w-auto px-5 py-3 rounded-xl bg-amber-400 hover:bg-amber-300 active:scale-[0.98] text-zinc-950 font-black text-sm tracking-tight transition-all shadow-md hover:shadow-lg flex items-center justify-center space-x-2.5 cursor-pointer">
-                <svg class="w-5 h-5 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                <span>Go to Selling Workspaces</span>
-                <svg class="w-4 h-4 text-zinc-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                @click="openProfileModal"
+                class="font-bold text-white bg-zinc-800 hover:bg-zinc-700 px-2.5 py-1 rounded-lg border border-zinc-700 flex items-center space-x-1.5 transition-colors cursor-pointer">
+                <span class="w-2 h-2 rounded-full" :class="getProfileDotClass(activeProfile.color)"></span>
+                <span>{{ activeProfile.name }}</span>
               </button>
             </div>
+          </div>
+
+          <!-- 3 Workspace Cards Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <!-- 1. Live Mining -->
+            <button 
+              @click="goToMining" 
+              type="button"
+              class="group p-3.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 active:scale-[0.99] text-left transition-all border border-zinc-700/80 hover:border-amber-400/50 shadow-xs flex items-center justify-between cursor-pointer">
+              <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-amber-400/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-400/20 group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-white group-hover:text-amber-300 transition-colors flex items-center space-x-1.5">
+                    <span>Live Mining</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-700 text-zinc-300 font-mono font-normal">{{ allMines.length }} logged</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-400 truncate">Speed tag & price logger</div>
+                </div>
+              </div>
+              <svg class="w-4 h-4 text-zinc-500 group-hover:text-amber-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+
+            <!-- 2. Customer Balances -->
+            <button 
+              @click="currentTab = 'balances'" 
+              type="button"
+              class="group p-3.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 active:scale-[0.99] text-left transition-all border border-zinc-700/80 hover:border-emerald-400/50 shadow-xs flex items-center justify-between cursor-pointer">
+              <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-emerald-400/10 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-400/20 group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors flex items-center space-x-1.5">
+                    <span>Customer Balances</span>
+                    <span v-if="owingBuyersCount > 0" class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-300 font-mono font-bold">{{ owingBuyersCount }} owing</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-400 truncate">{{ buyerBasketsList.length }} buyers • Invoicing & Pay</div>
+                </div>
+              </div>
+              <svg class="w-4 h-4 text-zinc-500 group-hover:text-emerald-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+
+            <!-- 3. Mined Items -->
+            <button 
+              @click="currentTab = 'mined_items'" 
+              type="button"
+              class="group p-3.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 active:scale-[0.99] text-left transition-all border border-zinc-700/80 hover:border-blue-400/50 shadow-xs flex items-center justify-between cursor-pointer">
+              <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-blue-400/10 text-blue-400 flex items-center justify-center shrink-0 border border-blue-400/20 group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-white group-hover:text-blue-300 transition-colors flex items-center space-x-1.5">
+                    <span>Mined Items</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-zinc-700 text-zinc-300 font-mono font-normal">{{ allMines.length }} items</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-400 truncate">Notion CSV • Thermal labels</div>
+                </div>
+              </div>
+              <svg class="w-4 h-4 text-zinc-500 group-hover:text-blue-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
           </div>
         </div>
 
@@ -1527,6 +1540,42 @@
     </main>
 
     <!-- =============================================================== -->
+    <!-- APP STATUS BAR (Persistent space-efficient status bar)          -->
+    <!-- =============================================================== -->
+    <footer id="app-status-bar" class="screen-ui sticky bottom-0 z-30 bg-white/95 backdrop-blur border-t border-zinc-200 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs text-zinc-600 shadow-2xs">
+      <!-- Left: Online / Offline Badge & Cloud Sync Status -->
+      <div class="flex items-center space-x-2">
+        <!-- Online / Offline Badge Button -->
+        <button 
+          type="button"
+          @click="syncAllWithSupabase(true)"
+          :title="!isOnline ? 'Offline mode: saving locally to device' : (supabaseStatus === 'syncing' ? 'Syncing with Supabase...' : (supabaseStatus === 'connected' ? 'Online & Supabase Synced. Click to refresh' : 'Online mode. Click to sync'))"
+          class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold border cursor-pointer transition-colors"
+          :class="isOnline ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' : 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse'">
+          <span class="w-1.5 h-1.5 rounded-full mr-1.5" :class="isOnline ? (supabaseStatus === 'syncing' ? 'bg-sky-500 animate-spin' : 'bg-emerald-500') : 'bg-amber-600'"></span>
+          <span>{{ !isOnline ? 'Offline' : (supabaseStatus === 'syncing' ? 'Syncing...' : 'Online') }}</span>
+          <span v-if="supabaseStatus === 'connected' && isOnline" class="hidden xs:inline text-emerald-700 font-normal ml-1">• Synced</span>
+        </button>
+
+        <span class="text-[11px] text-zinc-400 font-mono hidden sm:inline">
+          {{ isOnline ? (lastSyncedAt ? 'Last sync: ' + lastSyncedAt : 'Cloud Connected') : 'Offline Mode (Local Storage)' }}
+        </span>
+      </div>
+
+      <!-- Right: Active Session & Profile Status Summary -->
+      <div class="flex items-center space-x-2 text-[11px] font-mono text-zinc-500">
+        <span class="flex items-center space-x-1.5">
+          <span class="w-1.5 h-1.5 rounded-full" :class="getProfileDotClass(activeProfile.color)"></span>
+          <span class="text-zinc-700 font-medium truncate max-w-[110px] sm:max-w-[160px]">{{ activeProfile.name }}</span>
+        </span>
+        <span>•</span>
+        <span class="text-zinc-500">{{ allMines.length }} items</span>
+        <span>•</span>
+        <span class="text-zinc-900 font-bold">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</span>
+      </div>
+    </footer>
+
+    <!-- =============================================================== -->
     <!-- MODAL 0A: BUSINESS PROFILE SWITCHER MODAL                       -->
     <!-- =============================================================== -->
     <div v-if="profileModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-fadeIn">
@@ -1854,6 +1903,36 @@
         </div>
 
         <div class="space-y-3">
+          <!-- Install App to Device (PWA) -->
+          <div v-if="(!isInstalled && isInstallable) || (isIOS && !isInstalled)" class="p-3 rounded-xl bg-zinc-900 text-white text-xs space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold flex items-center space-x-1.5">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <span>Install POS to Device</span>
+              </span>
+              <span class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded font-mono">PWA Standalone</span>
+            </div>
+            <p class="text-[11px] text-zinc-400 leading-relaxed">
+              Install this POS app to your home screen for quick launch and offline live selling.
+            </p>
+            <button 
+              v-if="isInstallable"
+              @click="promptPWAInstall" 
+              type="button"
+              class="w-full py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              <span>Install to Home Screen</span>
+            </button>
+            <button 
+              v-else-if="isIOS"
+              @click="settingsModalOpen = false; showIOSGuide = true" 
+              type="button"
+              class="w-full py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer border border-zinc-700">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              <span>Add to Home Screen (iOS)</span>
+            </button>
+          </div>
+
           <div>
             <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Store Name</label>
             <input 
