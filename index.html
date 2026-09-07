@@ -2443,6 +2443,23 @@
                   <span class="text-zinc-500">Last Synced:</span>
                   <span class="text-zinc-700 font-medium font-mono text-[10px]">{{ lastSyncedAt }}</span>
                 </div>
+                <div class="flex items-center justify-between pt-1 border-t border-sky-100">
+                  <div class="flex flex-col">
+                    <span class="text-zinc-700 font-medium text-[11px]">Auto-Sync Frequency:</span>
+                    <span class="text-[9px] text-zinc-500">Instant on action + background heartbeat</span>
+                  </div>
+                  <select 
+                    v-model="settings.syncInterval" 
+                    @change="saveSettings(); restartAutoSync();"
+                    class="bg-white border border-zinc-300 rounded px-2 py-1 text-[11px] text-zinc-800 font-medium focus:outline-none focus:ring-1 focus:ring-sky-500">
+                    <option value="30s">Every 30s (Recommended)</option>
+                    <option value="60s">Every 60s (Conservative)</option>
+                    <option value="off">On-Action & Manual Only</option>
+                  </select>
+                </div>
+                <div class="p-2 rounded bg-amber-50/90 border border-amber-200/90 text-[10px] text-amber-900 leading-snug">
+                  <span class="font-semibold">💡 Free Tier Advisory:</span> The app syncs <strong>instantly on every action</strong> (add mine, payment, profile switch). Polling every 1 second is unnecessary and would consume ~2.6M requests/mo, which would burn through your Supabase free tier limits. The 30s heartbeat + instant action sync keeps your data in sync without eating your quota.
+                </div>
               </div>
 
               <div class="grid grid-cols-2 gap-2 pt-1">
@@ -2964,13 +2981,13 @@
         const defaultProfiles = [
           {
             id: 'prof_main',
-            name: 'LiveStyle Boutique PH',
+            name: 'Leaf & Layer',
             category: 'Fashion & Apparel',
             currency: '₱',
             codePrefix: '#',
             color: 'emerald',
             quickPrefixes: ['A', 'B', 'C', 'D', 'VIP'],
-            defaultCategories: ['Tops', 'Dresses', 'Bottoms', 'Jackets', 'Accessories'],
+            defaultCategories: ['Plant', 'Pot', 'Pumice'],
             paymentDetails: 'GCash: 0917-123-4567 (LiveStyle PH)\nMaya: 0918-987-6543\nBDO: 0012-3456-7890'
           },
           {
@@ -2983,6 +3000,17 @@
             quickPrefixes: ['CR', 'RAW', 'BR', 'TUM', 'SPEC'],
             defaultCategories: ['Raw Cluster', 'Tower/Point', 'Sphere', 'Bracelet', 'Pocket Stone'],
             paymentDetails: 'GCash: 0917-888-9999 (Aura Crystals)\nMaya: 0918-777-6666\nBPI: 1234-5678-90'
+          },
+          {
+            id: 'prof_1788794471662',
+            name: 'Joyful Surplus',
+            category: 'General Retail',
+            currency: '₱',
+            codePrefix: '#',
+            color: 'rose',
+            quickPrefixes: ['A', 'B', 'C', 'D', 'VIP'],
+            defaultCategories: ['Tops', 'Dresses', 'Bottoms', 'Jackets', 'Accessories'],
+            paymentDetails: 'GCash: 09XX-XXX-XXXX\nMaya: 09XX-XXX-XXXX'
           },
           {
             id: 'prof_collectibles',
@@ -3031,12 +3059,29 @@
         if (savedProfiles) {
           const parsed = safeParseJson(savedProfiles, null);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            initialProfiles = parsed;
+            // Reconcile savedProfiles with defaultProfiles so we never lose Joyful Surplus or Leaf & Layer
+            const savedMap = new Map(parsed.map(p => [p.id, p]));
+            initialProfiles = defaultProfiles.map(dp => {
+              if (savedMap.has(dp.id)) {
+                return { ...dp, ...savedMap.get(dp.id) };
+              }
+              return dp;
+            });
+            for (const sp of parsed) {
+              if (!initialProfiles.some(p => p.id === sp.id)) {
+                initialProfiles.push(sp);
+              }
+            }
           }
         }
 
         const profiles = ref(initialProfiles);
-        const activeProfileId = ref(safeGetItem('live_pos_active_profile_id') || profiles.value[0].id);
+        const savedActiveId = safeGetItem('live_pos_active_profile_id');
+        const activeProfileId = ref(
+          (savedActiveId && profiles.value.some(p => p.id === savedActiveId))
+            ? savedActiveId
+            : profiles.value[0].id
+        );
 
         const activeProfile = computed(() => {
           const found = profiles.value.find(p => p.id === activeProfileId.value);
@@ -3112,9 +3157,10 @@
         const initialSettings = safeParseJson(safeGetItem('live_pos_settings'), {
           autoPrint: true,
           soundEnabled: true,
-          storeName: 'LiveStyle Boutique PH',
-          paymentDetails: 'GCash: 0917-123-4567 (LiveStyle PH)\nMaya: 0918-987-6543\nBDO: 0012-3456-7890',
-          miningFieldsOrder: ['customer', 'description', 'price']
+          storeName: activeProfile.value ? activeProfile.value.name : 'Leaf & Layer',
+          paymentDetails: activeProfile.value ? activeProfile.value.paymentDetails : 'GCash: 0917-123-4567\nMaya: 0918-987-6543\nBDO: 0012-3456-7890',
+          miningFieldsOrder: ['customer', 'description', 'price'],
+          syncInterval: '30s'
         });
         if (!initialSettings.miningFieldsOrder || !Array.isArray(initialSettings.miningFieldsOrder) || initialSettings.miningFieldsOrder.length === 0) {
           initialSettings.miningFieldsOrder = ['customer', 'description', 'price'];
@@ -3125,6 +3171,9 @@
             if (!existing.includes(k)) existing.push(k);
           });
           initialSettings.miningFieldsOrder = existing;
+        }
+        if (!initialSettings.syncInterval) {
+          initialSettings.syncInterval = '30s';
         }
         const settings = ref(initialSettings);
 
@@ -3203,6 +3252,9 @@
           saveProfileData(activeProfileId.value);
           if (typeof pushProfileToSupabase === 'function') {
             pushProfileToSupabase(updatedStore);
+          }
+          if (typeof pushActiveProfileToSupabase === 'function') {
+            pushActiveProfileToSupabase(activeProfileId.value);
           }
 
           if (showFeedback) {
@@ -3339,8 +3391,46 @@
               default_categories: profile.defaultCategories || [],
               payment_details: profile.paymentDetails || ''
             }]);
+
+            // Save store-specific metadata (codePrefix, sequence, sessionDate) to customer_notes
+            await client.from('customer_notes').upsert([{
+              profile_id: profile.id,
+              buyer: '__store_meta__',
+              notes: JSON.stringify({
+                codePrefix: (profile.codePrefix !== undefined && profile.codePrefix !== null && profile.codePrefix !== '') ? profile.codePrefix : '#',
+                sequence: sequenceCounter.value,
+                sessionDate: sessionDate.value
+              })
+            }]);
           } catch (e) {
             console.warn('Supabase profile sync notice:', e);
+          }
+        }
+
+        async function pushActiveProfileToSupabase(id) {
+          const client = getSupabaseClient();
+          if (!client || !navigator.onLine || !id) return;
+          try {
+            await client.from('customer_notes').upsert([{
+              profile_id: '_meta_',
+              buyer: '__last_active_profile__',
+              notes: id
+            }]);
+          } catch (e) {
+            console.warn('Supabase active profile sync notice:', e);
+          }
+        }
+
+        async function deleteProfileFromSupabase(id) {
+          const client = getSupabaseClient();
+          if (!client || !navigator.onLine || !id) return;
+          try {
+            await client.from('business_profiles').delete().eq('id', id);
+            await client.from('mined_items').delete().eq('profile_id', id);
+            await client.from('customer_payments').delete().eq('profile_id', id);
+            await client.from('customer_notes').delete().eq('profile_id', id);
+          } catch (e) {
+            console.warn('Supabase delete profile notice:', e);
           }
         }
 
@@ -3435,7 +3525,7 @@
             return;
           }
           supabaseStatus.value = 'syncing';
-          supabaseSyncMessage.value = 'Pushing local records to Supabase...';
+          supabaseSyncMessage.value = 'Pushing all stores & records to Supabase...';
 
           try {
             // 1. Profiles
@@ -3451,7 +3541,21 @@
             }));
             await client.from('business_profiles').upsert(profilePayloads);
 
-            // 2. Mined items
+            // 2. Active Profile selection & store metadata
+            await pushActiveProfileToSupabase(activeProfileId.value);
+            for (const p of profiles.value) {
+              await client.from('customer_notes').upsert([{
+                profile_id: p.id,
+                buyer: '__store_meta__',
+                notes: JSON.stringify({
+                  codePrefix: (p.codePrefix !== undefined && p.codePrefix !== null && p.codePrefix !== '') ? p.codePrefix : '#',
+                  sequence: Number(safeGetItem('live_pos_sequence_counter_' + p.id)) || 1,
+                  sessionDate: safeGetItem('live_pos_session_date_' + p.id) || sessionDate.value
+                })
+              }]);
+            }
+
+            // 3. Mined items for active profile
             if (allMines.value.length > 0) {
               const minePayloads = allMines.value.map(m => ({
                 id: m.id,
@@ -3466,7 +3570,7 @@
               await client.from('mined_items').upsert(minePayloads);
             }
 
-            // 3. Payments
+            // 4. Payments for active profile
             if (allPayments.value.length > 0) {
               const payPayloads = allPayments.value.map(p => ({
                 id: p.id,
@@ -3480,12 +3584,14 @@
               await client.from('customer_payments').upsert(payPayloads);
             }
 
-            // 4. Notes
-            const notePayloads = Object.entries(customerNotes.value).map(([buyer, notes]) => ({
-              profile_id: activeProfileId.value,
-              buyer,
-              notes
-            }));
+            // 5. Notes (excluding meta records)
+            const notePayloads = Object.entries(customerNotes.value)
+              .filter(([buyer]) => !buyer.startsWith('__'))
+              .map(([buyer, notes]) => ({
+                profile_id: activeProfileId.value,
+                buyer,
+                notes
+              }));
             if (notePayloads.length > 0) {
               await client.from('customer_notes').upsert(notePayloads);
             }
@@ -3494,9 +3600,9 @@
             lastSyncedAt.value = nowTime;
             localStorage.setItem('live_pos_last_synced', nowTime);
             supabaseStatus.value = 'connected';
-            supabaseSyncMessage.value = `Backed up ${allMines.value.length} items & ${allPayments.value.length} payments`;
+            supabaseSyncMessage.value = `Backed up ${profiles.value.length} stores, ${allMines.value.length} items & ${allPayments.value.length} payments`;
             playBeep('success');
-            showToast('All local data backed up to Supabase Cloud!');
+            showToast('All business profiles & records backed up to Supabase Cloud!');
           } catch (err) {
             console.error('Supabase push error:', err);
             supabaseStatus.value = 'connected';
@@ -3518,23 +3624,117 @@
           }
 
           supabaseStatus.value = 'syncing';
-          supabaseSyncMessage.value = 'Syncing with Supabase...';
+          supabaseSyncMessage.value = 'Syncing profiles & data with cloud...';
 
           try {
-            // 1. Ensure profiles in Supabase
-            const profilePayloads = profiles.value.map(p => ({
-              id: p.id,
-              name: p.name,
-              category: p.category || 'Retail',
-              currency: p.currency || '₱',
-              color: p.color || 'emerald',
-              quick_prefixes: p.quickPrefixes || [],
-              default_categories: p.defaultCategories || [],
-              payment_details: p.paymentDetails || ''
-            }));
-            await client.from('business_profiles').upsert(profilePayloads);
+            // 1. Fetch remote business profiles from Supabase first
+            const { data: remoteProfiles, error: profErr } = await client
+              .from('business_profiles')
+              .select('*')
+              .order('created_at', { ascending: true });
 
-            // 2. Fetch remote mines for active profile
+            if (remoteProfiles && !profErr && remoteProfiles.length > 0) {
+              const localMap = new Map(profiles.value.map(p => [p.id, p]));
+              const merged = [];
+
+              for (const rp of remoteProfiles) {
+                const local = localMap.get(rp.id);
+                merged.push({
+                  id: rp.id,
+                  name: rp.name || (local ? local.name : 'Business'),
+                  category: rp.category || (local ? local.category : 'Retail'),
+                  currency: rp.currency || (local ? local.currency : '₱'),
+                  color: rp.color || (local ? local.color : 'emerald'),
+                  codePrefix: (local && local.codePrefix) ? local.codePrefix : '#',
+                  quickPrefixes: Array.isArray(rp.quick_prefixes) && rp.quick_prefixes.length > 0 
+                    ? rp.quick_prefixes 
+                    : (local?.quickPrefixes || ['A', 'B', 'C', 'D', 'VIP']),
+                  defaultCategories: Array.isArray(rp.default_categories) && rp.default_categories.length > 0 
+                    ? rp.default_categories 
+                    : (local?.defaultCategories || ['General']),
+                  paymentDetails: rp.payment_details !== undefined && rp.payment_details !== null 
+                    ? rp.payment_details 
+                    : (local?.paymentDetails || '')
+                });
+                localMap.delete(rp.id);
+              }
+
+              // Preserve locally added profiles that are not yet on Supabase
+              for (const [id, localProf] of localMap.entries()) {
+                merged.push(localProf);
+                await pushProfileToSupabase(localProf);
+              }
+
+              profiles.value = merged;
+              safeSetItem('live_pos_profiles', profiles.value);
+            } else {
+              // Remote table had no profiles yet, push current local profiles
+              const profilePayloads = profiles.value.map(p => ({
+                id: p.id,
+                name: p.name,
+                category: p.category || 'Retail',
+                currency: p.currency || '₱',
+                color: p.color || 'emerald',
+                quick_prefixes: p.quickPrefixes || [],
+                default_categories: p.defaultCategories || [],
+                payment_details: p.paymentDetails || ''
+              }));
+              await client.from('business_profiles').upsert(profilePayloads);
+            }
+
+            // 2. Fetch Active Business Profile Selection from Supabase
+            const { data: activeMeta } = await client
+              .from('customer_notes')
+              .select('notes')
+              .eq('profile_id', '_meta_')
+              .eq('buyer', '__last_active_profile__')
+              .limit(1);
+
+            if (activeMeta && activeMeta.length > 0 && activeMeta[0].notes) {
+              const remoteActiveId = activeMeta[0].notes.trim();
+              if (profiles.value.some(p => p.id === remoteActiveId)) {
+                // If local active profile was not set or differed, switch to cloud active profile
+                if (activeProfileId.value !== remoteActiveId) {
+                  activeProfileId.value = remoteActiveId;
+                  safeSetItem('live_pos_active_profile_id', remoteActiveId);
+                  loadProfileData(remoteActiveId);
+                }
+              }
+            } else {
+              // Write initial activeProfileId to cloud
+              await pushActiveProfileToSupabase(activeProfileId.value);
+            }
+
+            // 3. Fetch Store Metadata (codePrefix, sequence, sessionDate)
+            const { data: storeMeta } = await client
+              .from('customer_notes')
+              .select('notes')
+              .eq('profile_id', activeProfileId.value)
+              .eq('buyer', '__store_meta__')
+              .limit(1);
+
+            if (storeMeta && storeMeta.length > 0 && storeMeta[0].notes) {
+              try {
+                const parsedMeta = JSON.parse(storeMeta[0].notes);
+                if (parsedMeta.codePrefix) {
+                  const targetProf = profiles.value.find(p => p.id === activeProfileId.value);
+                  if (targetProf) {
+                    targetProf.codePrefix = parsedMeta.codePrefix;
+                    safeSetItem('live_pos_profiles', profiles.value);
+                  }
+                }
+                if (parsedMeta.sequence && !safeGetItem('live_pos_sequence_counter_' + activeProfileId.value)) {
+                  sequenceCounter.value = Number(parsedMeta.sequence) || 1;
+                }
+                if (parsedMeta.sessionDate && !safeGetItem('live_pos_session_date_' + activeProfileId.value)) {
+                  sessionDate.value = parsedMeta.sessionDate;
+                }
+              } catch (e) {}
+            }
+
+            syncActiveStoreForm();
+
+            // 4. Fetch remote mines for active profile
             const { data: remoteMines, error: mErr } = await client
               .from('mined_items')
               .select('*')
@@ -3576,7 +3776,7 @@
               await client.from('mined_items').upsert(minePayloads);
             }
 
-            // 3. Fetch remote payments
+            // 5. Fetch remote payments
             const { data: remotePayments, error: pErr } = await client
               .from('customer_payments')
               .select('*')
@@ -3615,7 +3815,7 @@
               await client.from('customer_payments').upsert(payPayloads);
             }
 
-            // 4. Fetch customer notes
+            // 6. Fetch customer notes (excluding meta keys)
             const { data: remoteNotes, error: nErr } = await client
               .from('customer_notes')
               .select('*')
@@ -3623,18 +3823,22 @@
 
             if (remoteNotes && !nErr) {
               for (const rn of remoteNotes) {
-                if (!customerNotes.value[rn.buyer]) {
-                  customerNotes.value[rn.buyer] = rn.notes || '';
+                if (rn.buyer && !rn.buyer.startsWith('__')) {
+                  if (!customerNotes.value[rn.buyer]) {
+                    customerNotes.value[rn.buyer] = rn.notes || '';
+                  }
                 }
               }
             }
 
-            // Push notes
-            const notePayloads = Object.entries(customerNotes.value).map(([buyer, notes]) => ({
-              profile_id: activeProfileId.value,
-              buyer,
-              notes
-            }));
+            // Push notes (excluding meta keys)
+            const notePayloads = Object.entries(customerNotes.value)
+              .filter(([buyer]) => !buyer.startsWith('__'))
+              .map(([buyer, notes]) => ({
+                profile_id: activeProfileId.value,
+                buyer,
+                notes
+              }));
             if (notePayloads.length > 0) {
               await client.from('customer_notes').upsert(notePayloads);
             }
@@ -3645,11 +3849,11 @@
             lastSyncedAt.value = nowTime;
             localStorage.setItem('live_pos_last_synced', nowTime);
             supabaseStatus.value = 'connected';
-            supabaseSyncMessage.value = `${allMines.value.length} items & ${allPayments.value.length} payments in sync`;
+            supabaseSyncMessage.value = `${profiles.value.length} profiles, ${allMines.value.length} items & ${allPayments.value.length} payments in sync`;
 
             if (showNotification) {
               playBeep('success');
-              showToast(`Supabase synced: ${allMines.value.length} items, ${allPayments.value.length} payments`);
+              showToast(`Supabase synced: ${profiles.value.length} profiles, ${allMines.value.length} items, ${allPayments.value.length} payments`);
             }
           } catch (err) {
             console.error('Supabase sync error:', err);
@@ -4276,6 +4480,10 @@
           syncActiveStoreForm();
           profileModalOpen.value = false;
           showToast(`Switched to business: ${activeProfile.value.name}`);
+          pushActiveProfileToSupabase(id);
+          if (navigator.onLine) {
+            syncAllWithSupabase(false);
+          }
         }
 
         // Profile Modals & Form
@@ -4364,6 +4572,7 @@
             profiles.value.push(profileData);
             saveAll();
             pushProfileToSupabase(profileData);
+            pushActiveProfileToSupabase(profileData.id);
             switchProfile(profileData.id);
             showToast(`Created new business: ${name}`);
           } else {
@@ -4398,10 +4607,13 @@
 
           profiles.value = profiles.value.filter(p => p.id !== id);
 
+          deleteProfileFromSupabase(id);
+
           if (activeProfileId.value === id) {
             activeProfileId.value = profiles.value[0].id;
             localStorage.setItem('live_pos_active_profile_id', activeProfileId.value);
             loadProfileData(activeProfileId.value);
+            pushActiveProfileToSupabase(activeProfileId.value);
           }
           saveAll();
           profileEditModalOpen.value = false;
@@ -4853,6 +5065,23 @@
           saveSettings();
         }
 
+        let autoSyncTimer = null;
+        function restartAutoSync() {
+          if (autoSyncTimer) {
+            clearInterval(autoSyncTimer);
+            autoSyncTimer = null;
+          }
+          const intervalVal = settings.value.syncInterval || '30s';
+          const sec = intervalVal === '60s' ? 60 : (intervalVal === 'off' ? 0 : 30);
+          if (sec > 0) {
+            autoSyncTimer = setInterval(() => {
+              if (navigator.onLine && supabaseStatus.value !== 'syncing' && document.visibilityState === 'visible') {
+                syncAllWithSupabase(false);
+              }
+            }, sec * 1000);
+          }
+        }
+
         onMounted(() => {
           syncActiveStoreForm();
           nextTick(() => {
@@ -4864,6 +5093,21 @@
               buyerSuggestionsOpen.value = false;
             }
           });
+
+          // Sync when user returns to tab/app
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && navigator.onLine && supabaseStatus.value !== 'syncing') {
+              syncAllWithSupabase(false);
+            }
+          });
+
+          // Sync when device reconnects to internet
+          window.addEventListener('online', () => {
+            syncAllWithSupabase(false);
+          });
+
+          // Start background heartbeat
+          restartAutoSync();
 
           // Initial silent sync with Supabase Cloud
           if (navigator.onLine) {
@@ -4995,7 +5239,10 @@
           supabaseSyncMessage,
           lastSyncedAt,
           syncAllWithSupabase,
-          pushAllToSupabase
+          pushAllToSupabase,
+          restartAutoSync,
+          pushProfileToSupabase,
+          pushActiveProfileToSupabase
         };
       }
     });
