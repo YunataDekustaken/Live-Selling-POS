@@ -2581,8 +2581,8 @@
         // ==========================================
         // SUPABASE CLOUD SYNC & REALTIME PERSISTENCE
         // ==========================================
-        const SUPABASE_URL = 'https://vvbsszhgduzqqcciroac.supabase.co';
-        const SUPABASE_ANON_KEY = 'sb_publishable_slqI77J9z1oz9HO_qBcI6Q_lmqtg8Cx';
+        const SUPABASE_URL = '__VITE_SUPABASE_URL__' || 'https://vvbsszhgduzqqcciroac.supabase.co';
+        const SUPABASE_ANON_KEY = '__VITE_SUPABASE_ANON_KEY__' || 'sb_publishable_slqI77J9z1oz9HO_qBcI6Q_lmqtg8Cx';
         
         let supabaseClient = null;
         const supabaseStatus = ref('disconnected'); // 'connected' | 'syncing' | 'error' | 'disconnected'
