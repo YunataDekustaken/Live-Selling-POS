@@ -217,7 +217,7 @@
       </div>
 
       <!-- Quick Action Controls (Compact Icon-Based Approach) -->
-      <div class="flex items-center space-x-1 shrink-0">
+      <div class="flex items-center space-x-1 shrink-0 relative">
         <!-- Audio Feedback Toggle (Compact Icon) -->
         <button 
           @click="toggleSound" 
@@ -237,6 +237,175 @@
           class="w-8 h-8 rounded-lg text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 active:bg-zinc-200 transition-colors flex items-center justify-center cursor-pointer">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
         </button>
+
+        <!-- Menu Button for Other Menus & Options -->
+        <div class="relative">
+          <button 
+            @click="appMenuOpen = !appMenuOpen" 
+            title="Menu & More Options"
+            type="button"
+            class="w-8 h-8 rounded-lg transition-colors flex items-center justify-center cursor-pointer"
+            :class="appMenuOpen ? 'bg-zinc-900 text-white shadow-2xs' : 'text-zinc-700 hover:text-black hover:bg-zinc-100 active:bg-zinc-200'">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+
+          <!-- Dropdown Backdrop for outside clicks -->
+          <div v-if="appMenuOpen" @click="appMenuOpen = false" class="fixed inset-0 z-40 bg-black/20 backdrop-blur-2xs"></div>
+
+          <!-- App Menu & Options Dropdown Panel -->
+          <div v-if="appMenuOpen" 
+               class="screen-ui absolute right-0 top-full mt-2 w-72 sm:w-80 bg-white rounded-2xl border border-zinc-200 shadow-2xl p-3 z-50 text-xs animate-fadeIn space-y-3">
+            
+            <!-- Menu Top: Active Business Info & Close -->
+            <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
+              <div class="flex items-center space-x-2 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="getProfileDotClass(activeProfile.color)"></span>
+                <div class="min-w-0">
+                  <div class="font-bold text-zinc-900 truncate">{{ activeProfile.name }}</div>
+                  <div class="text-[10px] text-zinc-500 font-mono">{{ activeProfile.category }} • {{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</div>
+                </div>
+              </div>
+              <button @click="appMenuOpen = false" class="p-1 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-100 text-sm leading-none cursor-pointer">✕</button>
+            </div>
+
+            <!-- Section 1: Quick Workspace Navigation -->
+            <div>
+              <div class="text-[10px] uppercase font-mono tracking-wider font-semibold text-zinc-400 mb-1 px-1">Navigation & Views</div>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button 
+                  @click="currentTab = 'dashboard'; appMenuOpen = false"
+                  class="flex items-center space-x-2 p-2 rounded-xl transition-colors text-left cursor-pointer"
+                  :class="currentTab === 'dashboard' ? 'bg-zinc-900 text-white font-semibold' : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-800'">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                  <span class="truncate">Dashboard</span>
+                </button>
+
+                <button 
+                  @click="currentTab = 'mining'; appMenuOpen = false"
+                  class="flex items-center space-x-2 p-2 rounded-xl transition-colors text-left cursor-pointer"
+                  :class="currentTab === 'mining' ? 'bg-zinc-900 text-white font-semibold' : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-800'">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  <span class="truncate">Live Mining</span>
+                </button>
+
+                <button 
+                  @click="currentTab = 'balances'; appMenuOpen = false"
+                  class="flex items-center space-x-2 p-2 rounded-xl transition-colors text-left cursor-pointer"
+                  :class="currentTab === 'balances' ? 'bg-zinc-900 text-white font-semibold' : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-800'">
+                  <svg class="w-3.5 h-3.5 shrink-0 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                  <span class="truncate">Balances</span>
+                </button>
+
+                <button 
+                  @click="currentTab = 'mined_items'; appMenuOpen = false"
+                  class="flex items-center space-x-2 p-2 rounded-xl transition-colors text-left cursor-pointer"
+                  :class="currentTab === 'mined_items' ? 'bg-zinc-900 text-white font-semibold' : 'bg-zinc-50 hover:bg-zinc-100 text-zinc-800'">
+                  <svg class="w-3.5 h-3.5 shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                  <span class="truncate">Mined Items</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Section 2: Quick Tools & Actions -->
+            <div>
+              <div class="text-[10px] uppercase font-mono tracking-wider font-semibold text-zinc-400 mb-1 px-1">Quick Tools & Printing</div>
+              <div class="space-y-1">
+                <!-- Reprint Last Sticker -->
+                <button 
+                  @click="printLastMinedSticker(); appMenuOpen = false"
+                  :disabled="allMines.length === 0"
+                  class="w-full flex items-center justify-between p-2 rounded-xl text-left transition-colors cursor-pointer"
+                  :class="allMines.length > 0 ? 'bg-zinc-50 hover:bg-zinc-100 text-zinc-800' : 'bg-zinc-50/50 text-zinc-400 cursor-not-allowed'">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                    <span class="font-medium">Reprint Last Thermal Sticker</span>
+                  </div>
+                  <span class="text-[10px] font-mono text-zinc-500">50x30mm</span>
+                </button>
+
+                <!-- Switch Store Profile -->
+                <button 
+                  @click="openProfileModal(); appMenuOpen = false"
+                  class="w-full flex items-center justify-between p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-800 text-left transition-colors cursor-pointer">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                    <span class="font-medium">Switch Business Profile</span>
+                  </div>
+                  <span class="text-[10px] font-mono text-zinc-500">{{ profiles.length }} stores</span>
+                </button>
+
+                <!-- Sync Cloud Now -->
+                <button 
+                  @click="syncAllWithSupabase(true); appMenuOpen = false"
+                  :disabled="supabaseStatus === 'syncing'"
+                  class="w-full flex items-center justify-between p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-800 text-left transition-colors cursor-pointer">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-3.5 h-3.5" :class="{'animate-spin text-sky-500': supabaseStatus === 'syncing', 'text-emerald-600': supabaseStatus === 'connected', 'text-zinc-500': supabaseStatus !== 'syncing' && supabaseStatus !== 'connected'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span class="font-medium">Sync with Supabase</span>
+                  </div>
+                  <span class="text-[10px] font-mono" :class="isOnline ? 'text-emerald-700' : 'text-amber-700'">{{ !isOnline ? 'Offline' : (supabaseStatus === 'syncing' ? 'Syncing...' : 'Ready') }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Section 3: Data Export -->
+            <div>
+              <div class="text-[10px] uppercase font-mono tracking-wider font-semibold text-zinc-400 mb-1 px-1">Exports & Backups</div>
+              <div class="space-y-1">
+                <button 
+                  @click="exportNotionCustomerBalancesCsv(); appMenuOpen = false"
+                  class="w-full flex items-center justify-between p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-800 text-left transition-colors cursor-pointer">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    <span class="font-medium">Export Customer Balances CSV</span>
+                  </div>
+                  <span class="text-[10px] font-mono text-zinc-500">Notion DB</span>
+                </button>
+
+                <button 
+                  @click="exportNotionMinedItemsCsv(); appMenuOpen = false"
+                  class="w-full flex items-center justify-between p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-800 text-left transition-colors cursor-pointer">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    <span class="font-medium">Export Mined Items CSV</span>
+                  </div>
+                  <span class="text-[10px] font-mono text-zinc-500">Notion DB</span>
+                </button>
+
+                <button 
+                  @click="downloadJsonBackup(); appMenuOpen = false"
+                  class="w-full flex items-center justify-between p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-800 text-left transition-colors cursor-pointer">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    <span class="font-medium">Download JSON Backup</span>
+                  </div>
+                  <span class="text-[10px] font-mono text-zinc-500">Full Data</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Section 4: Quick Toggles & Full Settings -->
+            <div class="pt-2 border-t border-zinc-100 flex items-center justify-between">
+              <!-- Auto-print quick toggle -->
+              <button 
+                @click="settings.autoPrint = !settings.autoPrint; saveSettings()"
+                class="flex items-center space-x-1.5 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors cursor-pointer"
+                :class="settings.autoPrint ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'">
+                <span>Auto-Print:</span>
+                <span class="font-bold">{{ settings.autoPrint ? 'ON' : 'OFF' }}</span>
+              </button>
+
+              <!-- Open Full Settings -->
+              <button 
+                @click="openSettingsModal(); appMenuOpen = false"
+                class="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-semibold text-[11px] transition-colors cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <span>All Settings</span>
+              </button>
+            </div>
+
+          </div>
+        </div>
       </div>
     </header>
 
@@ -3835,10 +4004,12 @@
           };
         });
 
-        // Settings Modal
+        // Settings Modal & App Menu
         const settingsModalOpen = ref(false);
+        const appMenuOpen = ref(false);
         function openSettingsModal() {
           settingsModalOpen.value = true;
+          appMenuOpen.value = false;
         }
         function saveSettings() {
           localStorage.setItem('live_pos_settings', JSON.stringify(settings.value));
@@ -4219,6 +4390,7 @@
           copyMessengerReceipt,
           sessionStats,
           settingsModalOpen,
+          appMenuOpen,
           openSettingsModal,
           saveSettings,
           exportToCsv,
