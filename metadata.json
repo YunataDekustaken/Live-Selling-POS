@@ -1,6 +1,6 @@
 {
   "name": "Live Mining Web POS",
   "description": "Mobile-first Web POS for live sellers with multiple business profiles, home dashboard, instant mining entry, thermal label printing, customer balance tracking, and itemized invoices.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
