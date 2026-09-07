@@ -22,6 +22,7 @@ export default defineConfig(() => {
           'pwa-maskable-512x512.png',
           'vendor/vue.global.prod.js',
           'vendor/tailwindcss.js',
+          'vendor/supabase.js',
         ],
         manifest: {
           id: '/',
@@ -88,8 +89,7 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
-          type: 'module',
+          enabled: false,
         },
       }),
     ],
