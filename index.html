@@ -185,34 +185,22 @@
                 :title="'Profile: ' + activeProfile.name"></span>
         </button>
 
-        <!-- Cohesive Multi-Line Business & Session Flex Container -->
-        <div class="min-w-0 flex flex-col justify-center">
-          <!-- Line 1: Store Name & Session Sequence -->
-          <div class="flex items-center space-x-1.5 min-w-0">
-            <button 
-              @click="openProfileModal" 
-              type="button"
-              class="group font-bold text-xs sm:text-sm tracking-tight text-zinc-900 hover:text-black flex items-center space-x-1 cursor-pointer truncate">
-              <span class="truncate max-w-[120px] sm:max-w-[200px]">{{ activeProfile.name }}</span>
-              <svg class="w-3 h-3 text-zinc-400 group-hover:text-zinc-800 transition-transform group-hover:translate-y-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+        <!-- Business Identity & Session Flex Container -->
+        <div class="min-w-0 flex items-center space-x-1.5">
+          <button 
+            @click="openProfileModal" 
+            type="button"
+            class="group font-bold text-xs sm:text-sm tracking-tight text-zinc-900 hover:text-black flex items-center space-x-1 cursor-pointer truncate">
+            <span class="truncate max-w-[120px] sm:max-w-[200px]">{{ activeProfile.name }}</span>
+            <svg class="w-3 h-3 text-zinc-400 group-hover:text-zinc-800 transition-transform group-hover:translate-y-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-            <!-- Session Date Badge -->
-            <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-medium bg-zinc-100 text-zinc-700 border border-zinc-200 shrink-0">
-              #{{ sessionDate }}
-            </span>
-          </div>
-
-          <!-- Line 2: Session Status & Business Info Metrics -->
-          <div class="text-[10px] sm:text-[11px] text-zinc-500 font-mono leading-tight flex items-center space-x-1 truncate mt-0.5">
-            <span class="font-medium text-zinc-700 truncate max-w-[80px] sm:max-w-[110px]">{{ activeProfile.category }}</span>
-            <span class="text-zinc-300">•</span>
-            <span class="text-zinc-600">{{ allMines.length }} items</span>
-            <span class="text-zinc-300">•</span>
-            <span class="font-bold text-zinc-900">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</span>
-          </div>
+          <!-- Session Date Badge -->
+          <span class="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-mono font-medium bg-zinc-100 text-zinc-700 border border-zinc-200 shrink-0">
+            #{{ sessionDate }}
+          </span>
         </div>
       </div>
 
@@ -961,9 +949,9 @@
           
           <div class="flex items-center justify-between pb-2 border-b border-zinc-100">
             <div class="flex items-center space-x-2 text-xs text-zinc-500">
-              <span class="font-medium">Next Control:</span>
+              <span class="font-medium">Current Session:</span>
               <span class="font-mono font-bold text-zinc-900 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">
-                {{ nextControlCode }}
+                #{{ sessionDate }}
               </span>
             </div>
 
@@ -977,166 +965,159 @@
             </label>
           </div>
 
-          <!-- INPUT 1: Item Tag / Code -->
+          <!-- FIELD 1: Control Number -->
           <div>
             <div class="flex justify-between items-center mb-1">
               <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">
-                Item Tag / Code <span class="text-zinc-400">*</span>
+                Control Number
               </label>
-              <!-- Quick prefix helpers -->
-              <div class="flex items-center space-x-1 text-[11px] overflow-x-auto py-0.5">
+              <span class="text-[11px] text-zinc-400 font-mono">Auto-sequenced #{{ sequenceCounter }}</span>
+            </div>
+            <div class="w-full bg-zinc-50 border-2 border-zinc-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
+              <span class="text-xl sm:text-2xl font-black font-mono text-zinc-900 tracking-wide">{{ nextControlCode }}</span>
+              <span class="text-xs font-mono font-semibold text-zinc-500 bg-white px-2 py-0.5 rounded border border-zinc-200">Item #{{ sequenceCounter }}</span>
+            </div>
+          </div>
+
+          <!-- DYNAMIC MINING INPUT FIELDS (ORDER CONFIGURABLE IN SETTINGS) -->
+          <template v-for="fieldKey in (settings.miningFieldsOrder || ['customer', 'description', 'price'])" :key="fieldKey">
+            <!-- FIELD: Customer Name -->
+            <div v-if="fieldKey === 'customer'" class="relative">
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">
+                  Customer Name <span class="text-zinc-400">*</span>
+                </label>
+              </div>
+              
+              <div class="relative">
+                <input 
+                  ref="buyerInputRef"
+                  v-model="form.buyer" 
+                  @input="handleBuyerInput"
+                  @keydown.enter.prevent="handleFieldEnter('customer')"
+                  @focus="buyerSuggestionsOpen = true"
+                  type="text" 
+                  placeholder="maria_cruz" 
+                  class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl px-4 py-3 text-lg font-bold text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors"
+                  autocapitalize="none"
+                  spellcheck="false"
+                />
                 <button 
-                  v-for="pfx in activeProfile.quickPrefixes" 
-                  :key="pfx"
+                  v-if="form.buyer" 
+                  @click="form.buyer = ''; focusBuyerInput()" 
                   type="button" 
-                  @click="quickPrefix(pfx)" 
-                  class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 font-mono font-medium shrink-0">
-                  {{ pfx }}
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 p-1 text-sm">
+                  ✕
                 </button>
-                <button type="button" @click="incrementTagNumber" class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 font-mono font-bold shrink-0">+1</button>
+              </div>
+
+              <!-- Auto-suggest Dropdown List -->
+              <div 
+                v-if="buyerSuggestionsOpen && filteredBuyerSuggestions.length > 0"
+                class="absolute z-20 left-0 right-0 mt-1 bg-white border border-zinc-300 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto divide-y divide-zinc-100">
+                <button 
+                  v-for="b in filteredBuyerSuggestions" 
+                  :key="b.handle"
+                  type="button"
+                  @click="selectBuyer(b.handle)"
+                  class="w-full text-left px-3.5 py-2.5 hover:bg-zinc-50 active:bg-zinc-100 flex items-center justify-between text-zinc-800 text-sm transition-colors">
+                  <span class="font-bold font-mono text-zinc-900">{{ b.handle.replace(/^@+/, '') }}</span>
+                  <span class="text-xs text-zinc-500 font-mono">
+                    {{ b.itemCount }} pcs • {{ activeProfile.currency }}{{ b.totalSpent.toLocaleString() }}
+                  </span>
+                </button>
+              </div>
+
+              <!-- Quick Recent Buyers Chips for 1-Tap Logging -->
+              <div v-if="frequentBuyers.length > 0" class="mt-2">
+                <div class="text-[11px] text-zinc-500 mb-1 font-medium">Quick select:</div>
+                <div class="flex flex-wrap gap-1.5">
+                  <button 
+                    v-for="fb in frequentBuyers" 
+                    :key="fb"
+                    type="button"
+                    @click="selectBuyer(fb)"
+                    class="px-2.5 py-1 rounded-full text-xs font-mono font-medium transition-colors"
+                    :class="form.buyer === fb.replace(/^@+/, '') 
+                      ? 'bg-zinc-900 text-white font-bold' 
+                      : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200'">
+                    {{ fb.replace(/^@+/, '') }}
+                  </button>
+                </div>
               </div>
             </div>
-            <input 
-              ref="tagInputRef"
-              v-model="form.tag" 
-              @keydown.enter.prevent="focusPriceInput"
-              type="text" 
-              placeholder="e.g. A01, B12" 
-              class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl px-4 py-3 text-xl font-bold font-mono text-zinc-900 placeholder-zinc-400 tracking-wider focus:outline-none transition-colors"
-              autocapitalize="characters"
-              spellcheck="false"
-            />
-          </div>
 
-          <!-- INPUT 2: Description (Notion Item Category) -->
-          <div>
-            <div class="flex justify-between items-center mb-1">
-              <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">
-                Description / Category
-              </label>
-              <span class="text-[11px] text-zinc-400">Category</span>
-            </div>
-            <input 
-              v-model="form.description" 
-              @keydown.enter.prevent="focusPriceInput"
-              type="text" 
-              placeholder="e.g. Decor, Dress, Top, Pants..." 
-              class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl px-4 py-2.5 text-sm font-semibold text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors"
-            />
-            <!-- Quick Description Presets matching active business profile -->
-            <div class="flex flex-wrap gap-1 mt-1.5">
-              <button 
-                v-for="desc in activeProfile.defaultCategories" 
-                :key="desc"
-                type="button"
-                @click="form.description = desc; focusPriceInput()"
-                class="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
-                :class="form.description === desc 
-                  ? 'bg-zinc-900 text-white font-bold' 
-                  : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200'">
-                {{ desc }}
-              </button>
-            </div>
-          </div>
-
-          <!-- INPUT 3: Price (Active Profile Currency) -->
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">
-              Price ({{ activeProfile.currency }}) <span class="text-zinc-400">*</span>
-            </label>
-            <div class="relative">
-              <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
+            <!-- FIELD: Description / Name of Item -->
+            <div v-else-if="fieldKey === 'description'">
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">
+                  Description / Name of Item
+                </label>
+                <button 
+                  v-if="form.description" 
+                  @click="form.description = ''" 
+                  type="button" 
+                  class="text-[11px] text-zinc-400 hover:text-zinc-700 font-medium">
+                  Clear
+                </button>
+              </div>
               <input 
-                ref="priceInputRef"
-                v-model="form.price" 
-                @keydown.enter.prevent="focusBuyerInput"
-                type="number" 
-                step="1"
-                placeholder="0" 
-                class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-9 pr-4 py-3 text-2xl font-bold font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors"
-              />
-            </div>
-
-            <!-- Quick Price Presets Row -->
-            <div class="grid grid-cols-5 sm:grid-cols-10 gap-1.5 mt-2">
-              <button 
-                v-for="p in [20, 50, 100, 150, 200, 250, 300, 350, 500, 785]" 
-                :key="p" 
-                type="button"
-                @click="form.price = p; focusBuyerInput()"
-                class="py-1.5 px-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 border border-zinc-200 text-xs font-mono font-semibold text-zinc-800 transition-colors text-center"
-                :class="Number(form.price) === p ? 'border-zinc-900 bg-zinc-900 text-white' : ''">
-                {{ activeProfile.currency }}{{ p }}
-              </button>
-            </div>
-          </div>
-
-          <!-- INPUT 3: Auto-suggest Input: Buyer Live Handle -->
-          <div class="relative">
-            <div class="flex justify-between items-center mb-1">
-              <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">
-                Buyer Live Handle <span class="text-zinc-400">*</span>
-              </label>
-              <span class="text-[11px] text-zinc-400">Prefixes '@' automatically</span>
-            </div>
-            
-            <div class="relative">
-              <input 
-                ref="buyerInputRef"
-                v-model="form.buyer" 
-                @input="handleBuyerInput"
-                @keydown.enter.prevent="logMine"
-                @focus="buyerSuggestionsOpen = true"
+                ref="descriptionInputRef"
+                v-model="form.description" 
+                @keydown.enter.prevent="handleFieldEnter('description')"
                 type="text" 
-                placeholder="@maria_cruz" 
-                class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl px-4 py-3 text-lg font-bold text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors"
-                autocapitalize="none"
+                placeholder="Enter description or item name..." 
+                class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl px-4 py-2.5 text-base font-semibold text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors"
                 spellcheck="false"
               />
-              <button 
-                v-if="form.buyer" 
-                @click="form.buyer = ''; focusBuyerInput()" 
-                type="button" 
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 p-1 text-sm">
-                ✕
-              </button>
-            </div>
-
-            <!-- Auto-suggest Dropdown List -->
-            <div 
-              v-if="buyerSuggestionsOpen && filteredBuyerSuggestions.length > 0"
-              class="absolute z-20 left-0 right-0 mt-1 bg-white border border-zinc-300 rounded-xl shadow-lg overflow-hidden max-h-48 overflow-y-auto divide-y divide-zinc-100">
-              <button 
-                v-for="b in filteredBuyerSuggestions" 
-                :key="b.handle"
-                type="button"
-                @click="selectBuyer(b.handle)"
-                class="w-full text-left px-3.5 py-2.5 hover:bg-zinc-50 active:bg-zinc-100 flex items-center justify-between text-zinc-800 text-sm transition-colors">
-                <span class="font-bold font-mono text-zinc-900">{{ b.handle }}</span>
-                <span class="text-xs text-zinc-500 font-mono">
-                  {{ b.itemCount }} pcs • {{ activeProfile.currency }}{{ b.totalSpent.toLocaleString() }}
-                </span>
-              </button>
-            </div>
-
-            <!-- Quick Recent Buyers Chips for 1-Tap Logging -->
-            <div v-if="frequentBuyers.length > 0" class="mt-2">
-              <div class="text-[11px] text-zinc-500 mb-1 font-medium">Quick select:</div>
-              <div class="flex flex-wrap gap-1.5">
+              <!-- Quick Description Presets matching active business profile -->
+              <div v-if="activeProfile.defaultCategories && activeProfile.defaultCategories.length > 0" class="flex flex-wrap gap-1 mt-1.5">
                 <button 
-                  v-for="fb in frequentBuyers" 
-                  :key="fb"
+                  v-for="desc in activeProfile.defaultCategories" 
+                  :key="desc"
                   type="button"
-                  @click="selectBuyer(fb)"
-                  class="px-2.5 py-1 rounded-full text-xs font-mono font-medium transition-colors"
-                  :class="form.buyer === fb 
+                  @click="form.description = desc; handleFieldEnter('description')"
+                  class="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+                  :class="form.description === desc 
                     ? 'bg-zinc-900 text-white font-bold' 
                     : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200'">
-                  {{ fb }}
+                  {{ desc }}
                 </button>
               </div>
             </div>
-          </div>
+
+            <!-- FIELD: Amount or Price (Active Profile Currency) -->
+            <div v-else-if="fieldKey === 'price'">
+              <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">
+                Amount / Price ({{ activeProfile.currency }}) <span class="text-zinc-400">*</span>
+              </label>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
+                <input 
+                  ref="priceInputRef"
+                  v-model="form.price" 
+                  @keydown.enter.prevent="handleFieldEnter('price')"
+                  type="number" 
+                  step="1"
+                  placeholder="0" 
+                  class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-9 pr-4 py-3 text-2xl font-bold font-mono text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors"
+                />
+              </div>
+
+              <!-- Quick Price Presets Row -->
+              <div class="grid grid-cols-5 sm:grid-cols-10 gap-1.5 mt-2">
+                <button 
+                  v-for="p in [20, 50, 100, 150, 200, 250, 300, 350, 500, 785]" 
+                  :key="p" 
+                  type="button"
+                  @click="form.price = p; handleFieldEnter('price')"
+                  class="py-1.5 px-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 border border-zinc-200 text-xs font-mono font-semibold text-zinc-800 transition-colors text-center"
+                  :class="Number(form.price) === p ? 'border-zinc-900 bg-zinc-900 text-white' : ''">
+                  {{ activeProfile.currency }}{{ p }}
+                </button>
+              </div>
+            </div>
+          </template>
 
           <!-- GIANT PRIMARY BUTTON: "LOG MINE" -->
           <button 
@@ -1163,7 +1144,7 @@
           <!-- Empty State -->
           <div v-if="recentMines.length === 0" class="bg-white border border-dashed border-zinc-200 rounded-xl p-8 text-center text-zinc-400">
             <p class="text-sm font-semibold text-zinc-700">No items logged yet</p>
-            <p class="text-xs text-zinc-500 mt-1">Enter Tag, Price, and Buyer Handle above to record a mine</p>
+            <p class="text-xs text-zinc-500 mt-1">Enter Description, Price, and Customer Name above to record a mine</p>
             <button @click="loadSampleData" type="button" class="mt-3 px-3 py-1.5 rounded-lg bg-zinc-100 text-zinc-800 text-xs font-semibold border border-zinc-200 hover:bg-zinc-200">
               Load Demo Data
             </button>
@@ -1180,7 +1161,7 @@
               <!-- Mine Info -->
               <div class="flex items-center space-x-3 min-w-0">
                 <div class="text-center min-w-[56px] py-1 px-1.5 rounded bg-zinc-100 border border-zinc-200">
-                  <div class="text-[9px] font-mono text-zinc-500 leading-none">CODE</div>
+                  <div class="text-[9px] font-mono text-zinc-500 leading-none">CTRL</div>
                   <div class="text-xs font-bold font-mono text-zinc-900 leading-tight mt-0.5">{{ mine.controlCode }}</div>
                 </div>
 
@@ -1190,8 +1171,11 @@
                     <span class="text-[10px] text-zinc-400 font-mono">{{ mine.time }}</span>
                   </div>
                   <div class="flex items-center space-x-2 mt-0.5">
-                    <span class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-mono font-medium border border-zinc-200">
-                      Tag: {{ mine.tag }}
+                    <span v-if="mine.description" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-medium border border-zinc-200 truncate max-w-[130px]">
+                      {{ mine.description }}
+                    </span>
+                    <span v-else-if="mine.tag && mine.tag !== mine.controlCode" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-mono font-medium border border-zinc-200">
+                      {{ mine.tag }}
                     </span>
                     <span class="text-sm font-bold text-zinc-900 font-mono">
                       {{ activeProfile.currency }}{{ mine.price.toLocaleString() }}
@@ -1853,7 +1837,7 @@
           </div>
 
           <!-- Business Category & Currency -->
-          <div class="grid grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Industry / Category</label>
               <input 
@@ -1871,6 +1855,16 @@
                 placeholder="e.g. ₱, $, €, ¥"
                 maxlength="4"
                 class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-900 font-mono font-bold focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Code Prefix</label>
+              <input 
+                v-model="editingProfileForm.codePrefix"
+                type="text" 
+                placeholder="e.g. #, LS, CR"
+                maxlength="6"
+                class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-900 font-mono font-bold uppercase focus:outline-none"
               />
             </div>
           </div>
@@ -1966,83 +1960,85 @@
     <!-- =============================================================== -->
     <!-- MODAL 1: PAYMENT ENTRY MODAL                                    -->
     <!-- =============================================================== -->
-    <div v-if="paymentModalOpen" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-fadeIn">
-      <div class="bg-white border border-zinc-200 rounded-xl max-w-md w-full p-4 shadow-xl space-y-4">
+    <div v-if="paymentModalOpen" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
         
-        <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
+        <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
           <div>
             <h3 class="font-bold text-sm text-zinc-900">Record Payment</h3>
             <p class="text-xs text-zinc-500 font-mono font-medium">{{ activePaymentBuyer?.handle }}</p>
           </div>
-          <button @click="closePaymentModal" class="text-zinc-400 hover:text-zinc-700 p-1 text-base">✕</button>
+          <button @click="closePaymentModal" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
         </div>
 
-        <!-- Current Balance Summary -->
-        <div class="bg-zinc-50 rounded-lg p-2.5 border border-zinc-200 flex justify-between items-center text-xs font-mono">
-          <span class="text-zinc-500">Current Balance:</span>
-          <span class="text-sm font-bold text-amber-700">{{ activeProfile.currency }}{{ activePaymentBuyer?.balance?.toLocaleString() }}</span>
-        </div>
-
-        <!-- Amount Paid -->
-        <div>
-          <div class="flex justify-between items-center mb-1">
-            <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">Amount Paid ({{ activeProfile.currency }}) *</label>
-            <button 
-              v-if="activePaymentBuyer && activePaymentBuyer.balance > 0"
-              @click="paymentForm.amount = activePaymentBuyer.balance"
-              type="button" 
-              class="text-[11px] font-medium text-zinc-700 hover:underline">
-              Pay Balance ({{ activeProfile.currency }}{{ activePaymentBuyer.balance }})
-            </button>
+        <div class="p-4 space-y-4 overflow-y-auto flex-1 overscroll-contain">
+          <!-- Current Balance Summary -->
+          <div class="bg-zinc-50 rounded-lg p-2.5 border border-zinc-200 flex justify-between items-center text-xs font-mono">
+            <span class="text-zinc-500">Current Balance:</span>
+            <span class="text-sm font-bold text-amber-700">{{ activeProfile.currency }}{{ activePaymentBuyer?.balance?.toLocaleString() }}</span>
           </div>
-          <div class="relative">
-            <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
+
+          <!-- Amount Paid -->
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">Amount Paid ({{ activeProfile.currency }}) *</label>
+              <button 
+                v-if="activePaymentBuyer && activePaymentBuyer.balance > 0"
+                @click="paymentForm.amount = activePaymentBuyer.balance"
+                type="button" 
+                class="text-[11px] font-medium text-zinc-700 hover:underline">
+                Pay Balance ({{ activeProfile.currency }}{{ activePaymentBuyer.balance }})
+              </button>
+            </div>
+            <div class="relative">
+              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
+              <input 
+                v-model="paymentForm.amount"
+                type="number"
+                placeholder="0"
+                class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-8 pr-4 py-2.5 text-xl font-bold font-mono text-zinc-900 focus:outline-none"
+              />
+            </div>
+
+            <!-- Quick Increment Buttons -->
+            <div class="grid grid-cols-4 gap-1.5 mt-2">
+              <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 100" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}100</button>
+              <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 200" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}200</button>
+              <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 500" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}500</button>
+              <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 1000" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}1k</button>
+            </div>
+          </div>
+
+          <!-- Payment Method Dropdown / Buttons -->
+          <div>
+            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1.5">Payment Method *</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button 
+                v-for="m in ['GCash', 'Maya', 'Cash', 'Bank']" 
+                :key="m"
+                type="button"
+                @click="paymentForm.method = m"
+                class="py-2 px-2 rounded-lg text-xs font-semibold transition-all border text-center"
+                :class="paymentForm.method === m ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'">
+                {{ m }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Optional Reference / Note -->
+          <div>
+            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Ref # / Note (Optional)</label>
             <input 
-              v-model="paymentForm.amount"
-              type="number"
-              placeholder="0"
-              class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-8 pr-4 py-2.5 text-xl font-bold font-mono text-zinc-900 focus:outline-none"
+              v-model="paymentForm.ref"
+              type="text"
+              placeholder="e.g. GCash Ref 10023485"
+              class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
             />
           </div>
-
-          <!-- Quick Increment Buttons -->
-          <div class="grid grid-cols-4 gap-1.5 mt-2">
-            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 100" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}100</button>
-            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 200" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}200</button>
-            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 500" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}500</button>
-            <button type="button" @click="paymentForm.amount = Number(paymentForm.amount || 0) + 1000" class="py-1 rounded bg-zinc-100 text-xs font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}1k</button>
-          </div>
-        </div>
-
-        <!-- Payment Method Dropdown / Buttons -->
-        <div>
-          <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1.5">Payment Method *</label>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <button 
-              v-for="m in ['GCash', 'Maya', 'Cash', 'Bank']" 
-              :key="m"
-              type="button"
-              @click="paymentForm.method = m"
-              class="py-2 px-2 rounded-lg text-xs font-semibold transition-all border text-center"
-              :class="paymentForm.method === m ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'">
-              {{ m }}
-            </button>
-          </div>
-        </div>
-
-        <!-- Optional Reference / Note -->
-        <div>
-          <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Ref # / Note (Optional)</label>
-          <input 
-            v-model="paymentForm.ref"
-            type="text"
-            placeholder="e.g. GCash Ref 10023485"
-            class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
-          />
         </div>
 
         <!-- Submit & Cancel -->
-        <div class="flex space-x-2 pt-2 border-t border-zinc-100">
+        <div class="flex space-x-2 p-3 border-t border-zinc-100 shrink-0 bg-zinc-50/50">
           <button 
             @click="recordPayment"
             type="button"
@@ -2061,193 +2057,516 @@
     </div>
 
     <!-- =============================================================== -->
-    <!-- MODAL 2: SESSION SETTINGS & CONFIG MODAL                         -->
     <!-- =============================================================== -->
-    <div v-if="settingsModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-fadeIn">
-      <div class="bg-white border border-zinc-200 rounded-xl max-w-md w-full p-4 shadow-xl space-y-4">
+    <!-- MODAL 2: SESSION SETTINGS & CONFIG MODAL (Store & Overall)        -->
+    <!-- =============================================================== -->
+    <div v-if="settingsModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
         
-        <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
-          <h3 class="font-bold text-sm text-zinc-900">Settings</h3>
-          <button @click="settingsModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base">✕</button>
+        <!-- Pinned Header -->
+        <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
+          <div class="flex items-center space-x-2">
+            <div class="w-7 h-7 rounded-lg bg-zinc-900 text-white flex items-center justify-center">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-sm text-zinc-900 leading-tight">Settings</h3>
+              <p class="text-[11px] text-zinc-500">Selected store config & app preferences</p>
+            </div>
+          </div>
+          <button @click="settingsModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none cursor-pointer">✕</button>
         </div>
 
-        <div class="space-y-3">
-          <!-- Install App to Device (PWA) -->
-          <div v-if="(!isInstalled && isInstallable) || (isIOS && !isInstalled)" class="p-3 rounded-xl bg-zinc-900 text-white text-xs space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="font-bold flex items-center space-x-1.5">
-                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                <span>Install POS to Device</span>
-              </span>
-              <span class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded font-mono">PWA Standalone</span>
-            </div>
-            <p class="text-[11px] text-zinc-400 leading-relaxed">
-              Install this POS app to your home screen for quick launch and offline live selling.
-            </p>
-            <button 
-              v-if="isInstallable"
-              @click="promptPWAInstall" 
-              type="button"
-              class="w-full py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              <span>Install to Home Screen</span>
-            </button>
-            <button 
-              v-else-if="isIOS"
-              @click="settingsModalOpen = false; showIOSGuide = true" 
-              type="button"
-              class="w-full py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer border border-zinc-700">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              <span>Add to Home Screen (iOS)</span>
-            </button>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Store Name</label>
-            <input 
-              v-model="settings.storeName" 
-              type="text" 
-              class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
-            />
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Payment Instructions (Messenger Receipt)</label>
-            <textarea 
-              v-model="settings.paymentDetails" 
-              rows="3"
-              class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono"
-            ></textarea>
-          </div>
-
-          <div class="flex items-center justify-between py-2 border-y border-zinc-100">
-            <div>
-              <div class="text-xs font-semibold text-zinc-800">Audio Feedback</div>
-              <div class="text-[11px] text-zinc-400">Audio chime when logging mine and recording payments</div>
-            </div>
-            <input type="checkbox" v-model="settings.soundEnabled" class="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-0">
-          </div>
-
-          <!-- Starting Control Number Sequence Setting -->
-          <div class="flex items-center justify-between py-2 border-b border-zinc-100">
-            <div>
-              <div class="text-xs font-semibold text-zinc-800">Next Control # Sequence</div>
-              <div class="text-[11px] text-zinc-400">Current code: <span class="font-mono font-bold text-zinc-700">{{ nextControlCode }}</span></div>
-            </div>
-            <input 
-              v-model.number="sequenceCounter" 
-              @change="saveAll" 
-              type="number" 
-              class="w-20 bg-white border border-zinc-300 rounded-lg px-2.5 py-1 text-xs font-bold font-mono text-center focus:outline-none focus:border-zinc-900"
-            />
-          </div>
-
-          <!-- Supabase Cloud Database Sync Panel -->
-          <div class="p-3.5 rounded-xl bg-gradient-to-b from-sky-50/70 to-zinc-50 border border-sky-200/80 text-xs space-y-2.5 shadow-xs">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-zinc-900 flex items-center space-x-1.5">
-                <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
-                <span>Supabase Cloud Sync</span>
-              </span>
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold border" 
-                    :class="supabaseStatus === 'connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : (supabaseStatus === 'syncing' ? 'bg-amber-50 text-amber-800 border-amber-300 animate-pulse' : 'bg-zinc-100 text-zinc-600 border-zinc-300')">
-                <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :class="supabaseStatus === 'connected' ? 'bg-emerald-500' : (supabaseStatus === 'syncing' ? 'bg-amber-500' : 'bg-zinc-400')"></span>
-                {{ supabaseStatus === 'connected' ? 'Connected' : (supabaseStatus === 'syncing' ? 'Syncing...' : 'Disconnected') }}
-              </span>
-            </div>
-            
-            <div class="text-[11px] text-zinc-600 space-y-1">
-              <div class="flex items-center justify-between">
-                <span class="text-zinc-500">Project:</span>
-                <span class="font-mono font-medium text-zinc-800 text-[10px] bg-white px-1.5 py-0.5 rounded border border-zinc-200 truncate max-w-[190px]">vvbsszhgduzqqcciroac</span>
-              </div>
-              <div class="flex items-center justify-between">
-                <span class="text-zinc-500">Status:</span>
-                <span class="text-zinc-700 font-medium">{{ supabaseSyncMessage || 'Cloud auto-sync active' }}</span>
-              </div>
-              <div v-if="lastSyncedAt" class="flex items-center justify-between">
-                <span class="text-zinc-500">Last Synced:</span>
-                <span class="text-zinc-700 font-medium font-mono text-[10px]">{{ lastSyncedAt }}</span>
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 pt-1">
-              <button 
-                @click="syncAllWithSupabase(true)" 
-                type="button" 
-                :disabled="supabaseStatus === 'syncing'"
-                class="py-1.5 px-2 rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 disabled:opacity-50 text-white text-[11px] font-semibold flex items-center justify-center space-x-1 transition-colors shadow-xs cursor-pointer">
-                <svg class="w-3.5 h-3.5" :class="{'animate-spin': supabaseStatus === 'syncing'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                <span>{{ supabaseStatus === 'syncing' ? 'Syncing...' : 'Sync Now' }}</span>
-              </button>
-              <button 
-                @click="pushAllToSupabase()" 
-                type="button" 
-                :disabled="supabaseStatus === 'syncing'"
-                class="py-1.5 px-2 rounded-lg bg-white hover:bg-zinc-100 disabled:opacity-50 text-zinc-800 border border-zinc-300 text-[11px] font-medium flex items-center justify-center space-x-1 transition-colors cursor-pointer">
-                <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                <span>Push to Cloud</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Offline & Storage Status Panel -->
-          <div class="p-3 rounded-lg bg-zinc-50 border border-zinc-200 text-xs space-y-2">
-            <div class="flex items-center justify-between">
-              <span class="font-bold text-zinc-900 flex items-center space-x-1.5">
-                <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
-                <span>Offline Storage & Data Safety</span>
-              </span>
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="isOnline ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
-                {{ isOnline ? 'Online' : 'Offline' }}
-              </span>
-            </div>
-            <p class="text-[11px] text-zinc-500 leading-relaxed">
-              Every mined tag, customer name, price, and payment is stored directly on this device using local browser storage (<strong>{{ allMines.length }}</strong> items, <strong>{{ allPayments.length }}</strong> payments saved). Zero internet is required to operate.
-            </p>
-            <div class="flex space-x-2 pt-1">
-              <button 
-                @click="downloadJsonBackup" 
-                type="button" 
-                class="flex-1 py-1.5 px-2 rounded bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[11px] font-medium flex items-center justify-center space-x-1 transition-colors">
-                <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                <span>Export Backup</span>
-              </button>
-              <label class="flex-1 py-1.5 px-2 rounded bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[11px] font-medium flex items-center justify-center space-x-1 cursor-pointer transition-colors text-center">
-                <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                <span>Restore Backup</span>
-                <input type="file" accept=".json" @change="restoreJsonBackup" class="sr-only" />
-              </label>
-            </div>
-          </div>
-
-          <div class="pt-1 space-y-2">
-            <button 
-              @click="loadSampleData" 
-              class="w-full py-2 px-3 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 text-xs font-medium transition-colors">
-              Load Sample Demo Data
-            </button>
-            <div class="flex space-x-2">
-              <button 
-                @click="confirmNewSession" 
-                class="flex-1 py-2 px-2.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 text-xs font-medium transition-colors text-center">
-                New Session
-              </button>
-              <button 
-                @click="clearAllData" 
-                class="py-2 px-2.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-medium transition-colors text-center">
-                Clear All Data
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="pt-2 border-t border-zinc-100">
+        <!-- Tab Switcher: Selected Store vs Overall Settings -->
+        <div class="flex border-b border-zinc-200 bg-zinc-50/90 px-3 pt-2 gap-2 shrink-0">
           <button 
-            @click="settingsModalOpen = false; saveSettings()"
             type="button"
-            class="w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-black text-white font-semibold text-xs">
-            Save Settings
+            @click="settingsTab = 'store'"
+            class="pb-2 px-2.5 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors cursor-pointer"
+            :class="settingsTab === 'store' 
+              ? 'border-zinc-900 text-zinc-900' 
+              : 'border-transparent text-zinc-500 hover:text-zinc-800'">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+            <span>Store Settings</span>
+            <span class="text-[10px] px-1.5 py-0.2 rounded-full font-mono font-medium truncate max-w-[90px]"
+                  :class="getProfileBadgeClass(activeProfile.color)">
+              {{ activeProfile.name }}
+            </span>
+          </button>
+          <button 
+            type="button"
+            @click="settingsTab = 'overall'"
+            class="pb-2 px-2.5 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors cursor-pointer"
+            :class="settingsTab === 'overall' 
+              ? 'border-zinc-900 text-zinc-900' 
+              : 'border-transparent text-zinc-500 hover:text-zinc-800'">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" /></svg>
+            <span>Overall Settings</span>
+          </button>
+        </div>
+
+        <!-- Scrollable Body -->
+        <div class="p-4 space-y-3.5 overflow-y-auto flex-1 overscroll-contain">
+          
+          <!-- TAB 1: SELECTED STORE SETTINGS -->
+          <div v-if="settingsTab === 'store'" class="space-y-3.5">
+            <!-- Active Business Selector Bar -->
+            <div class="p-2.5 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-between gap-2 shadow-2xs">
+              <div class="min-w-0">
+                <div class="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Selected Store</div>
+                <div class="text-xs font-bold text-zinc-900 flex items-center space-x-1.5 truncate mt-0.5">
+                  <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="getProfileDotClass(activeProfile.color)"></span>
+                  <span class="truncate">{{ activeProfile.name }}</span>
+                </div>
+              </div>
+              <div class="flex items-center space-x-1.5 shrink-0">
+                <select 
+                  :value="activeProfileId" 
+                  @change="onSettingsStoreChange($event.target.value)"
+                  class="bg-white border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-800 focus:outline-none focus:border-zinc-900 shadow-2xs cursor-pointer max-w-[150px] truncate">
+                  <option v-for="p in profiles" :key="p.id" :value="p.id">
+                    {{ p.name }} ({{ p.currency || '₱' }})
+                  </option>
+                </select>
+                <button 
+                  @click="openAddProfileModal" 
+                  type="button"
+                  title="Add new store"
+                  class="p-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Store Name -->
+            <div>
+              <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">
+                Store / Business Name <span class="text-zinc-400">*</span>
+              </label>
+              <input 
+                v-model="activeStoreForm.name" 
+                @input="saveActiveStoreSettings(false)"
+                type="text" 
+                placeholder="e.g. LiveStyle Boutique PH"
+                class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs font-bold text-zinc-900 focus:outline-none focus:border-zinc-900 transition-colors"
+              />
+              <p class="text-[10px] text-zinc-400 mt-1">Updates the store name on header, receipts, stickers, and invoices</p>
+            </div>
+
+            <!-- Category & Currency -->
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Category</label>
+                <input 
+                  v-model="activeStoreForm.category" 
+                  @input="saveActiveStoreSettings(false)"
+                  type="text" 
+                  placeholder="e.g. Fashion & Apparel"
+                  class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Currency</label>
+                <select 
+                  v-model="activeStoreForm.currency" 
+                  @change="saveActiveStoreSettings(false)"
+                  class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs font-mono font-bold text-zinc-900 focus:outline-none focus:border-zinc-900 cursor-pointer">
+                  <option value="₱">₱ (PHP - Philippine Peso)</option>
+                  <option value="$">$ (USD - US Dollar)</option>
+                  <option value="€">€ (EUR - Euro)</option>
+                  <option value="£">£ (GBP - British Pound)</option>
+                  <option value="¥">¥ (JPY - Japanese Yen)</option>
+                  <option value="S$">S$ (SGD - Singapore Dollar)</option>
+                  <option value="A$">A$ (AUD - Australian Dollar)</option>
+                  <option value="C$">C$ (CAD - Canadian Dollar)</option>
+                  <option value="RM">RM (MYR - Malaysian Ringgit)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Per-Store Control Code # & Sequence -->
+            <div class="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs space-y-2.5 shadow-2xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-zinc-900 flex items-center space-x-1.5">
+                  <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" /></svg>
+                  <span>Control Code # & Sequence (Store-Specific)</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-zinc-200 text-zinc-800 font-mono">
+                  Per Store
+                </span>
+              </div>
+
+              <!-- Live Preview Box -->
+              <div class="bg-white border border-zinc-200 rounded-lg p-2.5 flex items-center justify-between shadow-2xs">
+                <div>
+                  <div class="text-[10px] uppercase tracking-wider font-semibold text-zinc-500">Live Mining Code Preview</div>
+                  <div class="text-xs text-zinc-500">Next sticker & log code for <strong>{{ activeProfile.name }}</strong></div>
+                </div>
+                <div class="text-base sm:text-lg font-black font-mono text-zinc-900 tracking-wide bg-zinc-100 px-2.5 py-1 rounded-md border border-zinc-300">
+                  {{ nextControlCode }}
+                </div>
+              </div>
+
+              <!-- Code Inputs: Prefix, Session Date, Next # -->
+              <div class="grid grid-cols-3 gap-2 pt-1">
+                <div>
+                  <label class="block text-[11px] font-semibold text-zinc-600 mb-1 text-center">Prefix</label>
+                  <input 
+                    v-model="activeStoreForm.codePrefix" 
+                    @input="saveActiveStoreSettings(false)"
+                    type="text" 
+                    placeholder="#"
+                    class="w-full bg-white border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-zinc-900 text-center focus:outline-none focus:border-zinc-900"
+                  />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-zinc-600 mb-1 text-center">Session Date</label>
+                  <input 
+                    v-model="sessionDate" 
+                    @change="saveSessionDateForStore"
+                    type="text" 
+                    placeholder="0907"
+                    class="w-full bg-white border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-zinc-900 text-center focus:outline-none focus:border-zinc-900"
+                  />
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-zinc-600 mb-1 text-center">Next Sequence #</label>
+                  <input 
+                    v-model.number="sequenceCounter" 
+                    @change="saveSequenceForStore"
+                    type="number" 
+                    min="1"
+                    step="1"
+                    class="w-full bg-white border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-mono font-bold text-zinc-900 text-center focus:outline-none focus:border-zinc-900"
+                  />
+                </div>
+              </div>
+
+              <!-- Sequence Adjust Buttons -->
+              <div class="flex items-center justify-between text-[11px] text-zinc-500 pt-0.5">
+                <span>Quick counter adjust:</span>
+                <div class="flex space-x-1">
+                  <button type="button" @click="sequenceCounter = 1; saveSequenceForStore()" class="px-2 py-0.5 rounded bg-white hover:bg-zinc-100 border border-zinc-200 text-[10px] font-mono font-medium cursor-pointer shadow-2xs">Reset 1</button>
+                  <button type="button" @click="sequenceCounter += 5; saveSequenceForStore()" class="px-2 py-0.5 rounded bg-white hover:bg-zinc-100 border border-zinc-200 text-[10px] font-mono font-medium cursor-pointer shadow-2xs">+5</button>
+                  <button type="button" @click="sequenceCounter += 10; saveSequenceForStore()" class="px-2 py-0.5 rounded bg-white hover:bg-zinc-100 border border-zinc-200 text-[10px] font-mono font-medium cursor-pointer shadow-2xs">+10</button>
+                </div>
+              </div>
+              <p class="text-[10px] text-zinc-400 italic">This sequence count is isolated to this store and will not affect other stores.</p>
+            </div>
+
+            <!-- Payment Instructions -->
+            <div>
+              <div class="flex justify-between items-center mb-1">
+                <label class="text-xs font-semibold text-zinc-700 uppercase tracking-wider">
+                  Payment Details ({{ activeProfile.name }})
+                </label>
+                <span class="text-[10px] text-zinc-400">Printed on receipts & invoices</span>
+              </div>
+              <textarea 
+                v-model="activeStoreForm.paymentDetails" 
+                @input="saveActiveStoreSettings(false)"
+                rows="3"
+                placeholder="GCash: 09XX-XXX-XXXX (LiveStyle PH)&#10;Maya: 09XX-XXX-XXXX&#10;Bank: 0000-0000-00"
+                class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono"
+              ></textarea>
+            </div>
+
+            <!-- Quick Prefixes & Categories -->
+            <div class="space-y-2.5">
+              <div>
+                <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Quick Tag Prefixes (Comma-separated)</label>
+                <input 
+                  v-model="activeStoreForm.quickPrefixesText" 
+                  @input="saveActiveStoreSettings(false)"
+                  type="text" 
+                  placeholder="A, B, C, D, VIP"
+                  class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs font-mono text-zinc-900 focus:outline-none focus:border-zinc-900"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1">Default Item Categories (Comma-separated)</label>
+                <input 
+                  v-model="activeStoreForm.defaultCategoriesText" 
+                  @input="saveActiveStoreSettings(false)"
+                  type="text" 
+                  placeholder="Tops, Dresses, Bottoms, Jackets, Accessories"
+                  class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
+                />
+              </div>
+            </div>
+
+            <!-- Store Color Accent -->
+            <div>
+              <label class="block text-xs font-semibold text-zinc-700 uppercase tracking-wider mb-1.5">Store Color Accent</label>
+              <div class="flex items-center space-x-2">
+                <button 
+                  v-for="c in ['emerald', 'blue', 'purple', 'amber', 'rose', 'indigo', 'teal', 'zinc']" 
+                  :key="c"
+                  type="button"
+                  @click="activeStoreForm.color = c; saveActiveStoreSettings(false)"
+                  class="w-6 h-6 rounded-full transition-transform cursor-pointer flex items-center justify-center"
+                  :class="[getProfileDotClass(c), activeStoreForm.color === c ? 'ring-2 ring-zinc-900 ring-offset-2 scale-110' : 'opacity-70 hover:opacity-100']">
+                  <span v-if="activeStoreForm.color === c" class="text-white text-[10px] font-bold">✓</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Store Save Action -->
+            <div class="pt-2 flex space-x-2">
+              <button 
+                type="button"
+                @click="saveActiveStoreSettings(true)" 
+                class="flex-1 py-2 px-3 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                <span>Save Store Settings</span>
+              </button>
+              <button 
+                v-if="profiles.length > 1"
+                type="button"
+                @click="deleteProfile(activeProfileId)"
+                class="py-2 px-2.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-medium transition-colors cursor-pointer">
+                Delete Store
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 2: OVERALL SETTINGS -->
+          <div v-if="settingsTab === 'overall'" class="space-y-3.5">
+            <!-- Mining Form Input Order Configuration -->
+            <div class="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs space-y-2.5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-zinc-900 flex items-center space-x-1.5">
+                    <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+                    <span>Mining Fields Input Order</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-500">Customize the field sequence on the Live Mining screen</div>
+                </div>
+                <button 
+                  type="button" 
+                  @click="resetMiningFieldOrder"
+                  class="text-[11px] text-zinc-500 hover:text-zinc-900 underline font-medium cursor-pointer">
+                  Reset
+                </button>
+              </div>
+
+              <div class="space-y-1.5">
+                <div 
+                  v-for="(fieldKey, idx) in (settings.miningFieldsOrder || ['customer', 'description', 'price'])" 
+                  :key="fieldKey"
+                  class="flex items-center justify-between bg-white border border-zinc-200 rounded-lg px-3 py-2 shadow-2xs">
+                  <div class="flex items-center space-x-2.5">
+                    <span class="w-5 h-5 rounded-full bg-zinc-100 border border-zinc-300 text-zinc-700 font-mono font-bold text-[11px] flex items-center justify-center">
+                      {{ idx + 1 }}
+                    </span>
+                    <span class="font-semibold text-zinc-900 text-xs">
+                      {{ getMiningFieldLabel(fieldKey) }}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center space-x-1">
+                    <button 
+                      type="button"
+                      :disabled="idx === 0"
+                      @click="moveMiningField(idx, -1)"
+                      title="Move up"
+                      class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 disabled:opacity-25 disabled:pointer-events-none text-zinc-700 transition-colors cursor-pointer">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7" /></svg>
+                    </button>
+                    <button 
+                      type="button"
+                      :disabled="idx === (settings.miningFieldsOrder || []).length - 1"
+                      @click="moveMiningField(idx, 1)"
+                      title="Move down"
+                      class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 disabled:opacity-25 disabled:pointer-events-none text-zinc-700 transition-colors cursor-pointer">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <p class="text-[10px] text-zinc-500 italic">
+                Control Number is permanently fixed at the top. Use arrows to re-order Customer Name, Item Name, and Amount.
+              </p>
+            </div>
+
+            <!-- Audio & Printing Controls -->
+            <div class="space-y-2 border-y border-zinc-100 py-2.5">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-zinc-800">Audio Feedback</div>
+                  <div class="text-[11px] text-zinc-400">Audio chime when logging mine and recording payments</div>
+                </div>
+                <div class="flex items-center space-x-2">
+                  <button 
+                    type="button"
+                    @click="playTestBeep"
+                    class="px-2 py-0.5 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[10px] font-medium transition-colors cursor-pointer border border-zinc-200">
+                    Test Sound
+                  </button>
+                  <input type="checkbox" v-model="settings.soundEnabled" @change="saveSettings(false)" class="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-0 cursor-pointer">
+                </div>
+              </div>
+
+              <div class="flex items-center justify-between pt-1">
+                <div>
+                  <div class="text-xs font-semibold text-zinc-800">Auto-Print Thermal Sticker</div>
+                  <div class="text-[11px] text-zinc-400">Automatically open thermal print dialog on logging mine</div>
+                </div>
+                <input type="checkbox" v-model="settings.autoPrint" @change="saveSettings(false)" class="h-4 w-4 rounded border-zinc-300 text-zinc-900 focus:ring-0 cursor-pointer">
+              </div>
+            </div>
+
+            <!-- Supabase Cloud Database Sync Panel -->
+            <div class="p-3.5 rounded-xl bg-gradient-to-b from-sky-50/70 to-zinc-50 border border-sky-200/80 text-xs space-y-2.5 shadow-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-zinc-900 flex items-center space-x-1.5">
+                  <svg class="w-4 h-4 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+                  <span>Supabase Cloud Sync</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold border" 
+                      :class="supabaseStatus === 'connected' ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : (supabaseStatus === 'syncing' ? 'bg-amber-50 text-amber-800 border-amber-300 animate-pulse' : 'bg-zinc-100 text-zinc-600 border-zinc-300')">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :class="supabaseStatus === 'connected' ? 'bg-emerald-500' : (supabaseStatus === 'syncing' ? 'bg-amber-500' : 'bg-zinc-400')"></span>
+                  {{ supabaseStatus === 'connected' ? 'Connected' : (supabaseStatus === 'syncing' ? 'Syncing...' : 'Disconnected') }}
+                </span>
+              </div>
+              
+              <div class="text-[11px] text-zinc-600 space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-zinc-500">Project:</span>
+                  <span class="font-mono font-medium text-zinc-800 text-[10px] bg-white px-1.5 py-0.5 rounded border border-zinc-200 truncate max-w-[190px]">vvbsszhgduzqqcciroac</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="text-zinc-500">Status:</span>
+                  <span class="text-zinc-700 font-medium">{{ supabaseSyncMessage || 'Cloud auto-sync active' }}</span>
+                </div>
+                <div v-if="lastSyncedAt" class="flex items-center justify-between">
+                  <span class="text-zinc-500">Last Synced:</span>
+                  <span class="text-zinc-700 font-medium font-mono text-[10px]">{{ lastSyncedAt }}</span>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2 pt-1">
+                <button 
+                  @click="syncAllWithSupabase(true)" 
+                  type="button" 
+                  :disabled="supabaseStatus === 'syncing'"
+                  class="py-1.5 px-2 rounded-lg bg-sky-600 hover:bg-sky-700 active:bg-sky-800 disabled:opacity-50 text-white text-[11px] font-semibold flex items-center justify-center space-x-1 transition-colors shadow-xs cursor-pointer">
+                  <svg class="w-3.5 h-3.5" :class="{'animate-spin': supabaseStatus === 'syncing'}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  <span>{{ supabaseStatus === 'syncing' ? 'Syncing...' : 'Sync Now' }}</span>
+                </button>
+                <button 
+                  @click="pushAllToSupabase()" 
+                  type="button" 
+                  :disabled="supabaseStatus === 'syncing'"
+                  class="py-1.5 px-2 rounded-lg bg-white hover:bg-zinc-100 disabled:opacity-50 text-zinc-800 border border-zinc-300 text-[11px] font-medium flex items-center justify-center space-x-1 transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                  <span>Push to Cloud</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Offline & Storage Status Panel -->
+            <div class="p-3 rounded-lg bg-zinc-50 border border-zinc-200 text-xs space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-zinc-900 flex items-center space-x-1.5">
+                  <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+                  <span>Offline Storage & Data Safety</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="isOnline ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
+                  {{ isOnline ? 'Online' : 'Offline' }}
+                </span>
+              </div>
+              <p class="text-[11px] text-zinc-500 leading-relaxed">
+                All stores, logs, and settings are saved on this device. Zero internet is required to operate.
+              </p>
+              <div class="flex space-x-2 pt-1">
+                <button 
+                  @click="downloadJsonBackup" 
+                  type="button" 
+                  class="flex-1 py-1.5 px-2 rounded bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[11px] font-medium flex items-center justify-center space-x-1 transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  <span>Export Backup</span>
+                </button>
+                <label class="flex-1 py-1.5 px-2 rounded bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 text-[11px] font-medium flex items-center justify-center space-x-1 cursor-pointer transition-colors text-center">
+                  <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  <span>Restore Backup</span>
+                  <input type="file" accept=".json" @change="restoreJsonBackup" class="sr-only" />
+                </label>
+              </div>
+            </div>
+
+            <!-- Install App to Device (PWA) -->
+            <div v-if="(!isInstalled && isInstallable) || (isIOS && !isInstalled)" class="p-3 rounded-xl bg-zinc-900 text-white text-xs space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="font-bold flex items-center space-x-1.5">
+                  <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  <span>Install POS to Device</span>
+                </span>
+                <span class="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded font-mono">PWA Standalone</span>
+              </div>
+              <button 
+                v-if="isInstallable"
+                @click="promptPWAInstall" 
+                type="button"
+                class="w-full py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <span>Install to Home Screen</span>
+              </button>
+              <button 
+                v-else-if="isIOS"
+                @click="settingsModalOpen = false; showIOSGuide = true" 
+                type="button"
+                class="w-full py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-semibold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer border border-zinc-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <span>Add to Home Screen (iOS)</span>
+              </button>
+            </div>
+
+            <!-- Demo & Reset Section -->
+            <div class="pt-1 space-y-2">
+              <button 
+                @click="loadSampleData" 
+                class="w-full py-2 px-3 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 text-xs font-medium transition-colors cursor-pointer">
+                Load Sample Demo Data
+              </button>
+              <div class="flex space-x-2">
+                <button 
+                  @click="confirmNewSession" 
+                  class="flex-1 py-2 px-2.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-200 text-xs font-medium transition-colors text-center cursor-pointer">
+                  New Session
+                </button>
+                <button 
+                  @click="clearAllData" 
+                  class="py-2 px-2.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-medium transition-colors text-center cursor-pointer">
+                  Clear All Data
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Pinned Footer -->
+        <div class="p-3 border-t border-zinc-100 shrink-0 bg-zinc-50/70 flex items-center justify-between gap-2">
+          <button 
+            @click="settingsModalOpen = false"
+            type="button"
+            class="py-2 px-3 rounded-lg bg-white hover:bg-zinc-100 border border-zinc-200 text-zinc-700 font-semibold text-xs transition-colors cursor-pointer">
+            Close
+          </button>
+          <button 
+            v-if="settingsTab === 'store'"
+            @click="saveActiveStoreSettings(true); settingsModalOpen = false"
+            type="button"
+            class="flex-1 py-2 rounded-lg bg-zinc-900 hover:bg-black text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs">
+            Save Store Settings
+          </button>
+          <button 
+            v-else
+            @click="saveSettings(true); settingsModalOpen = false"
+            type="button"
+            class="flex-1 py-2 rounded-lg bg-zinc-900 hover:bg-black text-white font-semibold text-xs transition-colors cursor-pointer shadow-xs">
+            Save App Settings
           </button>
         </div>
 
@@ -2648,6 +2967,7 @@
             name: 'LiveStyle Boutique PH',
             category: 'Fashion & Apparel',
             currency: '₱',
+            codePrefix: '#',
             color: 'emerald',
             quickPrefixes: ['A', 'B', 'C', 'D', 'VIP'],
             defaultCategories: ['Tops', 'Dresses', 'Bottoms', 'Jackets', 'Accessories'],
@@ -2658,6 +2978,7 @@
             name: 'Aura Crystals & Stones',
             category: 'Crystals & Minerals',
             currency: '₱',
+            codePrefix: 'CR',
             color: 'purple',
             quickPrefixes: ['CR', 'RAW', 'BR', 'TUM', 'SPEC'],
             defaultCategories: ['Raw Cluster', 'Tower/Point', 'Sphere', 'Bracelet', 'Pocket Stone'],
@@ -2668,6 +2989,7 @@
             name: 'Retro Treasures & Toys',
             category: 'Collectibles & Toys',
             currency: '₱',
+            codePrefix: 'TOY',
             color: 'amber',
             quickPrefixes: ['TOY', 'FIG', 'PLUSH', 'CARD', 'RETRO'],
             defaultCategories: ['Action Figure', 'Plushie', 'Trading Cards', 'Vinyl Toy', 'Vintage'],
@@ -2723,6 +3045,7 @@
               ...defaultProfiles[0],
               ...found,
               currency: found.currency || '₱',
+              codePrefix: (found.codePrefix !== undefined && found.codePrefix !== null && found.codePrefix !== '') ? found.codePrefix : '#',
               quickPrefixes: Array.isArray(found.quickPrefixes) && found.quickPrefixes.length > 0 ? found.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
               defaultCategories: Array.isArray(found.defaultCategories) && found.defaultCategories.length > 0 ? found.defaultCategories : ['General', 'Decor']
             };
@@ -2733,6 +3056,7 @@
               ...defaultProfiles[0],
               ...first,
               currency: first.currency || '₱',
+              codePrefix: (first.codePrefix !== undefined && first.codePrefix !== null && first.codePrefix !== '') ? first.codePrefix : '#',
               quickPrefixes: Array.isArray(first.quickPrefixes) && first.quickPrefixes.length > 0 ? first.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
               defaultCategories: Array.isArray(first.defaultCategories) && first.defaultCategories.length > 0 ? first.defaultCategories : ['General', 'Decor']
             };
@@ -2785,17 +3109,136 @@
         const allPayments = ref(safeParseJson(safeGetItem('live_pos_payments_' + activeProfileId.value) || safeGetItem('live_pos_payments'), []));
 
         // Settings Store
-        const settings = ref(safeParseJson(safeGetItem('live_pos_settings'), {
+        const initialSettings = safeParseJson(safeGetItem('live_pos_settings'), {
           autoPrint: true,
           soundEnabled: true,
           storeName: 'LiveStyle Boutique PH',
-          paymentDetails: 'GCash: 0917-123-4567 (LiveStyle PH)\nMaya: 0918-987-6543\nBDO: 0012-3456-7890'
-        }));
+          paymentDetails: 'GCash: 0917-123-4567 (LiveStyle PH)\nMaya: 0918-987-6543\nBDO: 0012-3456-7890',
+          miningFieldsOrder: ['customer', 'description', 'price']
+        });
+        if (!initialSettings.miningFieldsOrder || !Array.isArray(initialSettings.miningFieldsOrder) || initialSettings.miningFieldsOrder.length === 0) {
+          initialSettings.miningFieldsOrder = ['customer', 'description', 'price'];
+        } else {
+          const validKeys = ['customer', 'description', 'price'];
+          const existing = initialSettings.miningFieldsOrder.filter(k => validKeys.includes(k));
+          validKeys.forEach(k => {
+            if (!existing.includes(k)) existing.push(k);
+          });
+          initialSettings.miningFieldsOrder = existing;
+        }
+        const settings = ref(initialSettings);
+
+        // Settings Modal Tab: 'store' (Business Settings) | 'overall' (Overall Settings)
+        const settingsTab = ref('store');
+
+        // Form state for active business settings
+        const activeStoreForm = reactive({
+          id: '',
+          name: '',
+          category: '',
+          currency: '₱',
+          codePrefix: '#',
+          color: 'emerald',
+          quickPrefixesText: '',
+          defaultCategoriesText: '',
+          paymentDetails: ''
+        });
+
+        function syncActiveStoreForm() {
+          const p = activeProfile.value;
+          if (!p) return;
+          activeStoreForm.id = p.id;
+          activeStoreForm.name = p.name || '';
+          activeStoreForm.category = p.category || 'Retail';
+          activeStoreForm.currency = p.currency || '₱';
+          activeStoreForm.codePrefix = (p.codePrefix !== undefined && p.codePrefix !== null && p.codePrefix !== '') ? p.codePrefix : '#';
+          activeStoreForm.color = p.color || 'emerald';
+          activeStoreForm.quickPrefixesText = Array.isArray(p.quickPrefixes) ? p.quickPrefixes.join(', ') : 'A, B, C, D, VIP';
+          activeStoreForm.defaultCategoriesText = Array.isArray(p.defaultCategories) ? p.defaultCategories.join(', ') : 'General, Decor';
+          activeStoreForm.paymentDetails = p.paymentDetails || '';
+
+          // Keep settings.value.storeName and settings.value.paymentDetails synchronized with active business
+          settings.value.storeName = activeStoreForm.name;
+          settings.value.paymentDetails = activeStoreForm.paymentDetails;
+        }
+
+        function saveActiveStoreSettings(showFeedback = false) {
+          const pIdx = profiles.value.findIndex(p => p.id === activeProfileId.value);
+          if (pIdx === -1) return;
+
+          const prefixes = activeStoreForm.quickPrefixesText
+            .split(',')
+            .map(s => s.trim().toUpperCase())
+            .filter(Boolean);
+          const categories = activeStoreForm.defaultCategoriesText
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+
+          const updatedStore = {
+            ...profiles.value[pIdx],
+            name: activeStoreForm.name.trim() || 'My Business',
+            category: activeStoreForm.category.trim() || 'Retail',
+            currency: activeStoreForm.currency.trim() || '₱',
+            codePrefix: (activeStoreForm.codePrefix !== undefined && activeStoreForm.codePrefix !== null && activeStoreForm.codePrefix !== '') ? activeStoreForm.codePrefix.trim() : '#',
+            color: activeStoreForm.color || 'emerald',
+            quickPrefixes: prefixes.length > 0 ? prefixes : ['A', 'B', 'C'],
+            defaultCategories: categories.length > 0 ? categories : ['General'],
+            paymentDetails: activeStoreForm.paymentDetails.trim()
+          };
+
+          profiles.value[pIdx] = updatedStore;
+          settings.value.storeName = updatedStore.name;
+          settings.value.paymentDetails = updatedStore.paymentDetails;
+
+          safeSetItem('live_pos_profiles', profiles.value);
+          safeSetItem('live_pos_settings', settings.value);
+          safeSetItem('live_pos_settings_' + activeProfileId.value, {
+            storeName: updatedStore.name,
+            paymentDetails: updatedStore.paymentDetails,
+            currency: updatedStore.currency,
+            codePrefix: updatedStore.codePrefix
+          });
+
+          saveProfileData(activeProfileId.value);
+          if (typeof pushProfileToSupabase === 'function') {
+            pushProfileToSupabase(updatedStore);
+          }
+
+          if (showFeedback) {
+            showToast(`Saved settings for ${updatedStore.name}`);
+          }
+        }
+
+        function saveSequenceForStore() {
+          if (sequenceCounter.value < 1) sequenceCounter.value = 1;
+          safeSetItem('live_pos_sequence_counter_' + activeProfileId.value, String(sequenceCounter.value));
+          showToast(`Updated next sequence to #${sequenceCounter.value}`);
+        }
+
+        function saveSessionDateForStore() {
+          sessionDate.value = (sessionDate.value || '').trim() || defaultSessionDate;
+          safeSetItem('live_pos_session_date_' + activeProfileId.value, sessionDate.value);
+          showToast(`Updated session date to #${sessionDate.value}`);
+        }
+
+        function onSettingsStoreChange(newId) {
+          if (!newId || newId === activeProfileId.value) return;
+          switchProfile(newId);
+          syncActiveStoreForm();
+        }
+
+        function playTestBeep() {
+          if (typeof playBeep === 'function') {
+            playBeep('success');
+          }
+          showToast('Playing audio test chime...');
+        }
 
         // Live Mining Form State
         const form = reactive({
           tag: '',
-          description: 'Decor',
+          description: '',
           price: '',
           buyer: ''
         });
@@ -2808,6 +3251,7 @@
           pushCustomerNoteToSupabase(handle, note);
         }
 
+        const descriptionInputRef = ref(null);
         const tagInputRef = ref(null);
         const priceInputRef = ref(null);
         const buyerInputRef = ref(null);
@@ -3237,10 +3681,23 @@
           }
         }
 
-        // Computed Next Control Code (e.g., #0905-001)
+        // Computed Next Control Code (e.g., #0905-001 or CR-0905-001) per store
         const nextControlCode = computed(() => {
-          const numStr = String(sequenceCounter.value).padStart(3, '0');
-          return `#${sessionDate.value}-${numStr}`;
+          const p = activeProfile.value;
+          const rawPrefix = (p && p.codePrefix !== undefined && p.codePrefix !== null) ? p.codePrefix.trim() : '#';
+          const numStr = String(sequenceCounter.value || 1).padStart(3, '0');
+          const dateStr = sessionDate.value || defaultSessionDate;
+
+          if (!rawPrefix) {
+            return `${dateStr}-${numStr}`;
+          }
+          if (rawPrefix === '#') {
+            return `#${dateStr}-${numStr}`;
+          }
+          if (rawPrefix.endsWith('-')) {
+            return `${rawPrefix}${dateStr}-${numStr}`;
+          }
+          return `${rawPrefix}-${dateStr}-${numStr}`;
         });
 
         // Recent Mines Feed (latest items first)
@@ -3263,11 +3720,10 @@
 
         // Filtered Suggestions for Auto-suggest
         const filteredBuyerSuggestions = computed(() => {
-          const raw = form.buyer.trim().toLowerCase();
+          const raw = form.buyer.trim().toLowerCase().replace(/^@+/, '');
           if (!raw) return existingBuyers.value.slice(0, 6);
-          const q = raw.startsWith('@') ? raw : `@${raw}`;
           return existingBuyers.value
-            .filter(b => b.handle.toLowerCase().includes(q))
+            .filter(b => b.handle.toLowerCase().replace(/^@+/, '').includes(raw))
             .slice(0, 6);
         });
 
@@ -3279,18 +3735,18 @@
             .slice(0, 6);
         });
 
-        // Handle Buyer Input automatically prefixing with '@'
+        // Handle Buyer Input automatically removing any '@' prefix at the start
         function handleBuyerInput() {
-          let val = form.buyer;
-          if (val.length === 1 && val !== '@') {
-            form.buyer = `@${val}`;
+          if (form.buyer && form.buyer.includes('@')) {
+            form.buyer = form.buyer.replace(/^@+/, '');
           }
           buyerSuggestionsOpen.value = true;
         }
 
         function selectBuyer(handle) {
-          form.buyer = handle;
+          form.buyer = (handle || '').replace(/^@+/, '');
           buyerSuggestionsOpen.value = false;
+          handleFieldEnter('customer');
         }
 
         function quickPrefix(prefix) {
@@ -3318,12 +3774,73 @@
           }
         }
 
+        function focusDescriptionInput() {
+          if (descriptionInputRef.value) descriptionInputRef.value.focus();
+        }
+
         function focusPriceInput() {
           if (priceInputRef.value) priceInputRef.value.focus();
         }
 
         function focusBuyerInput() {
           if (buyerInputRef.value) buyerInputRef.value.focus();
+        }
+
+        function focusFirstMiningField() {
+          const order = settings.value.miningFieldsOrder || ['customer', 'description', 'price'];
+          const firstKey = order[0];
+          if (firstKey === 'customer' && buyerInputRef.value) {
+            buyerInputRef.value.focus();
+          } else if (firstKey === 'description' && descriptionInputRef.value) {
+            descriptionInputRef.value.focus();
+          } else if (firstKey === 'price' && priceInputRef.value) {
+            priceInputRef.value.focus();
+          }
+        }
+
+        function handleFieldEnter(currentFieldKey) {
+          const order = settings.value.miningFieldsOrder || ['customer', 'description', 'price'];
+          const currentIndex = order.indexOf(currentFieldKey);
+          if (currentIndex !== -1 && currentIndex < order.length - 1) {
+            const nextKey = order[currentIndex + 1];
+            if (nextKey === 'customer') {
+              if (buyerInputRef.value) buyerInputRef.value.focus();
+            } else if (nextKey === 'description') {
+              if (descriptionInputRef.value) descriptionInputRef.value.focus();
+            } else if (nextKey === 'price') {
+              if (priceInputRef.value) priceInputRef.value.focus();
+            }
+          } else {
+            // It is the last field in the order: log the mine!
+            logMine();
+          }
+        }
+
+        function getMiningFieldLabel(key) {
+          switch (key) {
+            case 'customer': return 'Customer Name';
+            case 'description': return 'Item Name / Description';
+            case 'price': return `Amount / Price (${activeProfile.value.currency})`;
+            default: return key;
+          }
+        }
+
+        function moveMiningField(index, direction) {
+          const arr = [...(settings.value.miningFieldsOrder || ['customer', 'description', 'price'])];
+          const targetIndex = index + direction;
+          if (targetIndex < 0 || targetIndex >= arr.length) return;
+          const temp = arr[index];
+          arr[index] = arr[targetIndex];
+          arr[targetIndex] = temp;
+          settings.value.miningFieldsOrder = arr;
+          saveSettings();
+          showToast(`Moved ${getMiningFieldLabel(arr[targetIndex])}`);
+        }
+
+        function resetMiningFieldOrder() {
+          settings.value.miningFieldsOrder = ['customer', 'description', 'price'];
+          saveSettings();
+          showToast('Field order reset to default');
         }
 
         // Print Targets
@@ -3368,32 +3885,24 @@
 
         // Core Action: LOG MINE
         function logMine() {
-          const tag = form.tag.trim().toUpperCase();
-          const description = (form.description || 'Decor').trim();
+          const description = (form.description || '').trim();
           const price = parseFloat(form.price);
-          let buyer = form.buyer.trim();
+          let buyer = form.buyer.trim().replace(/^@+/, '');
 
-          if (!tag) {
-            showToast('Please enter an Item Tag / Code');
-            if (tagInputRef.value) tagInputRef.value.focus();
-            return;
-          }
           if (isNaN(price) || price <= 0) {
-            showToast('Please enter a valid Price (₱)');
+            showToast(`Please enter a valid Price (${activeProfile.value.currency})`);
             if (priceInputRef.value) priceInputRef.value.focus();
             return;
           }
           if (!buyer) {
-            showToast('Please enter Buyer Live Handle');
+            showToast('Please enter Customer Name');
             if (buyerInputRef.value) buyerInputRef.value.focus();
             return;
-          }
-          if (!buyer.startsWith('@')) {
-            buyer = `@${buyer}`;
           }
 
           const controlCode = nextControlCode.value;
           const currentControlNum = sequenceCounter.value;
+          const tag = controlCode;
           const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
           const todayDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
@@ -3420,34 +3929,37 @@
           playBeep('success');
 
           // Notification
-          showToast(`Logged ${controlCode} • ${tag} • ${buyer} (₱${price})`);
+          const descSummary = description ? ` • ${description}` : '';
+          showToast(`Logged ${controlCode}${descSummary} • ${buyer} (${activeProfile.value.currency}${price.toLocaleString()})`);
 
           // If Auto-Print is toggled ON, immediately trigger sticker print
           if (settings.value.autoPrint) {
             triggerStickerPrint(newMine);
           }
 
-          // Smart auto-advance item tag (e.g. A01 -> A02)
-          incrementTagNumber();
+          // Clear description text box
+          form.description = '';
 
-          // Keep buyer for fast repeat logging, focus back to tag or price
+          // Keep buyer for fast repeat logging, focus back to description or price
           buyerSuggestionsOpen.value = false;
-          if (tagInputRef.value) {
-            tagInputRef.value.focus();
-            tagInputRef.value.select();
+          if (descriptionInputRef.value) {
+            descriptionInputRef.value.focus();
+          } else if (priceInputRef.value) {
+            priceInputRef.value.focus();
           }
         }
 
         // Undo Most Recent Mine or Selected Mine
         function undoMine(mine) {
-          if (!confirm(`Cancel and delete ${mine.controlCode} (${mine.tag} for ${mine.buyer} - ₱${mine.price})?`)) {
+          const itemLabel = mine.description ? `${mine.controlCode} (${mine.description})` : mine.controlCode;
+          if (!confirm(`Cancel and delete ${itemLabel} for ${mine.buyer} - ${activeProfile.value.currency}${mine.price}?`)) {
             return;
           }
           allMines.value = allMines.value.filter(m => m.id !== mine.id);
           saveAll();
           deleteSingleMineFromSupabase(mine.id);
           playBeep('undo');
-          showToast(`Removed ${mine.controlCode} (${mine.tag})`);
+          showToast(`Removed ${itemLabel}`);
         }
 
         // Trigger 50x30mm Sticker Print
@@ -3707,6 +4219,12 @@
             } else {
               sessionStartTime.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             }
+
+            // Sync settings representation with current business
+            if (activeProfile.value) {
+              settings.value.storeName = activeProfile.value.name;
+              settings.value.paymentDetails = activeProfile.value.paymentDetails;
+            }
           } catch (e) {
             console.error('Error loading profile data:', e);
           }
@@ -3718,6 +4236,7 @@
           activeProfileId.value = id;
           localStorage.setItem('live_pos_active_profile_id', id);
           loadProfileData(id);
+          syncActiveStoreForm();
           profileModalOpen.value = false;
           showToast(`Switched to business: ${activeProfile.value.name}`);
         }
@@ -3732,6 +4251,7 @@
           name: '',
           category: '',
           currency: '₱',
+          codePrefix: '#',
           color: 'emerald',
           quickPrefixesText: '',
           defaultCategoriesText: '',
@@ -3753,6 +4273,7 @@
           editingProfileForm.name = '';
           editingProfileForm.category = 'General Retail';
           editingProfileForm.currency = activeProfile.value.currency || '₱';
+          editingProfileForm.codePrefix = '#';
           editingProfileForm.color = 'blue';
           editingProfileForm.quickPrefixesText = 'A, B, C, D, VIP';
           editingProfileForm.defaultCategoriesText = 'Tops, Dresses, Bottoms, Jackets, Accessories';
@@ -3767,6 +4288,7 @@
           editingProfileForm.name = p.name;
           editingProfileForm.category = p.category || 'Retail';
           editingProfileForm.currency = p.currency || '₱';
+          editingProfileForm.codePrefix = (p.codePrefix !== undefined && p.codePrefix !== null && p.codePrefix !== '') ? p.codePrefix : '#';
           editingProfileForm.color = p.color || 'emerald';
           editingProfileForm.quickPrefixesText = (p.quickPrefixes || []).join(', ');
           editingProfileForm.defaultCategoriesText = (p.defaultCategories || []).join(', ');
@@ -3794,6 +4316,7 @@
             name: name,
             category: editingProfileForm.category.trim() || 'Retail',
             currency: editingProfileForm.currency.trim() || '₱',
+            codePrefix: (editingProfileForm.codePrefix !== undefined && editingProfileForm.codePrefix !== null && editingProfileForm.codePrefix !== '') ? editingProfileForm.codePrefix.trim() : '#',
             color: editingProfileForm.color || 'emerald',
             quickPrefixes: prefixes.length ? prefixes : ['A', 'B', 'C'],
             defaultCategories: categories.length ? categories : ['General'],
@@ -3834,6 +4357,7 @@
           localStorage.removeItem('live_pos_sequence_counter_' + id);
           localStorage.removeItem('live_pos_session_date_' + id);
           localStorage.removeItem('live_pos_session_start_' + id);
+          localStorage.removeItem('live_pos_settings_' + id);
 
           profiles.value = profiles.value.filter(p => p.id !== id);
 
@@ -3851,7 +4375,8 @@
         function goToMining() {
           currentTab.value = 'mining';
           nextTick(() => {
-            if (tagInputRef.value) tagInputRef.value.focus();
+            if (descriptionInputRef.value) descriptionInputRef.value.focus();
+            else if (priceInputRef.value) priceInputRef.value.focus();
           });
         }
 
@@ -4008,11 +4533,15 @@
         const settingsModalOpen = ref(false);
         const appMenuOpen = ref(false);
         function openSettingsModal() {
+          syncActiveStoreForm();
           settingsModalOpen.value = true;
           appMenuOpen.value = false;
         }
-        function saveSettings() {
-          localStorage.setItem('live_pos_settings', JSON.stringify(settings.value));
+        function saveSettings(showToastMessage = false) {
+          safeSetItem('live_pos_settings', settings.value);
+          if (showToastMessage) {
+            showToast('Overall settings saved');
+          }
         }
 
         // Export to CSV: Raw live mines
@@ -4289,6 +4818,7 @@
         }
 
         onMounted(() => {
+          syncActiveStoreForm();
           if (tagInputRef.value) {
             tagInputRef.value.focus();
           }
@@ -4334,9 +4864,18 @@
           allMines,
           allPayments,
           settings,
+          settingsTab,
+          activeStoreForm,
+          syncActiveStoreForm,
+          saveActiveStoreSettings,
+          saveSequenceForStore,
+          saveSessionDateForStore,
+          onSettingsStoreChange,
+          playTestBeep,
           form,
           customerNotes,
           updateCustomerNote,
+          descriptionInputRef,
           tagInputRef,
           priceInputRef,
           buyerInputRef,
@@ -4348,8 +4887,14 @@
           toggleSound,
           quickPrefix,
           incrementTagNumber,
+          focusDescriptionInput,
           focusPriceInput,
           focusBuyerInput,
+          focusFirstMiningField,
+          handleFieldEnter,
+          getMiningFieldLabel,
+          moveMiningField,
+          resetMiningFieldOrder,
           handleBuyerInput,
           selectBuyer,
           logMine,
