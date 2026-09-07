@@ -991,7 +991,7 @@
               
               <div class="relative">
                 <input 
-                  ref="buyerInputRef"
+                  :ref="setBuyerInputRef"
                   v-model="form.buyer" 
                   @input="handleBuyerInput"
                   @keydown.enter.prevent="handleFieldEnter('customer')"
@@ -1062,7 +1062,7 @@
                 </button>
               </div>
               <input 
-                ref="descriptionInputRef"
+                :ref="setDescriptionInputRef"
                 v-model="form.description" 
                 @keydown.enter.prevent="handleFieldEnter('description')"
                 type="text" 
@@ -1094,7 +1094,7 @@
               <div class="relative">
                 <span class="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
                 <input 
-                  ref="priceInputRef"
+                  :ref="setPriceInputRef"
                   v-model="form.price" 
                   @keydown.enter.prevent="handleFieldEnter('price')"
                   type="number" 
@@ -3256,6 +3256,37 @@
         const priceInputRef = ref(null);
         const buyerInputRef = ref(null);
 
+        function setDescriptionInputRef(el) {
+          descriptionInputRef.value = el;
+        }
+        function setPriceInputRef(el) {
+          priceInputRef.value = el;
+        }
+        function setBuyerInputRef(el) {
+          buyerInputRef.value = el;
+        }
+
+        function getInputElement(refVal) {
+          if (!refVal) return null;
+          const raw = (refVal && refVal.value !== undefined) ? refVal.value : refVal;
+          if (!raw) return null;
+          if (Array.isArray(raw)) {
+            return raw[0] || null;
+          }
+          return raw;
+        }
+
+        function focusInput(targetRef) {
+          const el = getInputElement(targetRef);
+          if (el && typeof el.focus === 'function') {
+            try {
+              el.focus();
+            } catch (e) {
+              console.warn('Could not focus element:', e);
+            }
+          }
+        }
+
         // Auto-suggest state
         const buyerSuggestionsOpen = ref(false);
 
@@ -3756,7 +3787,7 @@
             const numPart = form.tag.replace(/^[A-Za-z]+/, '') || '01';
             form.tag = `${prefix}${numPart}`;
           }
-          if (priceInputRef.value) priceInputRef.value.focus();
+          focusPriceInput();
         }
 
         function incrementTagNumber() {
@@ -3775,26 +3806,28 @@
         }
 
         function focusDescriptionInput() {
-          if (descriptionInputRef.value) descriptionInputRef.value.focus();
+          focusInput(descriptionInputRef);
         }
 
         function focusPriceInput() {
-          if (priceInputRef.value) priceInputRef.value.focus();
+          focusInput(priceInputRef);
         }
 
         function focusBuyerInput() {
-          if (buyerInputRef.value) buyerInputRef.value.focus();
+          focusInput(buyerInputRef);
         }
 
         function focusFirstMiningField() {
           const order = settings.value.miningFieldsOrder || ['customer', 'description', 'price'];
           const firstKey = order[0];
-          if (firstKey === 'customer' && buyerInputRef.value) {
-            buyerInputRef.value.focus();
-          } else if (firstKey === 'description' && descriptionInputRef.value) {
-            descriptionInputRef.value.focus();
-          } else if (firstKey === 'price' && priceInputRef.value) {
-            priceInputRef.value.focus();
+          if (firstKey === 'customer') {
+            focusBuyerInput();
+          } else if (firstKey === 'description') {
+            focusDescriptionInput();
+          } else if (firstKey === 'price') {
+            focusPriceInput();
+          } else {
+            focusBuyerInput();
           }
         }
 
@@ -3804,11 +3837,11 @@
           if (currentIndex !== -1 && currentIndex < order.length - 1) {
             const nextKey = order[currentIndex + 1];
             if (nextKey === 'customer') {
-              if (buyerInputRef.value) buyerInputRef.value.focus();
+              focusBuyerInput();
             } else if (nextKey === 'description') {
-              if (descriptionInputRef.value) descriptionInputRef.value.focus();
+              focusDescriptionInput();
             } else if (nextKey === 'price') {
-              if (priceInputRef.value) priceInputRef.value.focus();
+              focusPriceInput();
             }
           } else {
             // It is the last field in the order: log the mine!
@@ -3891,12 +3924,12 @@
 
           if (isNaN(price) || price <= 0) {
             showToast(`Please enter a valid Price (${activeProfile.value.currency})`);
-            if (priceInputRef.value) priceInputRef.value.focus();
+            focusPriceInput();
             return;
           }
           if (!buyer) {
             showToast('Please enter Customer Name');
-            if (buyerInputRef.value) buyerInputRef.value.focus();
+            focusBuyerInput();
             return;
           }
 
@@ -3942,10 +3975,14 @@
 
           // Keep buyer for fast repeat logging, focus back to description or price
           buyerSuggestionsOpen.value = false;
-          if (descriptionInputRef.value) {
-            descriptionInputRef.value.focus();
-          } else if (priceInputRef.value) {
-            priceInputRef.value.focus();
+          const order = settings.value.miningFieldsOrder || ['customer', 'description', 'price'];
+          const nonCustomerField = order.find(k => k !== 'customer') || order[0];
+          if (nonCustomerField === 'description') {
+            focusDescriptionInput();
+          } else if (nonCustomerField === 'price') {
+            focusPriceInput();
+          } else {
+            focusFirstMiningField();
           }
         }
 
@@ -4375,8 +4412,7 @@
         function goToMining() {
           currentTab.value = 'mining';
           nextTick(() => {
-            if (descriptionInputRef.value) descriptionInputRef.value.focus();
-            else if (priceInputRef.value) priceInputRef.value.focus();
+            focusFirstMiningField();
           });
         }
 
@@ -4819,9 +4855,9 @@
 
         onMounted(() => {
           syncActiveStoreForm();
-          if (tagInputRef.value) {
-            tagInputRef.value.focus();
-          }
+          nextTick(() => {
+            focusFirstMiningField();
+          });
           // Close suggestions on external click
           document.addEventListener('click', (e) => {
             if (!e.target.closest('.relative')) {
@@ -4879,6 +4915,9 @@
           tagInputRef,
           priceInputRef,
           buyerInputRef,
+          setDescriptionInputRef,
+          setPriceInputRef,
+          setBuyerInputRef,
           buyerSuggestionsOpen,
           filteredBuyerSuggestions,
           frequentBuyers,
