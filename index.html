@@ -2726,23 +2726,35 @@
                   <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                   <span>Google Drive Photo Auto-Archive</span>
                 </span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
-                      :class="gdriveUser ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : (gdriveStatus === 'archiving' ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse' : 'bg-zinc-100 text-zinc-600 border-zinc-300')">
-                  <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :class="gdriveUser ? 'bg-emerald-500' : (gdriveStatus === 'archiving' ? 'bg-amber-500' : 'bg-zinc-400')"></span>
-                  {{ gdriveUser ? 'Connected' : (gdriveStatus === 'archiving' ? 'Archiving...' : 'Not Connected') }}
-                </span>
+                <div class="flex items-center space-x-1.5">
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
+                        :class="gdriveUser ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : (gdriveStatus === 'archiving' ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse' : 'bg-zinc-100 text-zinc-600 border-zinc-300')">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :class="gdriveUser ? 'bg-emerald-500' : (gdriveStatus === 'archiving' ? 'bg-amber-500' : 'bg-zinc-400')"></span>
+                    {{ gdriveUser ? 'Connected' : (gdriveStatus === 'archiving' ? 'Archiving...' : 'Not Connected') }}
+                  </span>
+                </div>
               </div>
 
               <div class="text-[11px] text-zinc-600 space-y-2">
                 <p class="leading-relaxed">
-                  Automatically uploads session item photos older than <strong>7 days</strong> to your personal Google Drive (<code>LivePOS_Archives/</code>), then frees up your Supabase database space so you never hit storage limits.
+                  Connect once to automatically archive photos older than <strong>7 days</strong> to your personal Google Drive (<code>LivePOS_Archives/</code>).
                 </p>
+                <div class="p-2 rounded bg-amber-50/90 border border-amber-200/70 text-[10px] text-amber-900 space-y-1">
+                  <div class="flex items-center space-x-1 font-semibold text-amber-950">
+                    <span>✨ In-App Photo Viewing & Multi-Device Sync:</span>
+                  </div>
+                  <ul class="list-disc list-inside space-y-0.5 pl-0.5 text-amber-800">
+                    <li><strong>Synced Across Devices:</strong> Connect once on any device and your Google Drive connection syncs automatically to all your phones and tablets via Supabase.</li>
+                    <li><strong>6-Month In-App Viewing:</strong> Archived photos convert to fast CDN links so you can continue viewing them in recent mines, invoices, and photo zoom for <strong>6 months</strong> without consuming Supabase storage.</li>
+                    <li><strong>Zero DB Bloat:</strong> After 6 months, the link is pruned from database storage while original full photos remain safely stored in your Google Drive folder forever.</li>
+                  </ul>
+                </div>
 
                 <!-- Connected Account or Setup View -->
                 <div v-if="gdriveUser" class="p-2.5 rounded-lg bg-emerald-50/80 border border-emerald-200/80 flex items-center justify-between">
                   <div>
                     <div class="font-semibold text-emerald-900 text-xs flex items-center space-x-1">
-                      <span>✓ Connected to Google Drive</span>
+                      <span>✓ Connected & Synced to All Devices</span>
                     </div>
                     <div class="text-[11px] text-emerald-700">{{ gdriveUser.email || gdriveUser.name || 'Personal Google Account' }}</div>
                     <div v-if="gdriveLastArchived" class="text-[10px] text-emerald-600 mt-0.5 font-mono">Last archive: {{ gdriveLastArchived }}</div>
@@ -2774,7 +2786,7 @@
                     class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
                   />
                   <div class="flex items-center justify-between pt-1">
-                    <span class="text-[10px] text-zinc-500">Free from your Google Cloud Console</span>
+                    <span class="text-[10px] text-zinc-500">Connect once & auto-syncs to all devices</span>
                     <button 
                       @click="connectGoogleDrive" 
                       type="button" 
@@ -2804,11 +2816,11 @@
                   <!-- Status summary of photos ready for archiving -->
                   <div class="p-2 rounded bg-white/80 border border-zinc-200/80 flex items-center justify-between text-[11px]">
                     <div>
-                      <span class="text-zinc-600">Old Photos (>7 days):</span>
+                      <span class="text-zinc-600">Pending Upload (>7 days):</span>
                       <strong class="text-zinc-900 ml-1">{{ oldPhotosCount }} items</strong>
                     </div>
                     <div class="text-[10px] text-zinc-500">
-                      Total Photos in POS: <strong>{{ totalPhotosCount }}</strong>
+                      Total Viewable: <strong>{{ totalPhotosCount }}</strong> ({{ sixMonthsPhotosCount }} >6 mos)
                     </div>
                   </div>
 

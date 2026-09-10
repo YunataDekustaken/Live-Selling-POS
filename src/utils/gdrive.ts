@@ -23,6 +23,7 @@ const GDRIVE_CLIENT_ID_KEY = 'live_pos_gdrive_client_id';
 const GDRIVE_AUTO_ARCHIVE_KEY = 'live_pos_gdrive_auto_archive';
 const GDRIVE_LAST_ARCHIVE_KEY = 'live_pos_gdrive_last_archived';
 const GDRIVE_USER_KEY = 'live_pos_gdrive_user';
+const GDRIVE_AUTH_BUNDLE_KEY = 'live_pos_gdrive_auth_bundle';
 
 let inMemoryToken: string | null = null;
 let tokenExpiresAt = 0;
@@ -56,10 +57,31 @@ export function getGDriveUserInfo(): { email?: string; name?: string } | null {
   return safeGetItem(GDRIVE_USER_KEY) as { email?: string; name?: string } | null;
 }
 
+export function setGDriveUserInfo(user: { email?: string; name?: string } | null): void {
+  if (user) {
+    safeSetItem(GDRIVE_USER_KEY, user);
+  } else {
+    localStorage.removeItem(GDRIVE_USER_KEY);
+  }
+}
+
+export function setInMemoryToken(token: string, expiresAt: number): void {
+  inMemoryToken = token;
+  tokenExpiresAt = expiresAt;
+}
+
+export function getInMemoryToken(): string | null {
+  if (inMemoryToken && Date.now() < tokenExpiresAt - 30000) {
+    return inMemoryToken;
+  }
+  return null;
+}
+
 export function clearGDriveSession(): void {
   inMemoryToken = null;
   tokenExpiresAt = 0;
   localStorage.removeItem(GDRIVE_USER_KEY);
+  localStorage.removeItem(GDRIVE_AUTH_BUNDLE_KEY);
 }
 
 // Load Google Identity Services script if not loaded
@@ -118,18 +140,28 @@ export async function requestGDriveAccessToken(clientId?: string): Promise<strin
             inMemoryToken = response.access_token;
             tokenExpiresAt = Date.now() + (Number(response.expires_in) || 3500) * 1000;
 
-            // Fetch user info for UI display
+            let userInfo: { email?: string; name?: string } = {};
+            // Fetch user info for UI display & sync
             try {
               const uRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
                 headers: { Authorization: `Bearer ${response.access_token}` }
               });
               if (uRes.ok) {
                 const uData = await uRes.json();
-                safeSetItem(GDRIVE_USER_KEY, { email: uData.email, name: uData.name });
+                userInfo = { email: uData.email, name: uData.name };
+                setGDriveUserInfo(userInfo);
               }
             } catch (e) {
               console.warn('Could not fetch user profile details:', e);
             }
+
+            safeSetItem(GDRIVE_AUTH_BUNDLE_KEY, {
+              clientId: cId,
+              token: response.access_token,
+              tokenExpiresAt,
+              user: userInfo,
+              updatedAt: Date.now()
+            });
 
             resolve(response.access_token);
           } else {
@@ -206,13 +238,32 @@ function dataUrlToBlob(dataUrl: string): Blob {
   return new Blob([u8arr], { type: mime });
 }
 
-// Upload a single photo file to Google Drive using multipart upload
+// Make a file publicly viewable with link so it displays directly in <img> tags
+export async function makeFilePubliclyViewable(fileId: string, accessToken: string): Promise<void> {
+  try {
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        role: 'reader',
+        type: 'anyone'
+      })
+    });
+  } catch (err) {
+    console.warn('Could not set file public permission:', err);
+  }
+}
+
+// Upload a single photo file to Google Drive and return direct viewing URL
 export async function uploadPhotoToDrive(
   fileName: string,
   base64DataUrl: string,
   folderId: string,
   accessToken: string
-): Promise<{ id: string; name: string }> {
+): Promise<{ id: string; name: string; photoUrl: string }> {
   const blob = dataUrlToBlob(base64DataUrl);
   const metadata = {
     name: fileName,
@@ -233,7 +284,7 @@ export async function uploadPhotoToDrive(
 
   const multipartBody = new Blob([metaBlob, headerBlob, blob, closeBlob]);
 
-  const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
+  const uploadRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,thumbnailLink', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -247,10 +298,23 @@ export async function uploadPhotoToDrive(
     throw new Error(err.error?.message || `Failed to upload ${fileName}`);
   }
 
-  return await uploadRes.json();
+  const fileData = await uploadRes.json();
+  const fileId = fileData.id;
+
+  // Set permission so the image loads in app across all devices
+  await makeFilePubliclyViewable(fileId, accessToken);
+
+  // Google CDN direct viewing URL (~50 bytes)
+  const directPhotoUrl = `https://lh3.googleusercontent.com/d/${fileId}`;
+
+  return {
+    id: fileId,
+    name: fileData.name,
+    photoUrl: directPhotoUrl
+  };
 }
 
-// Check if a mined item is older than specified days (default 7 days)
+// Check if a mined item is older than specified days (e.g. 7 days)
 export function isItemOlderThanDays(item: MinedItem, days = 7): boolean {
   const now = Date.now();
   const cutoffTime = now - days * 24 * 60 * 60 * 1000;
@@ -259,7 +323,6 @@ export function isItemOlderThanDays(item: MinedItem, days = 7): boolean {
     return item.timestamp < cutoffTime;
   }
 
-  // Fallback check date string format (e.g. MMDD or Month D, YYYY or YYYY-MM-DD)
   if (item.date) {
     const parsed = Date.parse(item.date);
     if (!isNaN(parsed)) {
@@ -270,26 +333,45 @@ export function isItemOlderThanDays(item: MinedItem, days = 7): boolean {
   return false;
 }
 
-// Archive all eligible mined items to Google Drive
+// Check if a mined item is older than specified months (e.g. 6 months = 180 days)
+export function isItemOlderThanMonths(item: MinedItem, months = 6): boolean {
+  const now = Date.now();
+  const cutoffTime = now - months * 30 * 24 * 60 * 60 * 1000;
+
+  if (item.timestamp && item.timestamp > 0) {
+    return item.timestamp < cutoffTime;
+  }
+
+  if (item.date) {
+    const parsed = Date.parse(item.date);
+    if (!isNaN(parsed)) {
+      return parsed < cutoffTime;
+    }
+  }
+
+  return false;
+}
+
+// Archive eligible mined items to Google Drive and preserve photo viewing via lightweight URLs
 export async function archiveOldPhotosToGDrive(
   mines: MinedItem[],
   daysThreshold = 7,
   forceAll = false,
   onProgress?: (message: string, current: number, total: number) => void
 ): Promise<{
-  archivedMineIds: string[];
+  archivedItems: Array<{ id: string; photoUrl: string }>;
   totalArchived: number;
   folderName: string;
 }> {
-  // 1. Identify items with photos that meet the threshold
+  // Only target items that have real base64 image data (starts with "data:image")
   const targetItems = mines.filter(m => {
-    if (!m.photo || m.photo.trim() === '') return false;
+    if (!m.photo || !m.photo.startsWith('data:image')) return false;
     if (forceAll) return true;
     return isItemOlderThanDays(m, daysThreshold);
   });
 
   if (targetItems.length === 0) {
-    return { archivedMineIds: [], totalArchived: 0, folderName: '' };
+    return { archivedItems: [], totalArchived: 0, folderName: '' };
   }
 
   if (onProgress) onProgress('Connecting to Google Drive...', 0, targetItems.length);
@@ -308,7 +390,7 @@ export async function archiveOldPhotosToGDrive(
     grouped.get(groupKey)!.push(item);
   }
 
-  const archivedMineIds: string[] = [];
+  const archivedItems: Array<{ id: string; photoUrl: string }> = [];
   let processedCount = 0;
 
   for (const [sessionKey, sessionItems] of grouped.entries()) {
@@ -316,17 +398,20 @@ export async function archiveOldPhotosToGDrive(
     const sessionFolderId = await ensureDriveFolder(sessionKey, rootFolderId, token);
 
     for (const item of sessionItems) {
-      if (!item.photo) continue;
+      if (!item.photo || !item.photo.startsWith('data:image')) continue;
       processedCount++;
       const cleanBuyer = (item.buyer || 'Buyer').replace(/[^a-zA-Z0-9_-]/g, '');
       const cleanCode = (item.controlCode || `item_${item.id}`).replace(/[^a-zA-Z0-9_-]/g, '');
       const fileName = `${cleanCode}_${cleanBuyer}.jpg`;
 
-      if (onProgress) onProgress(`Uploading ${fileName} (${processedCount}/${targetItems.length})...`, processedCount, targetItems.length);
+      if (onProgress) onProgress(`Archiving ${fileName} (${processedCount}/${targetItems.length})...`, processedCount, targetItems.length);
 
       try {
-        await uploadPhotoToDrive(fileName, item.photo, sessionFolderId, token);
-        archivedMineIds.push(item.id);
+        const uploadResult = await uploadPhotoToDrive(fileName, item.photo, sessionFolderId, token);
+        archivedItems.push({
+          id: item.id,
+          photoUrl: uploadResult.photoUrl
+        });
       } catch (uploadErr) {
         console.warn(`Failed to upload photo for ${item.controlCode}:`, uploadErr);
       }
@@ -336,8 +421,28 @@ export async function archiveOldPhotosToGDrive(
   setGDriveLastArchivedTime(new Date().toLocaleString());
 
   return {
-    archivedMineIds,
-    totalArchived: archivedMineIds.length,
+    archivedItems,
+    totalArchived: archivedItems.length,
     folderName: 'LivePOS_Archives'
+  };
+}
+
+// Prune 6-month-old photo URLs to empty "" while keeping the mine records intact
+export function pruneSixMonthOldPhotoUrls(mines: MinedItem[], monthsThreshold = 6): {
+  prunedIds: string[];
+  totalPruned: number;
+} {
+  const prunedIds: string[] = [];
+
+  for (const item of mines) {
+    if (item.photo && item.photo.trim() !== '' && isItemOlderThanMonths(item, monthsThreshold)) {
+      item.photo = '';
+      prunedIds.push(item.id);
+    }
+  }
+
+  return {
+    prunedIds,
+    totalPruned: prunedIds.length
   };
 }

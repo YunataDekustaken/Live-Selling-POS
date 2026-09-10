@@ -49,10 +49,15 @@ import {
   setGDriveAutoArchiveEnabled,
   getGDriveLastArchivedTime,
   getGDriveUserInfo,
+  setGDriveUserInfo,
+  setInMemoryToken,
+  getInMemoryToken,
   clearGDriveSession,
   requestGDriveAccessToken,
   archiveOldPhotosToGDrive,
-  isItemOlderThanDays
+  isItemOlderThanDays,
+  isItemOlderThanMonths,
+  pruneSixMonthOldPhotoUrls
 } from './utils/gdrive';
 
 const app = createApp({
@@ -888,7 +893,30 @@ const app = createApp({
         if (remoteNotes && !nErr) {
           const photoMap = new Map<string, string>();
           for (const rn of remoteNotes) {
-            if (rn.buyer && rn.buyer.startsWith('__photo_')) {
+            if (rn.buyer === '__gdrive_auth_sync__') {
+              try {
+                const parsedAuth = JSON.parse(rn.notes || '{}');
+                if (parsedAuth.clientId && (!gdriveClientId.value || gdriveClientId.value !== parsedAuth.clientId)) {
+                  gdriveClientId.value = parsedAuth.clientId;
+                  setStoredGDriveClientId(parsedAuth.clientId);
+                }
+                if (parsedAuth.user) {
+                  gdriveUser.value = parsedAuth.user;
+                  setGDriveUserInfo(parsedAuth.user);
+                  if (gdriveStatus.value !== 'archiving') {
+                    gdriveStatus.value = 'connected';
+                  }
+                }
+                if (parsedAuth.token && parsedAuth.tokenExpiresAt && parsedAuth.tokenExpiresAt > Date.now() + 60000) {
+                  setInMemoryToken(parsedAuth.token, parsedAuth.tokenExpiresAt);
+                  if (gdriveStatus.value !== 'archiving') {
+                    gdriveStatus.value = 'connected';
+                  }
+                }
+              } catch (e) {
+                console.warn('Could not parse remote GDrive auth sync:', e);
+              }
+            } else if (rn.buyer && rn.buyer.startsWith('__photo_')) {
               const mId = rn.buyer.replace('__photo_', '');
               if (rn.notes) {
                 photoMap.set(mId, rn.notes);
@@ -948,16 +976,43 @@ const app = createApp({
     });
 
     const oldPhotosCount = computed(() => {
-      return allMines.value.filter(m => m.photo && m.photo.trim() !== '' && isItemOlderThanDays(m, 7)).length;
+      return allMines.value.filter(m => m.photo && m.photo.trim().startsWith('data:image') && isItemOlderThanDays(m, 7)).length;
     });
 
     const totalPhotosCount = computed(() => {
       return allMines.value.filter(m => m.photo && m.photo.trim() !== '').length;
     });
 
-    function saveGDriveClientId() {
+    const sixMonthsPhotosCount = computed(() => {
+      return allMines.value.filter(m => m.photo && m.photo.trim() !== '' && isItemOlderThanMonths(m, 6)).length;
+    });
+
+    async function syncGDriveAuthToSupabase() {
+      const client = getSupabaseClient();
+      if (client && navigator.onLine && gdriveClientId.value) {
+        try {
+          const authData = {
+            clientId: gdriveClientId.value,
+            user: gdriveUser.value,
+            token: getInMemoryToken(),
+            tokenExpiresAt: Date.now() + 3500000,
+            updatedAt: Date.now()
+          };
+          await client.from('customer_notes').upsert({
+            profile_id: activeProfileId.value,
+            buyer: '__gdrive_auth_sync__',
+            notes: JSON.stringify(authData)
+          });
+        } catch (e) {
+          console.warn('Could not sync GDrive auth to Supabase:', e);
+        }
+      }
+    }
+
+    async function saveGDriveClientId() {
       setStoredGDriveClientId(gdriveClientId.value);
-      showToast('Google OAuth Client ID saved');
+      await syncGDriveAuthToSupabase();
+      showToast('Google OAuth Client ID saved & synced');
     }
 
     function saveGDriveAutoArchiveSetting() {
@@ -970,7 +1025,7 @@ const app = createApp({
         showToast('Please enter your Google OAuth Client ID first');
         return;
       }
-      saveGDriveClientId();
+      setStoredGDriveClientId(gdriveClientId.value);
       gdriveStatus.value = 'archiving';
       gdriveStatusMessage.value = 'Connecting to Google Drive...';
       try {
@@ -978,8 +1033,9 @@ const app = createApp({
         gdriveUser.value = getGDriveUserInfo();
         gdriveStatus.value = 'connected';
         gdriveStatusMessage.value = 'Connected to Google Drive!';
+        await syncGDriveAuthToSupabase();
         playBeep('success', settings.value.soundEnabled);
-        showToast('Google Drive connected successfully!');
+        showToast('Google Drive connected and synced to all devices!');
       } catch (err: any) {
         gdriveStatus.value = 'error';
         gdriveStatusMessage.value = err.message || 'Connection failed';
@@ -987,11 +1043,19 @@ const app = createApp({
       }
     }
 
-    function disconnectGoogleDrive() {
+    async function disconnectGoogleDrive() {
       clearGDriveSession();
       gdriveUser.value = null;
       gdriveStatus.value = 'idle';
       gdriveStatusMessage.value = '';
+      const client = getSupabaseClient();
+      if (client && navigator.onLine) {
+        try {
+          await client.from('customer_notes').delete().eq('buyer', '__gdrive_auth_sync__').eq('profile_id', activeProfileId.value);
+        } catch (e) {
+          console.warn(e);
+        }
+      }
       showToast('Google Drive disconnected');
     }
 
@@ -1022,42 +1086,69 @@ const app = createApp({
           }
         );
 
-        if (result.totalArchived === 0) {
-          gdriveStatus.value = 'idle';
+        const modifiedCount = result.totalArchived;
+
+        // Preserve photo viewing: replace heavy base64 strings with lightweight Google Drive URLs (~50 bytes)
+        // Photos remain 100% visible on the webapp, recent mines, invoices, and collages!
+        if (result.archivedItems && result.archivedItems.length > 0) {
+          const photoUrlMap = new Map<string, string>();
+          for (const item of result.archivedItems) {
+            photoUrlMap.set(item.id, item.photoUrl);
+          }
+
+          for (const mine of allMines.value) {
+            if (photoUrlMap.has(mine.id)) {
+              mine.photo = photoUrlMap.get(mine.id)!;
+            }
+          }
+
+          // Update Supabase with the lightweight URL & remove heavy base64 customer_notes backup
+          const client = getSupabaseClient();
+          if (client && navigator.onLine) {
+            gdriveStatusMessage.value = 'Optimizing database storage with Google Drive links...';
+            for (const item of result.archivedItems) {
+              try {
+                await client.from('mined_items').update({ photo: item.photoUrl }).eq('id', item.id);
+                await client.from('customer_notes').delete().eq('buyer', '__photo_' + item.id).eq('profile_id', activeProfileId.value);
+              } catch (e) {
+                console.warn('Database optimization notice for id', item.id, e);
+              }
+            }
+          }
+        }
+
+        // 6-Month URL Prune: remove database image links older than 180 days to keep Supabase storage at minimum
+        const { prunedIds, totalPruned } = pruneSixMonthOldPhotoUrls(allMines.value, 6);
+        if (totalPruned > 0) {
+          const client = getSupabaseClient();
+          if (client && navigator.onLine) {
+            for (const pId of prunedIds) {
+              try {
+                await client.from('mined_items').update({ photo: '' }).eq('id', pId);
+              } catch (e) {
+                console.warn('Prune cleanup notice for id', pId, e);
+              }
+            }
+          }
+        }
+
+        saveProfileData(activeProfileId.value);
+        gdriveLastArchived.value = getGDriveLastArchivedTime();
+        gdriveStatus.value = 'idle';
+
+        if (modifiedCount === 0 && totalPruned === 0) {
           gdriveStatusMessage.value = '';
           showToast('No photos met the archive threshold.');
           return;
         }
 
-        // Clean up archived photos from local array and save
-        const archivedSet = new Set(result.archivedMineIds);
-        for (const mine of allMines.value) {
-          if (archivedSet.has(mine.id)) {
-            mine.photo = '';
-          }
+        let summaryMsg = `✓ Archived ${modifiedCount} photos to Google Drive (viewable in-app for 6 months)`;
+        if (totalPruned > 0) {
+          summaryMsg += ` & pruned ${totalPruned} items older than 6 months`;
         }
-
-        saveProfileData(activeProfileId.value);
-
-        // Update Supabase to strip photo base64 strings and delete photo backup notes
-        const client = getSupabaseClient();
-        if (client && navigator.onLine) {
-          gdriveStatusMessage.value = 'Freeing up Supabase database space...';
-          for (const id of result.archivedMineIds) {
-            try {
-              await client.from('mined_items').update({ photo: '' }).eq('id', id);
-              await client.from('customer_notes').delete().eq('buyer', '__photo_' + id).eq('profile_id', activeProfileId.value);
-            } catch (e) {
-              console.warn('Database cleanup notice for id', id, e);
-            }
-          }
-        }
-
-        gdriveLastArchived.value = getGDriveLastArchivedTime();
-        gdriveStatus.value = 'idle';
-        gdriveStatusMessage.value = `✓ Archived ${result.totalArchived} photos to Google Drive (LivePOS_Archives/) and cleared DB space!`;
+        gdriveStatusMessage.value = summaryMsg;
         playBeep('success', settings.value.soundEnabled);
-        showToast(`Successfully archived ${result.totalArchived} photos to Google Drive!`);
+        showToast(`Google Drive archive complete! Photos remain viewable in-app.`);
       } catch (err: any) {
         console.error('Google Drive archive error:', err);
         gdriveStatus.value = 'error';
@@ -2651,6 +2742,7 @@ const app = createApp({
       currentAppOrigin,
       oldPhotosCount,
       totalPhotosCount,
+      sixMonthsPhotosCount,
       saveGDriveClientId,
       saveGDriveAutoArchiveSetting,
       connectGoogleDrive,
