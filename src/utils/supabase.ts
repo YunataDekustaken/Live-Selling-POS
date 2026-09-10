@@ -1,0 +1,136 @@
+import type { Profile, MinedItem, PaymentRecord } from '../types';
+
+export const SUPABASE_URL = 'https://vvbsszhgduzqqcciroac.supabase.co';
+export const SUPABASE_ANON_KEY = 'sb_publishable_slqI77J9z1oz9HO_qBcI6Q_lmqtg8Cx';
+
+let supabaseClient: any = null;
+
+export function getSupabaseClient() {
+  if (!supabaseClient && (window as any).supabase && typeof (window as any).supabase.createClient === 'function') {
+    try {
+      supabaseClient = (window as any).supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false }
+      });
+    } catch (err) {
+      console.error('Supabase client init error:', err);
+    }
+  }
+  return supabaseClient;
+}
+
+export async function pushProfileToSupabase(profile: Profile, sequence = 1, sessionDate = '') {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profile) return;
+  try {
+    await client.from('business_profiles').upsert([{
+      id: profile.id,
+      name: profile.name,
+      category: profile.category || 'Retail',
+      currency: profile.currency || '₱',
+      color: profile.color || 'emerald',
+      quick_prefixes: profile.quickPrefixes || [],
+      default_categories: profile.defaultCategories || [],
+      payment_details: profile.paymentDetails || ''
+    }]);
+
+    await client.from('customer_notes').upsert([{
+      profile_id: profile.id,
+      buyer: '__store_meta__',
+      notes: JSON.stringify({
+        codePrefix: (profile.codePrefix !== undefined && profile.codePrefix !== null && profile.codePrefix !== '') ? profile.codePrefix : '#',
+        sequence: sequence,
+        sessionDate: sessionDate
+      })
+    }]);
+  } catch (e) {
+    console.warn('Supabase profile sync notice:', e);
+  }
+}
+
+export async function pushActiveProfileToSupabase(id: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !id) return;
+  try {
+    await client.from('customer_notes').upsert([{
+      profile_id: '_meta_',
+      buyer: '__last_active_profile__',
+      notes: id
+    }]);
+  } catch (e) {
+    console.warn('Supabase active profile sync notice:', e);
+  }
+}
+
+export async function deleteProfileFromSupabase(id: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !id) return;
+  try {
+    await client.from('business_profiles').delete().eq('id', id);
+    await client.from('mined_items').delete().eq('profile_id', id);
+    await client.from('customer_payments').delete().eq('profile_id', id);
+    await client.from('customer_notes').delete().eq('profile_id', id);
+  } catch (e) {
+    console.warn('Supabase delete profile notice:', e);
+  }
+}
+
+export async function pushSingleMineToSupabase(mine: MinedItem, activeProfileId: string, sessionDate: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return;
+  try {
+    await client.from('mined_items').upsert([{
+      id: mine.id,
+      profile_id: activeProfileId,
+      session_date: mine.date || sessionDate,
+      control_code: mine.controlCode,
+      tag: mine.tag,
+      price: mine.price,
+      buyer: mine.buyer,
+      timestamp: String(mine.timestamp || Date.now())
+    }]);
+  } catch (e) {
+    console.warn('Supabase mine sync notice:', e);
+  }
+}
+
+export async function deleteSingleMineFromSupabase(mineId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return;
+  try {
+    await client.from('mined_items').delete().eq('id', mineId);
+  } catch (e) {
+    console.warn('Supabase delete notice:', e);
+  }
+}
+
+export async function pushSinglePaymentToSupabase(payment: PaymentRecord, activeProfileId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return;
+  try {
+    await client.from('customer_payments').upsert([{
+      id: payment.id,
+      profile_id: activeProfileId,
+      buyer: payment.buyer,
+      amount: payment.amount,
+      method: payment.method,
+      reference: payment.ref || '',
+      timestamp: String(payment.timestamp || Date.now())
+    }]);
+  } catch (e) {
+    console.warn('Supabase payment sync notice:', e);
+  }
+}
+
+export async function pushCustomerNoteToSupabase(buyer: string, notes: string, activeProfileId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return;
+  try {
+    await client.from('customer_notes').upsert([{
+      profile_id: activeProfileId,
+      buyer: buyer,
+      notes: notes
+    }]);
+  } catch (e) {
+    console.warn('Supabase note sync notice:', e);
+  }
+}

@@ -1,0 +1,83 @@
+/* Sticker Print Template strictly formatted for 50x30mm or 40x30mm thermal rolls */
+@page {
+  size: 50mm 30mm;
+  margin: 0;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 50mm !important;
+  }
+  /* Hide all screen UI elements */
+  .screen-ui, header, nav, #app-navigation, #main-screen {
+    display: none !important;
+  }
+  
+  /* 50x30mm Thermal Sticker */
+  .print-thermal-sticker {
+    display: flex !important;
+    flex-direction: column;
+    justify-content: space-between;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50mm !important;
+    height: 30mm !important;
+    max-height: 30mm !important;
+    padding: 1.2mm 2.2mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    page-break-after: always !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Consolidated Packing Slip */
+  .print-packing-slip {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50mm !important;
+    padding: 2mm 2.2mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Consolidated Customer Invoice */
+  .print-invoice {
+    display: block !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50mm !important;
+    padding: 2mm 2.2mm !important;
+    box-sizing: border-box !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace, sans-serif;
+    page-break-inside: avoid !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* Screen display hiding for print containers */
+@media screen {
+  .print-thermal-sticker, .print-packing-slip, .print-invoice {
+    display: none !important;
+  }
+}
