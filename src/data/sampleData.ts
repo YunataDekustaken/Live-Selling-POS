@@ -10,14 +10,15 @@ export const samplePhotos = {
 };
 
 export function getSampleMines(sessionDate: string): MinedItem[] {
+  const d = sessionDate || '0907';
   return [
-    { id: 'm1', controlCode: `#${sessionDate}-147`, controlNum: 147, tag: 'B02', description: 'Decor', price: 20, buyer: 'Edna T', photo: samplePhotos.decor1, date: 'August 4, 2026', time: '19:42', timestamp: Date.now() - 3600000 },
-    { id: 'm2', controlCode: `#${sessionDate}-148`, controlNum: 148, tag: 'A15', description: 'Decor', price: 20, buyer: 'Belinda Re V', photo: samplePhotos.decor2, date: 'August 4, 2026', time: '19:45', timestamp: Date.now() - 3400000 },
-    { id: 'm3', controlCode: `#${sessionDate}-149`, controlNum: 149, tag: 'D01', description: 'Dress', price: 350, buyer: 'Maria Cruz', photo: samplePhotos.dress, date: 'August 4, 2026', time: '19:50', timestamp: Date.now() - 3100000 },
-    { id: 'm4', controlCode: `#${sessionDate}-150`, controlNum: 150, tag: 'T04', description: 'Top', price: 150, buyer: 'Edna T', photo: samplePhotos.top, date: 'August 4, 2026', time: '19:55', timestamp: Date.now() - 2800000 },
-    { id: 'm5', controlCode: `#${sessionDate}-151`, controlNum: 151, tag: 'P08', description: 'Pants', price: 250, buyer: 'Belinda Re V', photo: samplePhotos.pants, date: 'August 4, 2026', time: '20:02', timestamp: Date.now() - 2400000 },
-    { id: 'm6', controlCode: `#${sessionDate}-152`, controlNum: 152, tag: 'B09', description: 'Bag', price: 400, buyer: 'Jenny K', photo: samplePhotos.bag, date: 'August 4, 2026', time: '20:10', timestamp: Date.now() - 1900000 },
-    { id: 'm7', controlCode: `#${sessionDate}-153`, controlNum: 153, tag: 'A03', description: 'Decor', price: 20, buyer: 'Jenny K', photo: samplePhotos.decor1, date: 'August 4, 2026', time: '20:15', timestamp: Date.now() - 1200000 }
+    { id: 'm1', controlCode: `L${d}-001`, controlNum: 1, tag: 'L0907-001', description: 'Decor', price: 20, buyer: 'Edna T', photo: samplePhotos.decor1, date: 'September 7, 2026', time: '19:42', timestamp: Date.now() - 3600000 },
+    { id: 'm2', controlCode: `L${d}-002`, controlNum: 2, tag: 'L0907-002', description: 'Decor', price: 20, buyer: 'Belinda Re V', photo: samplePhotos.decor2, date: 'September 7, 2026', time: '19:45', timestamp: Date.now() - 3400000 },
+    { id: 'm3', controlCode: `L${d}-003`, controlNum: 3, tag: 'L0907-003', description: 'Dress', price: 350, buyer: 'Maria Cruz', photo: samplePhotos.dress, date: 'September 7, 2026', time: '19:50', timestamp: Date.now() - 3100000 },
+    { id: 'm4', controlCode: `L${d}-004`, controlNum: 4, tag: 'L0907-004', description: 'Top', price: 150, buyer: 'Edna T', photo: samplePhotos.top, date: 'September 7, 2026', time: '19:55', timestamp: Date.now() - 2800000 },
+    { id: 'm5', controlCode: `L${d}-005`, controlNum: 5, tag: 'L0907-005', description: 'Pants', price: 250, buyer: 'Belinda Re V', photo: samplePhotos.pants, date: 'September 7, 2026', time: '20:02', timestamp: Date.now() - 2400000 },
+    { id: 'm6', controlCode: `L${d}-006`, controlNum: 6, tag: 'L0907-006', description: 'Bag', price: 400, buyer: 'Jenny K', photo: samplePhotos.bag, date: 'September 7, 2026', time: '20:10', timestamp: Date.now() - 1900000 },
+    { id: 'm7', controlCode: `L${d}-007`, controlNum: 7, tag: 'L0907-007', description: 'Decor', price: 20, buyer: 'Jenny K', photo: samplePhotos.decor1, date: 'September 7, 2026', time: '20:15', timestamp: Date.now() - 1200000 }
   ];
 }
 

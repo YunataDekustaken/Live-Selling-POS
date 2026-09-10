@@ -82,7 +82,9 @@ const app = createApp({
           ...defaultProfiles[0],
           ...found,
           currency: found.currency || '₱',
-          codePrefix: (found.codePrefix !== undefined && found.codePrefix !== null && found.codePrefix !== '') ? found.codePrefix : '#',
+          codePrefix: (found.codePrefix && found.codePrefix !== '#' && found.codePrefix !== '-') 
+            ? found.codePrefix 
+            : (found.name ? (found.name.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L') : 'L'),
           quickPrefixes: Array.isArray(found.quickPrefixes) && found.quickPrefixes.length > 0 ? found.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
           defaultCategories: Array.isArray(found.defaultCategories) && found.defaultCategories.length > 0 ? found.defaultCategories : ['General', 'Decor']
         };
@@ -93,7 +95,9 @@ const app = createApp({
           ...defaultProfiles[0],
           ...first,
           currency: first.currency || '₱',
-          codePrefix: (first.codePrefix !== undefined && first.codePrefix !== null && first.codePrefix !== '') ? first.codePrefix : '#',
+          codePrefix: (first.codePrefix && first.codePrefix !== '#' && first.codePrefix !== '-') 
+            ? first.codePrefix 
+            : (first.name ? (first.name.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L') : 'L'),
           quickPrefixes: Array.isArray(first.quickPrefixes) && first.quickPrefixes.length > 0 ? first.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
           defaultCategories: Array.isArray(first.defaultCategories) && first.defaultCategories.length > 0 ? first.defaultCategories : ['General', 'Decor']
         };
@@ -101,23 +105,55 @@ const app = createApp({
       return defaultProfiles[0];
     });
 
-    // Session Setup (MMDD format, e.g., "0905")
-    const now = new Date();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const defaultSessionDate = `${mm}${dd}`;
+    // --- Control Code Format & Duplicate Prevention Engine ---
+    // Helper to get business prefix (e.g., Leaf & Layer -> 'L', Aura Crystals -> 'A', or custom prefix)
+    function getStorePrefix(p?: Profile | null): string {
+      if (!p) return 'L';
+      const custom = (p.codePrefix || '').trim().replace(/[^A-Za-z0-9]/g, '');
+      if (custom && custom !== '#' && custom !== '-') {
+        return custom.toUpperCase();
+      }
+      const nameClean = (p.name || '').trim().replace(/[^A-Za-z0-9]/g, '');
+      return nameClean.length > 0 ? nameClean.charAt(0).toUpperCase() : 'L';
+    }
 
-    const sessionDate = ref(
-      (safeGetItem('live_pos_session_date_' + activeProfileId.value) || safeGetItem('live_pos_session_date') || defaultSessionDate) as string
-    );
-    const sessionStartTime = ref(
-      (safeGetItem('live_pos_session_start_' + activeProfileId.value) || safeGetItem('live_pos_session_start') || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) as string
-    );
+    // Helper to get today's live 4-digit MMDD session date (e.g., "0910")
+    function getTodaySessionDate(): string {
+      const d = new Date();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${m}${day}`;
+    }
 
-    // Sequence Counter for Control Code (e.g. 1 -> #0905-001)
-    const sequenceCounter = ref<number>(
-      Number(safeGetItem('live_pos_sequence_counter_' + activeProfileId.value) || safeGetItem('live_pos_sequence_counter') || 1)
-    );
+    // Helper to format any date string to clean 4-digit MMDD (defaults to today)
+    function getFormattedSessionDate(val?: string): string {
+      const todayMMDD = getTodaySessionDate();
+      if (!val) return todayMMDD;
+      const clean = String(val).replace(/[^0-9]/g, '');
+      if (clean.length === 4) return clean;
+      if (clean.length > 4) return clean.slice(-4);
+      return todayMMDD;
+    }
+
+    // Helper to construct exact control code string: Prefix + MMDD + -001 (e.g. L0910-001)
+    function formatControlCode(prefix: string, dateStr: string, seq: number): string {
+      const p = (prefix || 'L').toUpperCase();
+      const d = getFormattedSessionDate(dateStr);
+      const numStr = String(Math.max(1, seq || 1)).padStart(3, '0');
+      return `${p}${d}-${numStr}`;
+    }
+
+    // Duplicate Prevention: calculates next unique unused sequence number across all existing logs
+    function getNextUniqueSequenceNumber(startSeq: number, minesList: MinedItem[], prefix: string, dateStr: string): number {
+      const existingCodes = new Set(
+        minesList.map(m => (m.controlCode || '').toUpperCase().trim()).filter(Boolean)
+      );
+      let seq = Math.max(1, startSeq);
+      while (existingCodes.has(formatControlCode(prefix, dateStr, seq).toUpperCase())) {
+        seq++;
+      }
+      return seq;
+    }
 
     // Core Data Stores (Profile-isolated)
     const allMines = ref<MinedItem[]>(
@@ -126,6 +162,66 @@ const app = createApp({
     const allPayments = ref<PaymentRecord[]>(
       safeParseJson(safeGetItem('live_pos_payments_' + activeProfileId.value) || safeGetItem('live_pos_payments'), [])
     );
+
+    // Compute appropriate sequence number for a given date (resets to 1 every new day unless items exist for today)
+    function computeSequenceForDate(targetDate: string, targetProfile: Profile | null, minesList: MinedItem[], storedSeq?: number): number {
+      const prefix = getStorePrefix(targetProfile);
+      let maxTodaySeq = 0;
+      for (const m of minesList) {
+        const code = (m.controlCode || '').toUpperCase().trim();
+        const match = code.match(new RegExp(`^${prefix}${targetDate}-(\\d+)$`, 'i'));
+        if (match && match[1]) {
+          const num = parseInt(match[1], 10);
+          if (!isNaN(num) && num > maxTodaySeq) {
+            maxTodaySeq = num;
+          }
+        }
+      }
+
+      let startSeq = 1;
+      if (maxTodaySeq > 0) {
+        startSeq = maxTodaySeq + 1;
+      } else if (storedSeq && storedSeq > 1) {
+        startSeq = storedSeq;
+      }
+
+      return getNextUniqueSequenceNumber(startSeq, minesList, prefix, targetDate);
+    }
+
+    // Session Setup: always defaults to TODAY's date (e.g., "0910")
+    const now = new Date();
+    const defaultSessionDate = getTodaySessionDate();
+    const todayMMDD = defaultSessionDate;
+
+    // Check stored session date vs today's date
+    const rawStoredDate = (safeGetItem('live_pos_session_date_' + activeProfileId.value) || safeGetItem('live_pos_session_date')) as string;
+    const isSameDay = rawStoredDate && getFormattedSessionDate(rawStoredDate) === todayMMDD;
+
+    const sessionDate = ref<string>(todayMMDD);
+    const sessionStartTime = ref(
+      (safeGetItem('live_pos_session_start_' + activeProfileId.value) || safeGetItem('live_pos_session_start') || now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) as string
+    );
+
+    // Sequence Counter: resets to 1 everyday / new date, or resumes today's latest item count
+    const rawStoredSeq = Number(safeGetItem('live_pos_sequence_counter_' + activeProfileId.value) || safeGetItem('live_pos_sequence_counter') || 1);
+    const initialSeq = computeSequenceForDate(todayMMDD, activeProfile.value, allMines.value, isSameDay ? rawStoredSeq : 1);
+    const sequenceCounter = ref<number>(initialSeq);
+
+    // Save live today date and sequence state
+    safeSetItem('live_pos_session_date_' + activeProfileId.value, todayMMDD);
+    safeSetItem('live_pos_sequence_counter_' + activeProfileId.value, String(sequenceCounter.value));
+
+    // Daily Rollover checker: ensures if day rolls over while app is running, sequence resets to 1 for the new day
+    function checkAndApplyDailyRollover() {
+      const liveToday = getTodaySessionDate();
+      if (sessionDate.value !== liveToday) {
+        sessionDate.value = liveToday;
+        sequenceCounter.value = computeSequenceForDate(liveToday, activeProfile.value, allMines.value, 1);
+        safeSetItem('live_pos_session_date_' + activeProfileId.value, liveToday);
+        safeSetItem('live_pos_sequence_counter_' + activeProfileId.value, String(sequenceCounter.value));
+        pushProfileToSupabase(activeProfile.value, sequenceCounter.value, liveToday);
+      }
+    }
 
     // Settings Store
     const initialSettings: AppSettings = safeParseJson(safeGetItem('live_pos_settings'), {
@@ -172,7 +268,7 @@ const app = createApp({
       name: '',
       category: '',
       currency: '₱',
-      codePrefix: '#',
+      codePrefix: 'L',
       color: 'emerald',
       quickPrefixesText: '',
       defaultCategoriesText: '',
@@ -186,7 +282,7 @@ const app = createApp({
       activeStoreForm.name = p.name || '';
       activeStoreForm.category = p.category || 'Retail';
       activeStoreForm.currency = p.currency || '₱';
-      activeStoreForm.codePrefix = (p.codePrefix !== undefined && p.codePrefix !== null && p.codePrefix !== '') ? p.codePrefix : '#';
+      activeStoreForm.codePrefix = getStorePrefix(p);
       activeStoreForm.color = p.color || 'emerald';
       activeStoreForm.quickPrefixesText = Array.isArray(p.quickPrefixes) ? p.quickPrefixes.join(', ') : 'A, B, C, D, VIP';
       activeStoreForm.defaultCategoriesText = Array.isArray(p.defaultCategories) ? p.defaultCategories.join(', ') : 'General, Decor';
@@ -209,12 +305,16 @@ const app = createApp({
         .map(s => s.trim())
         .filter(Boolean);
 
+      const rawPrefix = activeStoreForm.codePrefix.trim().replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      const firstLetter = activeStoreForm.name.trim().replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L';
+      const finalPrefix = (rawPrefix && rawPrefix !== '#') ? rawPrefix : firstLetter;
+
       const updatedStore: Profile = {
         ...profiles.value[pIdx],
         name: activeStoreForm.name.trim() || 'My Business',
         category: activeStoreForm.category.trim() || 'Retail',
         currency: activeStoreForm.currency.trim() || '₱',
-        codePrefix: (activeStoreForm.codePrefix !== undefined && activeStoreForm.codePrefix !== null && activeStoreForm.codePrefix !== '') ? activeStoreForm.codePrefix.trim() : '#',
+        codePrefix: finalPrefix,
         color: activeStoreForm.color || 'emerald',
         quickPrefixes: prefixes.length > 0 ? prefixes : ['A', 'B', 'C'],
         defaultCategories: categories.length > 0 ? categories : ['General'],
@@ -245,14 +345,20 @@ const app = createApp({
 
     function saveSequenceForStore() {
       if (sequenceCounter.value < 1) sequenceCounter.value = 1;
+      const prefix = getStorePrefix(activeProfile.value);
+      const dateStr = sessionDate.value || defaultSessionDate;
+      sequenceCounter.value = getNextUniqueSequenceNumber(sequenceCounter.value, allMines.value, prefix, dateStr);
       safeSetItem('live_pos_sequence_counter_' + activeProfileId.value, String(sequenceCounter.value));
-      showToast(`Updated next sequence to #${sequenceCounter.value}`);
+      showToast(`Updated next sequence to #${sequenceCounter.value} (${formatControlCode(prefix, dateStr, sequenceCounter.value)})`);
     }
 
     function saveSessionDateForStore() {
-      sessionDate.value = (sessionDate.value || '').trim() || defaultSessionDate;
+      sessionDate.value = getFormattedSessionDate(sessionDate.value);
+      const prefix = getStorePrefix(activeProfile.value);
+      sequenceCounter.value = getNextUniqueSequenceNumber(sequenceCounter.value, allMines.value, prefix, sessionDate.value);
       safeSetItem('live_pos_session_date_' + activeProfileId.value, sessionDate.value);
-      showToast(`Updated session date to #${sessionDate.value}`);
+      safeSetItem('live_pos_sequence_counter_' + activeProfileId.value, String(sequenceCounter.value));
+      showToast(`Updated session date to ${sessionDate.value}`);
     }
 
     function onSettingsStoreChange(newId: string) {
@@ -720,20 +826,10 @@ const app = createApp({
 
     const nextControlCode = computed(() => {
       const p = activeProfile.value;
-      const rawPrefix = (p && p.codePrefix !== undefined && p.codePrefix !== null) ? p.codePrefix.trim() : '#';
-      const numStr = String(sequenceCounter.value || 1).padStart(3, '0');
+      const prefix = getStorePrefix(p);
       const dateStr = sessionDate.value || defaultSessionDate;
-
-      if (!rawPrefix) {
-        return `${dateStr}-${numStr}`;
-      }
-      if (rawPrefix === '#') {
-        return `#${dateStr}-${numStr}`;
-      }
-      if (rawPrefix.endsWith('-')) {
-        return `${rawPrefix}${dateStr}-${numStr}`;
-      }
-      return `${rawPrefix}-${dateStr}-${numStr}`;
+      const uniqueSeq = getNextUniqueSequenceNumber(sequenceCounter.value, allMines.value, prefix, dateStr);
+      return formatControlCode(prefix, dateStr, uniqueSeq);
     });
 
     const recentMines = computed(() => {
@@ -1012,6 +1108,7 @@ const app = createApp({
     }
 
     function logMine() {
+      checkAndApplyDailyRollover();
       const description = (form.description || '').trim();
       const price = parseFloat(String(form.price));
       const buyer = form.buyer.trim().replace(/^@+/, '');
@@ -1027,8 +1124,10 @@ const app = createApp({
         return;
       }
 
-      const controlCode = nextControlCode.value;
-      const currentControlNum = sequenceCounter.value;
+      const prefix = getStorePrefix(activeProfile.value);
+      const dateStr = sessionDate.value || defaultSessionDate;
+      const currentControlNum = getNextUniqueSequenceNumber(sequenceCounter.value, allMines.value, prefix, dateStr);
+      const controlCode = formatControlCode(prefix, dateStr, currentControlNum);
       const tag = controlCode;
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
       const todayDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -1048,7 +1147,8 @@ const app = createApp({
       };
 
       allMines.value.push(newMine);
-      sequenceCounter.value += 1;
+      // Advance counter to next guaranteed unique slot
+      sequenceCounter.value = getNextUniqueSequenceNumber(currentControlNum + 1, allMines.value, prefix, dateStr);
       saveAll();
       pushSingleMineToSupabase(newMine, activeProfileId.value, sessionDate.value);
 
@@ -1316,24 +1416,22 @@ const app = createApp({
           customerNotes.value = {};
         }
 
+        const today = getTodaySessionDate();
+        const storedDate = safeGetItem('live_pos_session_date_' + profId);
+        const storedDateFormatted = storedDate ? getFormattedSessionDate(storedDate as string) : '';
+        const isSameDay = storedDateFormatted === today;
+
+        sessionDate.value = today;
+
         const storedSeq = safeGetItem('live_pos_sequence_counter_' + profId);
-        if (storedSeq) {
-          sequenceCounter.value = Number(storedSeq) || 1;
-        } else if (profId === 'prof_main') {
-          const legacySeq = safeGetItem('live_pos_sequence_counter');
-          sequenceCounter.value = legacySeq ? Number(legacySeq) || 1 : 1;
-        } else {
-          sequenceCounter.value = 1;
+        let parsedSeq = 1;
+        if (storedSeq && isSameDay) {
+          parsedSeq = Number(storedSeq) || 1;
         }
 
-        const storedDate = safeGetItem('live_pos_session_date_' + profId);
-        if (storedDate) {
-          sessionDate.value = storedDate as string;
-        } else if (profId === 'prof_main') {
-          sessionDate.value = (safeGetItem('live_pos_session_date') || defaultSessionDate) as string;
-        } else {
-          sessionDate.value = defaultSessionDate;
-        }
+        sequenceCounter.value = computeSequenceForDate(today, activeProfile.value, allMines.value, parsedSeq);
+        safeSetItem('live_pos_session_date_' + profId, today);
+        safeSetItem('live_pos_sequence_counter_' + profId, String(sequenceCounter.value));
 
         const storedStart = safeGetItem('live_pos_session_start_' + profId);
         if (storedStart) {
@@ -1377,7 +1475,7 @@ const app = createApp({
       name: '',
       category: '',
       currency: '₱',
-      codePrefix: '#',
+      codePrefix: 'L',
       color: 'emerald',
       quickPrefixesText: '',
       defaultCategoriesText: '',
@@ -1398,7 +1496,7 @@ const app = createApp({
       editingProfileForm.name = '';
       editingProfileForm.category = 'General Retail';
       editingProfileForm.currency = activeProfile.value.currency || '₱';
-      editingProfileForm.codePrefix = '#';
+      editingProfileForm.codePrefix = '';
       editingProfileForm.color = 'blue';
       editingProfileForm.quickPrefixesText = 'A, B, C, D, VIP';
       editingProfileForm.defaultCategoriesText = 'Tops, Dresses, Bottoms, Jackets, Accessories';
@@ -1413,7 +1511,7 @@ const app = createApp({
       editingProfileForm.name = p.name;
       editingProfileForm.category = p.category || 'Retail';
       editingProfileForm.currency = p.currency || '₱';
-      editingProfileForm.codePrefix = (p.codePrefix !== undefined && p.codePrefix !== null && p.codePrefix !== '') ? p.codePrefix : '#';
+      editingProfileForm.codePrefix = getStorePrefix(p);
       editingProfileForm.color = p.color || 'emerald';
       editingProfileForm.quickPrefixesText = (p.quickPrefixes || []).join(', ');
       editingProfileForm.defaultCategoriesText = (p.defaultCategories || []).join(', ');
@@ -1436,12 +1534,16 @@ const app = createApp({
         .map(s => s.trim())
         .filter(Boolean);
 
+      const rawPrefix = editingProfileForm.codePrefix.trim().replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      const firstLetter = name.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L';
+      const finalPrefix = (rawPrefix && rawPrefix !== '#') ? rawPrefix : firstLetter;
+
       const profileData: Profile = {
         id: editingProfileForm.id,
         name: name,
         category: editingProfileForm.category.trim() || 'Retail',
         currency: editingProfileForm.currency.trim() || '₱',
-        codePrefix: (editingProfileForm.codePrefix !== undefined && editingProfileForm.codePrefix !== null && editingProfileForm.codePrefix !== '') ? editingProfileForm.codePrefix.trim() : '#',
+        codePrefix: finalPrefix,
         color: editingProfileForm.color || 'emerald',
         quickPrefixes: prefixes.length ? prefixes : ['A', 'B', 'C'],
         defaultCategories: categories.length ? categories : ['General'],
@@ -1856,15 +1958,16 @@ const app = createApp({
       if (!confirm('Start a new Live Selling session? This resets item counter and archives current session.')) {
         return;
       }
-      const newDate = prompt('Enter Session Code (MMDD):', defaultSessionDate) || defaultSessionDate;
-      sessionDate.value = newDate;
+      const enteredDate = prompt('Enter Session Code (MMDD):', defaultSessionDate) || defaultSessionDate;
+      const cleanDate = getFormattedSessionDate(enteredDate);
+      sessionDate.value = cleanDate;
       sessionStartTime.value = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       sequenceCounter.value = 1;
       allMines.value = [];
       allPayments.value = [];
       customerNotes.value = {};
       saveAll();
-      showToast(`Started new session #${newDate}`);
+      showToast(`Started new session #${cleanDate}`);
     }
 
     function clearAllData() {
@@ -2028,6 +2131,7 @@ const app = createApp({
     }
 
     onMounted(() => {
+      checkAndApplyDailyRollover();
       syncActiveStoreForm();
       nextTick(() => {
         focusFirstMiningField();
@@ -2040,14 +2144,23 @@ const app = createApp({
       });
 
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && navigator.onLine && supabaseStatus.value !== 'syncing') {
-          syncAllWithSupabase(false);
+        if (document.visibilityState === 'visible') {
+          checkAndApplyDailyRollover();
+          if (navigator.onLine && supabaseStatus.value !== 'syncing') {
+            syncAllWithSupabase(false);
+          }
         }
       });
 
       window.addEventListener('online', () => {
+        checkAndApplyDailyRollover();
         syncAllWithSupabase(false);
       });
+
+      // Periodically check if midnight passed to roll date over smoothly
+      setInterval(() => {
+        checkAndApplyDailyRollover();
+      }, 60000);
 
       restartAutoSync();
 
