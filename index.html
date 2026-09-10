@@ -1172,7 +1172,7 @@
                   v-for="p in [20, 50, 100, 150, 200, 250, 300, 350, 500, 785]" 
                   :key="p" 
                   type="button"
-                  @click="form.price = p; handleFieldEnter('price')"
+                  @click="form.price = p"
                   class="py-1.5 px-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 border border-zinc-200 text-xs font-mono font-semibold text-zinc-800 transition-colors text-center"
                   :class="Number(form.price) === p ? 'border-zinc-900 bg-zinc-900 text-white' : ''">
                   {{ activeProfile.currency }}{{ p }}
@@ -1254,11 +1254,12 @@
 
           <!-- GIANT PRIMARY BUTTON: "LOG MINE" -->
           <button 
+            id="btn-log-mine"
             type="button"
             @click="logMine"
             class="w-full min-h-[54px] bg-zinc-900 hover:bg-black active:scale-[0.99] text-white font-bold text-base tracking-wide rounded-xl shadow-sm flex items-center justify-center space-x-2 transition-all mt-3 border border-zinc-900">
             <span>LOG MINE</span>
-            <span class="text-xs text-zinc-400 font-mono font-normal">(Enter)</span>
+            <svg class="w-4 h-4 ml-1 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
           </button>
         </div>
 

@@ -254,6 +254,9 @@ const app = createApp({
     if (initialSettings.escPosDirectPrint === undefined) {
       initialSettings.escPosDirectPrint = true;
     }
+    if (initialSettings.autoPrint === undefined) {
+      initialSettings.autoPrint = true;
+    }
     const settings = ref<AppSettings>(initialSettings);
 
     // Bluetooth Direct ESC/POS Printer State (PT-210 / 58mm / 80mm)
@@ -992,7 +995,15 @@ const app = createApp({
           focusPriceInput();
         }
       } else {
-        logMine();
+        // Last field in sequence: Never auto-submit or print.
+        // Dismiss keyboard or clear focus so user can review details and explicitly click "LOG MINE"
+        if (currentFieldKey === 'price' && priceInputRef.value && typeof priceInputRef.value.blur === 'function') {
+          priceInputRef.value.blur();
+        } else if (currentFieldKey === 'description' && descriptionInputRef.value && typeof descriptionInputRef.value.blur === 'function') {
+          descriptionInputRef.value.blur();
+        } else if (currentFieldKey === 'customer' && buyerInputRef.value && typeof buyerInputRef.value.blur === 'function') {
+          buyerInputRef.value.blur();
+        }
       }
     }
 
