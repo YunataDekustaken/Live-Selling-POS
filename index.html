@@ -882,7 +882,9 @@
                       <span class="text-[10px] font-mono text-zinc-400">• {{ mine.controlCode }}</span>
                     </div>
                     <div class="text-[10px] text-zinc-500">
-                      {{ mine.description || 'Decor' }} • {{ mine.time }}
+                      <span v-if="mine.description && mine.description !== 'Decor'">{{ mine.description }} • </span>
+                      <span v-else-if="mine.tag && mine.tag !== mine.controlCode && mine.tag !== 'Decor'">{{ mine.tag }} • </span>
+                      <span>{{ mine.time }}</span>
                     </div>
                   </div>
                 </div>
@@ -1316,10 +1318,10 @@
                     <span class="text-[10px] text-zinc-400 font-mono">{{ mine.time }}</span>
                   </div>
                   <div class="flex items-center space-x-2 mt-0.5">
-                    <span v-if="mine.description" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-medium border border-zinc-200 truncate max-w-[130px]">
+                    <span v-if="mine.description && mine.description !== 'Decor'" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-medium border border-zinc-200 truncate max-w-[130px]">
                       {{ mine.description }}
                     </span>
-                    <span v-else-if="mine.tag && mine.tag !== mine.controlCode" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-mono font-medium border border-zinc-200">
+                    <span v-else-if="mine.tag && mine.tag !== mine.controlCode && mine.tag !== 'Decor'" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-mono font-medium border border-zinc-200">
                       {{ mine.tag }}
                     </span>
                     <span class="text-sm font-bold text-zinc-900 font-mono">
@@ -1653,7 +1655,7 @@
                   :key="it.id"
                   class="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-xs font-mono text-zinc-800">
                   <span class="font-bold">{{ it.tag }}</span>
-                  <span class="text-zinc-500">({{ it.description || 'Decor' }})</span>
+                  <span v-if="it.description && it.description !== 'Decor'" class="text-zinc-500">({{ it.description }})</span>
                   <span class="font-semibold">{{ activeProfile.currency }}{{ it.price }}</span>
                 </span>
               </div>
@@ -1749,7 +1751,7 @@
           <!-- Category Filter Pills -->
           <div class="flex space-x-1 overflow-x-auto pb-0.5">
             <button 
-              v-for="cat in ['All', 'Decor', 'Dress', 'Top', 'Pants', 'Bag', 'Accessories', 'General']"
+              v-for="cat in ['All', ...(activeProfile.defaultCategories || [])]"
               :key="cat"
               @click="minedItemsFilterCategory = cat"
               class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
@@ -1813,10 +1815,13 @@
                     {{ item.date || sessionDate }} {{ item.time }}
                   </td>
 
-                  <!-- 4. Description (e.g. Decor) -->
+                  <!-- 4. Description -->
                   <td class="py-2.5 px-3 whitespace-nowrap">
-                    <span class="inline-flex items-center px-2 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 text-[11px] font-sans font-medium">
-                      {{ item.description || 'Decor' }}
+                    <span v-if="item.description && item.description !== 'Decor'" class="inline-flex items-center px-2 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 text-[11px] font-sans font-medium">
+                      {{ item.description }}
+                    </span>
+                    <span v-else class="text-zinc-400 text-[11px] font-sans italic">
+                      —
                     </span>
                   </td>
 

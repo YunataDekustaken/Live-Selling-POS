@@ -46,7 +46,7 @@ export function exportNotionMinedItemsCsv(
       num,
       `"${item.buyer}"`,
       `"${item.date || sessionDate} ${item.time || ''}"`,
-      `"${item.description || 'Decor'}"`,
+      `"${item.description || ''}"`,
       item.price.toFixed(2),
       `"${item.tag}"`
     ];

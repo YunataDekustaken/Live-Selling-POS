@@ -87,7 +87,7 @@ const app = createApp({
             ? found.codePrefix 
             : (found.name ? (found.name.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L') : 'L'),
           quickPrefixes: Array.isArray(found.quickPrefixes) && found.quickPrefixes.length > 0 ? found.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
-          defaultCategories: Array.isArray(found.defaultCategories) && found.defaultCategories.length > 0 ? found.defaultCategories : ['General', 'Decor']
+          defaultCategories: Array.isArray(found.defaultCategories) && found.defaultCategories.length > 0 ? found.defaultCategories : ['General']
         };
       }
       if (profiles.value.length > 0) {
@@ -100,7 +100,7 @@ const app = createApp({
             ? first.codePrefix 
             : (first.name ? (first.name.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L') : 'L'),
           quickPrefixes: Array.isArray(first.quickPrefixes) && first.quickPrefixes.length > 0 ? first.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
-          defaultCategories: Array.isArray(first.defaultCategories) && first.defaultCategories.length > 0 ? first.defaultCategories : ['General', 'Decor']
+          defaultCategories: Array.isArray(first.defaultCategories) && first.defaultCategories.length > 0 ? first.defaultCategories : ['General']
         };
       }
       return defaultProfiles[0];
@@ -158,10 +158,17 @@ const app = createApp({
 
     // Core Data Stores (Profile-isolated with deleted mine tombstones)
     const initialDeletedMineIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []));
-    const allMines = ref<MinedItem[]>(
-      safeParseJson(safeGetItem('live_pos_mines_' + activeProfileId.value) || safeGetItem('live_pos_mines'), [])
-        .filter((m: MinedItem) => m && m.id && !initialDeletedMineIds.has(m.id))
-    );
+    const rawLoadedMines = safeParseJson(safeGetItem('live_pos_mines_' + activeProfileId.value) || safeGetItem('live_pos_mines'), []);
+    const sanitizedInitialMines = rawLoadedMines
+      .filter((m: MinedItem) => m && m.id && !initialDeletedMineIds.has(m.id))
+      .map((m: MinedItem) => {
+        // Sanitize corrupted 'Decor' descriptions from previous Supabase sync bug on live items
+        if (m.description === 'Decor' && m.id && m.id.startsWith('mine_')) {
+          return { ...m, description: '' };
+        }
+        return m;
+      });
+    const allMines = ref<MinedItem[]>(sanitizedInitialMines);
     const allPayments = ref<PaymentRecord[]>(
       safeParseJson(safeGetItem('live_pos_payments_' + activeProfileId.value) || safeGetItem('live_pos_payments'), [])
     );
@@ -291,7 +298,7 @@ const app = createApp({
       activeStoreForm.codePrefix = getStorePrefix(p);
       activeStoreForm.color = p.color || 'emerald';
       activeStoreForm.quickPrefixesText = Array.isArray(p.quickPrefixes) ? p.quickPrefixes.join(', ') : 'A, B, C, D, VIP';
-      activeStoreForm.defaultCategoriesText = Array.isArray(p.defaultCategories) ? p.defaultCategories.join(', ') : 'General, Decor';
+      activeStoreForm.defaultCategoriesText = Array.isArray(p.defaultCategories) ? p.defaultCategories.join(', ') : 'General';
       activeStoreForm.paymentDetails = p.paymentDetails || '';
 
       settings.value.storeName = activeStoreForm.name;
@@ -770,11 +777,17 @@ const app = createApp({
 
           for (const rm of validRemote) {
             const local = localMap.get(rm.id);
+            const remoteTag = rm.tag || '';
+            const remoteIsDescription = remoteTag && remoteTag !== rm.control_code && remoteTag !== 'Decor';
+            const cleanRemoteDesc = remoteIsDescription ? remoteTag : '';
+
             if (local) {
+              const localCleanDesc = (local.description && local.description !== 'Decor') ? local.description : cleanRemoteDesc;
               mergedMines.push({
                 ...local,
                 controlCode: rm.control_code || local.controlCode,
                 tag: rm.tag || local.tag,
+                description: localCleanDesc,
                 price: Number(rm.price) || local.price,
                 buyer: rm.buyer || local.buyer,
                 date: rm.session_date || local.date || sessionDate.value
@@ -786,7 +799,7 @@ const app = createApp({
                 controlCode: rm.control_code || '',
                 controlNum: 0,
                 tag: rm.tag || '',
-                description: 'Decor',
+                description: cleanRemoteDesc,
                 price: Number(rm.price) || 0,
                 buyer: rm.buyer || '',
                 date: rm.session_date || sessionDate.value,
@@ -1395,7 +1408,7 @@ const app = createApp({
       }
       if (minedItemsFilterCategory.value && minedItemsFilterCategory.value !== 'All') {
         const cat = minedItemsFilterCategory.value.toLowerCase();
-        list = list.filter(item => (item.description || 'Decor').toLowerCase() === cat);
+        list = list.filter(item => (item.description || '').toLowerCase() === cat);
       }
       return list;
     });

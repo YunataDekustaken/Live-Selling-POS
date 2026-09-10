@@ -133,7 +133,7 @@ export async function pushSingleMineToSupabase(mine: MinedItem, activeProfileId:
       profile_id: activeProfileId,
       session_date: mine.date || sessionDate,
       control_code: mine.controlCode,
-      tag: mine.tag,
+      tag: mine.description || mine.tag || '',
       price: mine.price,
       buyer: mine.buyer,
       timestamp: String(mine.timestamp || Date.now())
