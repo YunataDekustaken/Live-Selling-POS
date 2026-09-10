@@ -45,24 +45,23 @@ const app = createApp({
     // App Navigation: Default to Home Dashboard
     const currentTab = ref('dashboard'); // 'dashboard', 'mining', 'balances', 'mined_items'
 
-    // Multi-Business Profiles Definition
-    let initialProfiles = defaultProfiles;
+    // Multi-Business Profiles Definition (with deleted IDs tombstone tracking)
+    const deletedProfileIds = new Set<string>(
+      safeParseJson(safeGetItem('live_pos_deleted_profile_ids'), [])
+    );
+
+    let initialProfiles: Profile[] = [];
     const savedProfiles = safeGetItem('live_pos_profiles');
     if (savedProfiles) {
       const parsed = safeParseJson(savedProfiles, null);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const savedMap = new Map(parsed.map((p: Profile) => [p.id, p]));
-        initialProfiles = defaultProfiles.map(dp => {
-          if (savedMap.has(dp.id)) {
-            return { ...dp, ...savedMap.get(dp.id) };
-          }
-          return dp;
-        });
-        for (const sp of parsed) {
-          if (!initialProfiles.some(p => p.id === sp.id)) {
-            initialProfiles.push(sp);
-          }
-        }
+        initialProfiles = parsed.filter((p: Profile) => p && p.id && !deletedProfileIds.has(p.id));
+      }
+    }
+    if (initialProfiles.length === 0) {
+      initialProfiles = defaultProfiles.filter(p => !deletedProfileIds.has(p.id));
+      if (initialProfiles.length === 0) {
+        initialProfiles = [defaultProfiles[0]];
       }
     }
 
@@ -506,39 +505,56 @@ const app = createApp({
           .select('*')
           .order('created_at', { ascending: true });
 
+        const deletedIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_profile_ids'), []));
+
         if (remoteProfiles && !profErr && remoteProfiles.length > 0) {
-          const localMap = new Map(profiles.value.map(p => [p.id, p]));
-          const merged: Profile[] = [];
-
+          // Immediately purge any deleted profiles from Supabase if found remotely
           for (const rp of remoteProfiles) {
-            const local = localMap.get(rp.id);
-            merged.push({
-              id: rp.id,
-              name: rp.name || (local ? local.name : 'Business'),
-              category: rp.category || (local ? local.category : 'Retail'),
-              currency: rp.currency || (local ? local.currency : '₱'),
-              color: rp.color || (local ? local.color : 'emerald'),
-              codePrefix: (local && local.codePrefix) ? local.codePrefix : '#',
-              quickPrefixes: Array.isArray(rp.quick_prefixes) && rp.quick_prefixes.length > 0 
-                ? rp.quick_prefixes 
-                : (local?.quickPrefixes || ['A', 'B', 'C', 'D', 'VIP']),
-              defaultCategories: Array.isArray(rp.default_categories) && rp.default_categories.length > 0 
-                ? rp.default_categories 
-                : (local?.defaultCategories || ['General']),
-              paymentDetails: rp.payment_details !== undefined && rp.payment_details !== null 
-                ? rp.payment_details 
-                : (local?.paymentDetails || '')
-            });
-            localMap.delete(rp.id);
+            if (deletedIds.has(rp.id)) {
+              deleteProfileFromSupabase(rp.id);
+            }
           }
 
-          for (const [, localProf] of localMap.entries()) {
-            merged.push(localProf);
-            await pushProfileToSupabase(localProf, sequenceCounter.value, sessionDate.value);
-          }
+          const validRemote = remoteProfiles.filter((rp: any) => !deletedIds.has(rp.id));
 
-          profiles.value = merged;
-          safeSetItem('live_pos_profiles', profiles.value);
+          if (validRemote.length > 0) {
+            const localMap = new Map(profiles.value.map(p => [p.id, p]));
+            const merged: Profile[] = [];
+
+            for (const rp of validRemote) {
+              const local = localMap.get(rp.id);
+              merged.push({
+                id: rp.id,
+                name: rp.name || (local ? local.name : 'Business'),
+                category: rp.category || (local ? local.category : 'Retail'),
+                currency: rp.currency || (local ? local.currency : '₱'),
+                color: rp.color || (local ? local.color : 'emerald'),
+                codePrefix: (local && local.codePrefix) ? local.codePrefix : '#',
+                quickPrefixes: Array.isArray(rp.quick_prefixes) && rp.quick_prefixes.length > 0 
+                  ? rp.quick_prefixes 
+                  : (local?.quickPrefixes || ['A', 'B', 'C', 'D', 'VIP']),
+                defaultCategories: Array.isArray(rp.default_categories) && rp.default_categories.length > 0 
+                  ? rp.default_categories 
+                  : (local?.defaultCategories || ['General']),
+                paymentDetails: rp.payment_details !== undefined && rp.payment_details !== null 
+                  ? rp.payment_details 
+                  : (local?.paymentDetails || '')
+              });
+              localMap.delete(rp.id);
+            }
+
+            for (const [, localProf] of localMap.entries()) {
+              if (!deletedIds.has(localProf.id)) {
+                merged.push(localProf);
+                await pushProfileToSupabase(localProf, sequenceCounter.value, sessionDate.value);
+              }
+            }
+
+            if (merged.length > 0) {
+              profiles.value = merged;
+              safeSetItem('live_pos_profiles', profiles.value);
+            }
+          }
         }
 
         const { data: activeMeta } = await client
@@ -1413,6 +1429,13 @@ const app = createApp({
         paymentDetails: editingProfileForm.paymentDetails.trim()
       };
 
+      // If creating or updating a profile, remove it from the deleted set
+      const deletedIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_profile_ids'), []));
+      if (deletedIds.has(profileData.id)) {
+        deletedIds.delete(profileData.id);
+        safeSetItem('live_pos_deleted_profile_ids', Array.from(deletedIds));
+      }
+
       if (editingProfileForm.isNew) {
         profiles.value.push(profileData);
         saveAll();
@@ -1442,6 +1465,11 @@ const app = createApp({
         return;
       }
 
+      // Add to deleted profile tombstone registry so it is never recreated by defaults or cloud sync
+      const deletedIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_profile_ids'), []));
+      deletedIds.add(id);
+      safeSetItem('live_pos_deleted_profile_ids', Array.from(deletedIds));
+
       localStorage.removeItem('live_pos_mines_' + id);
       localStorage.removeItem('live_pos_payments_' + id);
       localStorage.removeItem('live_pos_customer_notes_' + id);
@@ -1451,11 +1479,12 @@ const app = createApp({
       localStorage.removeItem('live_pos_settings_' + id);
 
       profiles.value = profiles.value.filter(p => p.id !== id);
+      safeSetItem('live_pos_profiles', profiles.value);
       deleteProfileFromSupabase(id);
 
       if (activeProfileId.value === id) {
         activeProfileId.value = profiles.value[0].id;
-        localStorage.setItem('live_pos_active_profile_id', activeProfileId.value);
+        safeSetItem('live_pos_active_profile_id', activeProfileId.value);
         loadProfileData(activeProfileId.value);
         pushActiveProfileToSupabase(activeProfileId.value);
       }
