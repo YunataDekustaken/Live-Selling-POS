@@ -1162,22 +1162,18 @@ const app = createApp({
         triggerStickerPrint(newMine);
       }
 
+      // Clear all mining input fields
+      form.buyer = '';
+      form.price = '';
       form.description = '';
+      form.tag = '';
       form.photo = '';
       if (photoInputRef.value) {
         photoInputRef.value.value = '';
       }
 
       buyerSuggestionsOpen.value = false;
-      const order = settings.value.miningFieldsOrder || ['customer', 'description', 'price'];
-      const nonCustomerField = order.find(k => k !== 'customer') || order[0];
-      if (nonCustomerField === 'description') {
-        focusDescriptionInput();
-      } else if (nonCustomerField === 'price') {
-        focusPriceInput();
-      } else {
-        focusFirstMiningField();
-      }
+      focusFirstMiningField();
     }
 
     function undoMine(mine: MinedItem) {
