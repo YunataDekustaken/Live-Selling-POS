@@ -2719,136 +2719,159 @@
               </div>
             </div>
 
-            <!-- Google Drive Photo Auto-Archive Panel -->
-            <div class="p-3.5 rounded-xl bg-gradient-to-b from-amber-50/60 to-zinc-50 border border-amber-200/90 text-xs space-y-3 shadow-xs">
+            <!-- Cloudflare R2 Direct Photo Storage Panel -->
+            <div class="p-3.5 rounded-xl bg-gradient-to-b from-orange-50/60 to-zinc-50 border border-orange-200/90 text-xs space-y-3 shadow-xs">
               <div class="flex items-center justify-between">
                 <span class="font-bold text-zinc-900 flex items-center space-x-1.5">
-                  <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                  <span>Google Drive Photo Auto-Archive</span>
+                  <svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+                  <span>Cloudflare R2 Direct Photo Storage</span>
                 </span>
                 <div class="flex items-center space-x-1.5">
                   <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
-                        :class="gdriveUser ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : (gdriveStatus === 'archiving' ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse' : 'bg-zinc-100 text-zinc-600 border-zinc-300')">
-                    <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :class="gdriveUser ? 'bg-emerald-500' : (gdriveStatus === 'archiving' ? 'bg-amber-500' : 'bg-zinc-400')"></span>
-                    {{ gdriveUser ? 'Connected' : (gdriveStatus === 'archiving' ? 'Archiving...' : 'Not Connected') }}
+                        :class="isR2Ready ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : (r2Status === 'testing' ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse' : 'bg-zinc-100 text-zinc-600 border-zinc-300')">
+                    <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :class="isR2Ready ? 'bg-emerald-500' : (r2Status === 'testing' ? 'bg-amber-500' : 'bg-zinc-400')"></span>
+                    {{ isR2Ready ? 'Configured & Active' : (r2Status === 'testing' ? 'Testing...' : 'Not Configured') }}
                   </span>
                 </div>
               </div>
 
               <div class="text-[11px] text-zinc-600 space-y-2">
                 <p class="leading-relaxed">
-                  Connect once to automatically archive photos older than <strong>7 days</strong> to your personal Google Drive (<code>LivePOS_Archives/</code>).
+                  Photos are compressed and uploaded <strong>directly to Cloudflare R2</strong> upon capture. Zero base64 database bloat, permanent links, and 100% multi-device sync without login popups!
                 </p>
-                <div class="p-2 rounded bg-amber-50/90 border border-amber-200/70 text-[10px] text-amber-900 space-y-1">
-                  <div class="flex items-center space-x-1 font-semibold text-amber-950">
-                    <span>✨ In-App Photo Viewing & Multi-Device Sync:</span>
+
+                <div class="p-2 rounded bg-orange-50/90 border border-orange-200/70 text-[10px] text-orange-950 space-y-1">
+                  <div class="flex items-center justify-between font-semibold">
+                    <span class="flex items-center space-x-1">
+                      <span>⚡ Cloudflare R2 Highlights:</span>
+                    </span>
+                    <span class="text-emerald-700 font-bold bg-emerald-100/80 px-1.5 py-0.5 rounded">10 GB Free Storage</span>
                   </div>
-                  <ul class="list-disc list-inside space-y-0.5 pl-0.5 text-amber-800">
-                    <li><strong>Synced Across Devices:</strong> Connect once on any device and your Google Drive connection syncs automatically to all your phones and tablets via Supabase.</li>
-                    <li><strong>6-Month In-App Viewing:</strong> Archived photos convert to fast CDN links so you can continue viewing them in recent mines, invoices, and photo zoom for <strong>6 months</strong> without consuming Supabase storage.</li>
-                    <li><strong>Zero DB Bloat:</strong> After 6 months, the link is pruned from database storage while original full photos remain safely stored in your Google Drive folder forever.</li>
+                  <ul class="list-disc list-inside space-y-0.5 pl-0.5 text-orange-900">
+                    <li><strong>Set-It-And-Forget-It:</strong> Fill in credentials once on one device and it automatically syncs across all your phones and tablets via Supabase.</li>
+                    <li><strong>Zero Database Overhead:</strong> Supabase only stores lightweight URLs, keeping your database razor fast.</li>
+                    <li><strong>Permanent Forever Access:</strong> View photos anytime in invoices, customer previews, and photo zoom without 60-minute token expirations.</li>
                   </ul>
                 </div>
 
-                <!-- Connected Account or Setup View -->
-                <div v-if="gdriveUser" class="p-2.5 rounded-lg bg-emerald-50/80 border border-emerald-200/80 flex items-center justify-between">
-                  <div>
-                    <div class="font-semibold text-emerald-900 text-xs flex items-center space-x-1">
-                      <span>✓ Connected & Synced to All Devices</span>
+                <!-- R2 Credentials Form -->
+                <div class="space-y-2 bg-white p-3 rounded-lg border border-orange-200 shadow-2xs">
+                  <div class="flex items-center justify-between pb-1 border-b border-zinc-100">
+                    <span class="font-bold text-zinc-800 text-[11px]">R2 API Credentials</span>
+                    <button 
+                      @click="r2GuideModalOpen = true" 
+                      type="button" 
+                      class="text-orange-700 hover:text-orange-800 font-semibold text-[10px] underline cursor-pointer">
+                      📖 View Step-by-Step Setup Guide
+                    </button>
+                  </div>
+
+                  <div class="space-y-1">
+                    <label class="font-semibold text-zinc-700 text-[10px]">Cloudflare Account ID:</label>
+                    <input 
+                      v-model="r2Form.accountId" 
+                      type="text" 
+                      placeholder="e.g. 2344795fe19b671a5c689d0b04a8b75e" 
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
+                    />
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div class="space-y-1">
+                      <label class="font-semibold text-zinc-700 text-[10px]">Access Key ID:</label>
+                      <input 
+                        v-model="r2Form.accessKeyId" 
+                        type="text" 
+                        placeholder="e.g. 3a6b32bf4..." 
+                        class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
+                      />
                     </div>
-                    <div class="text-[11px] text-emerald-700">{{ gdriveUser.email || gdriveUser.name || 'Personal Google Account' }}</div>
-                    <div v-if="gdriveLastArchived" class="text-[10px] text-emerald-600 mt-0.5 font-mono">Last archive: {{ gdriveLastArchived }}</div>
+                    <div class="space-y-1">
+                      <label class="font-semibold text-zinc-700 text-[10px]">Bucket Name:</label>
+                      <input 
+                        v-model="r2Form.bucketName" 
+                        type="text" 
+                        placeholder="e.g. livepos-photos" 
+                        class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
+                      />
+                    </div>
                   </div>
-                  <button 
-                    @click="disconnectGoogleDrive" 
-                    type="button" 
-                    class="px-2 py-1 rounded bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-medium cursor-pointer transition-colors shadow-2xs">
-                    Disconnect
-                  </button>
-                </div>
 
-                <!-- Google OAuth Client ID Input -->
-                <div v-else class="space-y-1.5 bg-white p-2.5 rounded-lg border border-amber-200 shadow-2xs">
-                  <div class="flex items-center justify-between">
-                    <label class="font-semibold text-zinc-800 text-[11px]">Google OAuth Client ID:</label>
-                    <button 
-                      @click="gdriveGuideModalOpen = true" 
-                      type="button" 
-                      class="text-sky-700 hover:text-sky-800 font-medium text-[10px] underline cursor-pointer">
-                      📖 View Google Console Steps
-                    </button>
+                  <div class="space-y-1">
+                    <label class="font-semibold text-zinc-700 text-[10px]">Secret Access Key:</label>
+                    <input 
+                      v-model="r2Form.secretAccessKey" 
+                      type="password" 
+                      placeholder="e.g. d7164b8a2c1..." 
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
+                    />
                   </div>
-                  <input 
-                    v-model="gdriveClientId" 
-                    @change="saveGDriveClientId" 
-                    type="text" 
-                    placeholder="xxxxxxxxxxxx-xxxxxxxx.apps.googleusercontent.com" 
-                    class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
-                  />
-                  <div class="flex items-center justify-between pt-1">
-                    <span class="text-[10px] text-zinc-500">Connect once & auto-syncs to all devices</span>
-                    <button 
-                      @click="connectGoogleDrive" 
-                      type="button" 
-                      :disabled="!gdriveClientId || gdriveStatus === 'archiving'"
-                      class="py-1 px-3 rounded bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold text-[11px] flex items-center space-x-1 cursor-pointer shadow-xs transition-colors">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
-                      <span>Connect Google Drive</span>
-                    </button>
-                  </div>
-                </div>
 
-                <!-- Auto-Archive Options -->
-                <div class="space-y-2 pt-1 border-t border-amber-200/60">
-                  <label class="flex items-center justify-between cursor-pointer p-1.5 rounded hover:bg-amber-100/40 transition-colors">
-                    <div>
-                      <div class="font-medium text-zinc-800 text-[11px]">Auto-Archive on App Open</div>
-                      <div class="text-[10px] text-zinc-500">Automatically backup photos >7 days old to Drive & prune DB</div>
+                  <div class="space-y-1">
+                    <div class="flex items-center justify-between">
+                      <label class="font-semibold text-zinc-700 text-[10px]">Public Domain or R2.dev URL (Optional):</label>
+                      <span class="text-[9px] text-zinc-400">e.g. https://photos.mydomain.com</span>
                     </div>
                     <input 
-                      type="checkbox" 
-                      v-model="gdriveAutoArchiveEnabled" 
-                      @change="saveGDriveAutoArchiveSetting" 
-                      class="h-4 w-4 rounded border-zinc-300 text-amber-600 focus:ring-0 cursor-pointer"
+                      v-model="r2Form.publicDomain" 
+                      type="text" 
+                      placeholder="https://pub-xxxxxx.r2.dev or custom domain" 
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
                     />
-                  </label>
-
-                  <!-- Status summary of photos ready for archiving -->
-                  <div class="p-2 rounded bg-white/80 border border-zinc-200/80 flex items-center justify-between text-[11px]">
-                    <div>
-                      <span class="text-zinc-600">Pending Upload (>7 days):</span>
-                      <strong class="text-zinc-900 ml-1">{{ oldPhotosCount }} items</strong>
-                    </div>
-                    <div class="text-[10px] text-zinc-500">
-                      Total Viewable: <strong>{{ totalPhotosCount }}</strong> ({{ sixMonthsPhotosCount }} >6 mos)
-                    </div>
                   </div>
 
-                  <!-- Progress / Status Message -->
-                  <div v-if="gdriveStatusMessage" class="p-2 rounded bg-amber-100/80 text-amber-900 text-[11px] font-medium flex items-center space-x-2">
-                    <svg v-if="gdriveStatus === 'archiving'" class="w-4 h-4 animate-spin shrink-0 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                    <span>{{ gdriveStatusMessage }}</span>
+                  <!-- Status message / test results -->
+                  <div v-if="r2StatusMessage" class="p-2 rounded text-[11px] font-medium flex items-center space-x-2"
+                       :class="r2Status === 'connected' ? 'bg-emerald-100 text-emerald-900' : (r2Status === 'error' ? 'bg-red-100 text-red-900' : 'bg-amber-100 text-amber-900')">
+                    <svg v-if="r2Testing" class="w-4 h-4 animate-spin shrink-0 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span>{{ r2StatusMessage }}</span>
                   </div>
 
                   <!-- Action Buttons -->
                   <div class="grid grid-cols-2 gap-2 pt-1">
                     <button 
-                      @click="triggerArchiveToDrive(7, false)" 
+                      @click="testR2Connection" 
                       type="button" 
-                      :disabled="!gdriveClientId || gdriveStatus === 'archiving' || oldPhotosCount === 0"
-                      class="py-1.5 px-2 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 disabled:opacity-40 text-white text-[11px] font-semibold flex items-center justify-center space-x-1 transition-colors shadow-xs cursor-pointer">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                      <span>Archive >7 Days ({{ oldPhotosCount }})</span>
+                      :disabled="r2Testing || !r2Form.accountId || !r2Form.accessKeyId || !r2Form.secretAccessKey || !r2Form.bucketName"
+                      class="py-1.5 px-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 disabled:opacity-50 text-zinc-800 border border-zinc-300 text-[11px] font-semibold flex items-center justify-center space-x-1 cursor-pointer transition-colors shadow-2xs">
+                      <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span>{{ r2Testing ? 'Testing...' : 'Test Connection' }}</span>
                     </button>
                     <button 
-                      @click="triggerArchiveToDrive(0, true)" 
+                      @click="saveR2Settings" 
                       type="button" 
-                      :disabled="!gdriveClientId || gdriveStatus === 'archiving' || totalPhotosCount === 0"
-                      class="py-1.5 px-2 rounded-lg bg-white hover:bg-zinc-100 disabled:opacity-40 text-zinc-800 border border-zinc-300 text-[11px] font-medium flex items-center justify-center space-x-1 transition-colors cursor-pointer">
-                      <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                      <span>Archive ALL Photos</span>
+                      class="py-1.5 px-2 rounded-lg bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white text-[11px] font-semibold flex items-center justify-center space-x-1 transition-colors shadow-xs cursor-pointer">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                      <span>Save & Sync Settings</span>
                     </button>
                   </div>
+                </div>
+
+                <!-- Migration Tool for Existing Base64 Photos -->
+                <div v-if="legacyBase64PhotosCount > 0" class="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-amber-900">Migrate Legacy Photos to R2</span>
+                    <span class="font-mono font-bold text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded text-[10px]">
+                      {{ legacyBase64PhotosCount }} base64 items found
+                    </span>
+                  </div>
+                  <p class="text-amber-800 text-[10px]">
+                    Upload existing local/Supabase base64 photos to Cloudflare R2 and replace with lightweight CDN URLs.
+                  </p>
+                  <button 
+                    @click="migrateLegacyPhotosToR2" 
+                    type="button" 
+                    :disabled="!isR2Ready"
+                    class="w-full py-1.5 px-2 rounded bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-[11px] font-semibold flex items-center justify-center space-x-1 transition-colors shadow-2xs">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                    <span>Migrate {{ legacyBase64PhotosCount }} Photos to R2</span>
+                  </button>
+                </div>
+
+                <!-- Photos overview summary -->
+                <div class="p-2 rounded bg-white/80 border border-zinc-200/80 flex items-center justify-between text-[11px]">
+                  <span class="text-zinc-600">Total Photos in POS:</span>
+                  <strong class="text-zinc-900 font-mono">{{ totalPhotosCount }} items</strong>
                 </div>
               </div>
             </div>
@@ -3289,69 +3312,75 @@
     </div>
 
     <!-- =============================================================== -->
-    <!-- MODAL 6: GOOGLE CLOUD CONSOLE STEP-BY-STEP SETUP GUIDE MODAL    -->
+    <!-- MODAL 6: CLOUDFLARE R2 STEP-BY-STEP SETUP GUIDE MODAL           -->
     <!-- =============================================================== -->
-    <div v-if="gdriveGuideModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-xs animate-fadeIn" @click.self="gdriveGuideModalOpen = false">
+    <div v-if="r2GuideModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-xs animate-fadeIn" @click.self="r2GuideModalOpen = false">
       <div class="bg-white border border-zinc-200 rounded-2xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-zinc-900">
         <!-- Header -->
-        <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 bg-amber-50/70">
+        <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 bg-orange-50/80">
           <div class="flex items-center space-x-2">
-            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-            <span class="font-bold text-sm text-zinc-900">Google Cloud Console Setup (3 Steps)</span>
+            <svg class="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z" /></svg>
+            <span class="font-bold text-sm text-zinc-900">Cloudflare R2 Direct Storage Setup (3 Steps)</span>
           </div>
-          <button @click="gdriveGuideModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+          <button @click="r2GuideModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
         </div>
 
         <!-- Body -->
         <div class="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-zinc-700">
-          <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
-            <strong>Free & Personal Account Compatible:</strong> Works with any standard free 15 GB personal <code>@gmail.com</code> account. No paid Google Workspace required!
+          <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-200 text-emerald-950 text-[11px] space-y-1">
+            <div class="font-bold flex items-center space-x-1">
+              <span>🎁 100% Free 10 GB Storage & Zero Egress Fees:</span>
+            </div>
+            <p>
+              Cloudflare R2 provides 10 GB of free object storage every month with 0 egress bandwidth fees. You only set this up once, and it syncs to all your devices automatically via Supabase!
+            </p>
           </div>
 
           <!-- Step 1 -->
-          <div class="space-y-1.5 border-l-2 border-amber-500 pl-3">
-            <div class="font-bold text-zinc-900 text-xs">Step 1: Open Google Cloud Console & Enable Google Drive API</div>
+          <div class="space-y-1.5 border-l-2 border-orange-500 pl-3">
+            <div class="font-bold text-zinc-900 text-xs">Step 1: Create an R2 Bucket in Cloudflare</div>
             <ol class="list-decimal list-inside space-y-1 text-zinc-600 text-[11px]">
-              <li>Go to <a href="https://console.cloud.google.com/" target="_blank" class="text-sky-600 underline font-semibold">console.cloud.google.com</a> and sign in with your Gmail.</li>
-              <li>Create a new project (e.g. name it <code>LiveSelling-POS</code>).</li>
-              <li>In the search bar at the top, type <strong>"Google Drive API"</strong> and click <strong>Enable</strong>.</li>
+              <li>Log in to <a href="https://dash.cloudflare.com/" target="_blank" class="text-sky-600 underline font-semibold">dash.cloudflare.com</a>.</li>
+              <li>In the left sidebar, click <strong>Storage & Databases</strong> &gt; <strong>R2</strong>.</li>
+              <li>Click <strong>Create Bucket</strong> &gt; Name it (e.g., <code>livepos-photos</code>) &gt; Click <strong>Create Bucket</strong>.</li>
+              <li>In your new bucket, go to <strong>Settings</strong> &gt; <strong>Public Access</strong> &gt; click <strong>Allow Access (R2.dev subdomain)</strong> or connect a custom domain so photos can be viewed in invoices.</li>
             </ol>
           </div>
 
           <!-- Step 2 -->
-          <div class="space-y-1.5 border-l-2 border-amber-500 pl-3">
-            <div class="font-bold text-zinc-900 text-xs">Step 2: Configure OAuth Consent Screen</div>
-            <ol class="list-decimal list-inside space-y-1 text-zinc-600 text-[11px]">
-              <li>Go to <strong>APIs & Services &gt; OAuth consent screen</strong>.</li>
-              <li>Select User Type: <strong>External</strong> &gt; Click <em>Create</em>.</li>
-              <li>Enter App name: <code>LivePOS Photo Archive</code> and your email for support.</li>
-              <li>Under <strong>Scopes</strong>, add <code>.../auth/drive.file</code>.</li>
-              <li>Under <strong>Test users</strong>, add your personal Gmail address.</li>
-            </ol>
+          <div class="space-y-1.5 border-l-2 border-orange-500 pl-3">
+            <div class="font-bold text-zinc-900 text-xs">Step 2: Add CORS Policy to Bucket</div>
+            <p class="text-[11px] text-zinc-600">
+              In bucket <strong>Settings</strong> &gt; <strong>CORS Policy</strong> &gt; click <strong>Add CORS Policy</strong> and paste this JSON rule:
+            </p>
+            <pre class="p-2.5 bg-zinc-900 text-amber-300 font-mono text-[10px] rounded-lg overflow-x-auto leading-normal">[
+  {
+    "AllowedOrigins": ["*"],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "MaxAgeSeconds": 3600
+  }
+]</pre>
           </div>
 
           <!-- Step 3 -->
-          <div class="space-y-1.5 border-l-2 border-amber-500 pl-3">
-            <div class="font-bold text-zinc-900 text-xs">Step 3: Create OAuth Client ID (Web Application)</div>
+          <div class="space-y-1.5 border-l-2 border-orange-500 pl-3">
+            <div class="font-bold text-zinc-900 text-xs">Step 3: Create R2 API Token</div>
             <ol class="list-decimal list-inside space-y-1 text-zinc-600 text-[11px]">
-              <li>Go to <strong>APIs & Services &gt; Credentials</strong> &gt; Click <strong>Create Credentials &gt; OAuth client ID</strong>.</li>
-              <li>Application type: <strong>Web application</strong>.</li>
-              <li>Under <strong>Authorized JavaScript origins</strong>, add:
-                <div class="mt-1 flex items-center space-x-1.5 font-mono text-[10px] bg-zinc-100 p-1.5 rounded border border-zinc-300">
-                  <span class="truncate">{{ currentAppOrigin }}</span>
-                  <button @click="copyAppOrigin" type="button" class="px-2 py-0.5 rounded bg-zinc-900 text-white shrink-0 hover:bg-black font-sans text-[10px]">Copy</button>
-                </div>
-              </li>
-              <li>Click <strong>Create</strong> and copy your <strong>Client ID</strong> (ends in <code>.apps.googleusercontent.com</code>).</li>
-              <li>Paste it into the <em>Google OAuth Client ID</em> input box in this app's Cloud Settings!</li>
+              <li>In Cloudflare R2 Overview, click <strong>Manage R2 API Tokens</strong> (top right).</li>
+              <li>Click <strong>Create API token</strong>.</li>
+              <li>Permissions: Select <strong>Object Read & Write</strong>.</li>
+              <li>Bucket: Select <strong>Specify bucket</strong> &gt; choose your bucket (or all buckets).</li>
+              <li>Click <strong>Create API Token</strong>.</li>
+              <li>Copy your <strong>Account ID</strong>, <strong>Access Key ID</strong>, and <strong>Secret Access Key</strong> into this app's Cloud Settings!</li>
             </ol>
           </div>
         </div>
 
         <!-- Footer -->
         <div class="border-t border-zinc-200 px-4 py-3 bg-zinc-50 flex items-center justify-between">
-          <span class="text-[11px] text-zinc-500">Need help? You only need to do this once.</span>
-          <button @click="gdriveGuideModalOpen = false" class="px-4 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors">
+          <span class="text-[11px] text-zinc-500">Configure once & syncs across all devices!</span>
+          <button @click="r2GuideModalOpen = false" class="px-4 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors">
             Got it!
           </button>
         </div>

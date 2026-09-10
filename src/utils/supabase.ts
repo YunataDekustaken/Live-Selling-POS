@@ -142,18 +142,9 @@ export async function pushSingleMineToSupabase(mine: MinedItem, activeProfileId:
 
     const { error: upsertErr } = await client.from('mined_items').upsert([payload]);
     if (upsertErr) {
-      // If the mined_items table doesn't have a photo column, retry without the photo field
+      // If the mined_items table schema issue, retry without photo
       delete payload.photo;
       await client.from('mined_items').upsert([payload]);
-    }
-
-    // Always persist photo into customer_notes as a guaranteed cloud backup
-    if (mine.photo) {
-      await client.from('customer_notes').upsert([{
-        profile_id: activeProfileId,
-        buyer: '__photo_' + mine.id,
-        notes: mine.photo
-      }]);
     }
   } catch (e) {
     console.warn('Supabase mine sync notice:', e);
@@ -201,6 +192,39 @@ export async function deleteSingleMineFromSupabase(mineId: string) {
   } catch (e) {
     console.warn('Supabase delete mine notice:', e);
   }
+}
+
+export async function syncR2ConfigToSupabase(configJson: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !configJson) return;
+  try {
+    await client.from('customer_notes').upsert([{
+      profile_id: '_meta_',
+      buyer: '__r2_config__',
+      notes: configJson
+    }]);
+  } catch (e) {
+    console.warn('Supabase R2 config sync notice:', e);
+  }
+}
+
+export async function fetchR2ConfigFromSupabase(): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return null;
+  try {
+    const { data, error } = await client
+      .from('customer_notes')
+      .select('notes')
+      .eq('profile_id', '_meta_')
+      .eq('buyer', '__r2_config__')
+      .limit(1);
+    if (!error && data && data.length > 0 && data[0].notes) {
+      return data[0].notes;
+    }
+  } catch (e) {
+    console.warn('fetchR2ConfigFromSupabase notice:', e);
+  }
+  return null;
 }
 
 export async function pushSinglePaymentToSupabase(payment: PaymentRecord, activeProfileId: string) {

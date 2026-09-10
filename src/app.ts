@@ -29,7 +29,9 @@ import {
   deleteSingleMineFromSupabase,
   fetchCloudDeletedMines,
   pushSinglePaymentToSupabase,
-  pushCustomerNoteToSupabase
+  pushCustomerNoteToSupabase,
+  syncR2ConfigToSupabase,
+  fetchR2ConfigFromSupabase
 } from './utils/supabase';
 import {
   isWebBluetoothSupported,
@@ -43,22 +45,12 @@ import {
   getConnectedPrinterName
 } from './utils/bluetoothPrinter';
 import {
-  getStoredGDriveClientId,
-  setStoredGDriveClientId,
-  isGDriveAutoArchiveEnabled,
-  setGDriveAutoArchiveEnabled,
-  getGDriveLastArchivedTime,
-  getGDriveUserInfo,
-  setGDriveUserInfo,
-  setInMemoryToken,
-  getInMemoryToken,
-  clearGDriveSession,
-  requestGDriveAccessToken,
-  archiveOldPhotosToGDrive,
-  isItemOlderThanDays,
-  isItemOlderThanMonths,
-  pruneSixMonthOldPhotoUrls
-} from './utils/gdrive';
+  getStoredR2Config,
+  setStoredR2Config,
+  isR2Configured,
+  uploadToCloudflareR2,
+  R2Config
+} from './utils/r2Storage';
 
 const app = createApp({
   setup() {
@@ -454,9 +446,33 @@ const app = createApp({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, w, h);
-            form.photo = canvas.toDataURL('image/jpeg', 0.75);
-            showToast('Photo attached for this item! 📸');
+            const compressed = canvas.toDataURL('image/jpeg', 0.8);
+            form.photo = compressed;
+            showToast('Photo attached! 📸');
             playBeep('success', settings.value.soundEnabled);
+
+            // Direct upload to Cloudflare R2 if configured
+            if (isR2Configured(r2Form)) {
+              r2Status.value = 'uploading';
+              r2StatusMessage.value = 'Uploading photo to Cloudflare R2...';
+              const cleanSession = (sessionDate.value || 'live').replace(/[^a-zA-Z0-9_-]/g, '');
+              const cleanStore = (activeProfile.value.id || 'store').replace(/[^a-zA-Z0-9_-]/g, '');
+              const fileKey = `${cleanStore}/${cleanSession}/item_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.jpg`;
+              
+              uploadToCloudflareR2(fileKey, compressed, r2Form).then((res) => {
+                if (res.success && res.url) {
+                  form.photo = res.url;
+                  r2Status.value = 'connected';
+                  r2StatusMessage.value = 'Photo uploaded to Cloudflare R2!';
+                } else {
+                  console.warn('R2 direct upload notice:', res.error);
+                  r2Status.value = 'idle';
+                }
+              }).catch(err => {
+                console.warn('R2 direct upload error:', err);
+                r2Status.value = 'idle';
+              });
+            }
           }
         };
         img.src = rawUrl;
@@ -587,21 +603,9 @@ const app = createApp({
           }));
           const { error: batchErr } = await client.from('mined_items').upsert(minePayloads);
           if (batchErr) {
-            // Fallback if table does not yet have photo column
+            // Fallback if schema issue
             const fallbackPayloads = minePayloads.map(({ photo, ...rest }) => rest);
             await client.from('mined_items').upsert(fallbackPayloads);
-          }
-
-          // Also backup all photos to customer_notes for 100% resilient cross-device sync
-          const photoNotesPayloads = activeMines
-            .filter(m => m.photo)
-            .map(m => ({
-              profile_id: activeProfileId.value,
-              buyer: '__photo_' + m.id,
-              notes: m.photo!
-            }));
-          if (photoNotesPayloads.length > 0) {
-            await client.from('customer_notes').upsert(photoNotesPayloads);
           }
         }
 
@@ -891,48 +895,24 @@ const app = createApp({
           .eq('profile_id', activeProfileId.value);
 
         if (remoteNotes && !nErr) {
-          const photoMap = new Map<string, string>();
           for (const rn of remoteNotes) {
-            if (rn.buyer === '__gdrive_auth_sync__') {
+            if (rn.buyer === '__r2_config__') {
               try {
-                const parsedAuth = JSON.parse(rn.notes || '{}');
-                if (parsedAuth.clientId && (!gdriveClientId.value || gdriveClientId.value !== parsedAuth.clientId)) {
-                  gdriveClientId.value = parsedAuth.clientId;
-                  setStoredGDriveClientId(parsedAuth.clientId);
-                }
-                if (parsedAuth.user) {
-                  gdriveUser.value = parsedAuth.user;
-                  setGDriveUserInfo(parsedAuth.user);
-                  if (gdriveStatus.value !== 'archiving') {
-                    gdriveStatus.value = 'connected';
-                  }
-                }
-                if (parsedAuth.token && parsedAuth.tokenExpiresAt && parsedAuth.tokenExpiresAt > Date.now() + 60000) {
-                  setInMemoryToken(parsedAuth.token, parsedAuth.tokenExpiresAt);
-                  if (gdriveStatus.value !== 'archiving') {
-                    gdriveStatus.value = 'connected';
-                  }
+                const parsedR2 = JSON.parse(rn.notes || '{}');
+                if (parsedR2.accountId && !r2Form.accountId) {
+                  r2Form.accountId = parsedR2.accountId || '';
+                  r2Form.accessKeyId = parsedR2.accessKeyId || '';
+                  r2Form.secretAccessKey = parsedR2.secretAccessKey || '';
+                  r2Form.bucketName = parsedR2.bucketName || '';
+                  r2Form.publicDomain = parsedR2.publicDomain || '';
+                  setStoredR2Config(r2Form);
                 }
               } catch (e) {
-                console.warn('Could not parse remote GDrive auth sync:', e);
-              }
-            } else if (rn.buyer && rn.buyer.startsWith('__photo_')) {
-              const mId = rn.buyer.replace('__photo_', '');
-              if (rn.notes) {
-                photoMap.set(mId, rn.notes);
+                console.warn('Could not parse remote R2 config sync:', e);
               }
             } else if (rn.buyer && !rn.buyer.startsWith('__')) {
               if (!customerNotes.value[rn.buyer]) {
                 customerNotes.value[rn.buyer] = rn.notes || '';
-              }
-            }
-          }
-
-          // Restore item photos from customer_notes backup for any items missing photo
-          if (photoMap.size > 0) {
-            for (const m of allMines.value) {
-              if (!m.photo && photoMap.has(m.id)) {
-                m.photo = photoMap.get(m.id) || '';
               }
             }
           }
@@ -958,14 +938,21 @@ const app = createApp({
       }
     }
 
-    // Google Drive Photo Auto-Archive State & Logic
-    const gdriveClientId = ref(getStoredGDriveClientId());
-    const gdriveAutoArchiveEnabled = ref(isGDriveAutoArchiveEnabled());
-    const gdriveLastArchived = ref(getGDriveLastArchivedTime());
-    const gdriveUser = ref(getGDriveUserInfo());
-    const gdriveStatus = ref<'idle' | 'connected' | 'archiving' | 'error'>('idle');
-    const gdriveStatusMessage = ref('');
-    const gdriveGuideModalOpen = ref(false);
+    // Cloudflare R2 Direct Photo Storage State & Methods
+    const initialR2Config = getStoredR2Config();
+    const r2Form = reactive<R2Config>({
+      accountId: initialR2Config.accountId || '',
+      accessKeyId: initialR2Config.accessKeyId || '',
+      secretAccessKey: initialR2Config.secretAccessKey || '',
+      bucketName: initialR2Config.bucketName || '',
+      publicDomain: initialR2Config.publicDomain || ''
+    });
+    const r2Status = ref<'idle' | 'connected' | 'uploading' | 'error'>('idle');
+    const r2StatusMessage = ref('');
+    const r2GuideModalOpen = ref(false);
+    const r2Testing = ref(false);
+
+    const isR2Ready = computed(() => isR2Configured(r2Form));
 
     const currentAppOrigin = computed(() => {
       try {
@@ -975,186 +962,94 @@ const app = createApp({
       }
     });
 
-    const oldPhotosCount = computed(() => {
-      return allMines.value.filter(m => m.photo && m.photo.trim().startsWith('data:image') && isItemOlderThanDays(m, 7)).length;
-    });
-
     const totalPhotosCount = computed(() => {
       return allMines.value.filter(m => m.photo && m.photo.trim() !== '').length;
     });
 
-    const sixMonthsPhotosCount = computed(() => {
-      return allMines.value.filter(m => m.photo && m.photo.trim() !== '' && isItemOlderThanMonths(m, 6)).length;
+    const legacyBase64PhotosCount = computed(() => {
+      return allMines.value.filter(m => m.photo && m.photo.trim().startsWith('data:image')).length;
     });
 
-    async function syncGDriveAuthToSupabase() {
-      const client = getSupabaseClient();
-      if (client && navigator.onLine && gdriveClientId.value) {
-        try {
-          const authData = {
-            clientId: gdriveClientId.value,
-            user: gdriveUser.value,
-            token: getInMemoryToken(),
-            tokenExpiresAt: Date.now() + 3500000,
-            updatedAt: Date.now()
-          };
-          await client.from('customer_notes').upsert({
-            profile_id: activeProfileId.value,
-            buyer: '__gdrive_auth_sync__',
-            notes: JSON.stringify(authData)
-          });
-        } catch (e) {
-          console.warn('Could not sync GDrive auth to Supabase:', e);
-        }
-      }
+    async function saveR2Settings() {
+      setStoredR2Config(r2Form);
+      await syncR2ConfigToSupabase(JSON.stringify(r2Form));
+      showToast('Cloudflare R2 configuration saved & synced to all devices! ☁️');
+      playBeep('success', settings.value.soundEnabled);
     }
 
-    async function saveGDriveClientId() {
-      setStoredGDriveClientId(gdriveClientId.value);
-      await syncGDriveAuthToSupabase();
-      showToast('Google OAuth Client ID saved & synced');
-    }
-
-    function saveGDriveAutoArchiveSetting() {
-      setGDriveAutoArchiveEnabled(gdriveAutoArchiveEnabled.value);
-      showToast(gdriveAutoArchiveEnabled.value ? 'Auto-archive enabled' : 'Auto-archive paused');
-    }
-
-    async function connectGoogleDrive() {
-      if (!gdriveClientId.value.trim()) {
-        showToast('Please enter your Google OAuth Client ID first');
+    async function testR2Connection() {
+      if (!isR2Configured(r2Form)) {
+        showToast('Please fill in Account ID, Access Key ID, Secret Key, and Bucket Name first');
         return;
       }
-      setStoredGDriveClientId(gdriveClientId.value);
-      gdriveStatus.value = 'archiving';
-      gdriveStatusMessage.value = 'Connecting to Google Drive...';
+      r2Testing.value = true;
+      r2Status.value = 'uploading';
+      r2StatusMessage.value = 'Testing connection to Cloudflare R2 bucket...';
+
       try {
-        await requestGDriveAccessToken(gdriveClientId.value);
-        gdriveUser.value = getGDriveUserInfo();
-        gdriveStatus.value = 'connected';
-        gdriveStatusMessage.value = 'Connected to Google Drive!';
-        await syncGDriveAuthToSupabase();
-        playBeep('success', settings.value.soundEnabled);
-        showToast('Google Drive connected and synced to all devices!');
-      } catch (err: any) {
-        gdriveStatus.value = 'error';
-        gdriveStatusMessage.value = err.message || 'Connection failed';
-        showToast('Google Drive connect error: ' + (err.message || 'Please check Client ID'));
-      }
-    }
+        // Create a 1x1 transparent PNG data URL to test upload
+        const testDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+        const testKey = `_test/connection_test_${Date.now()}.png`;
 
-    async function disconnectGoogleDrive() {
-      clearGDriveSession();
-      gdriveUser.value = null;
-      gdriveStatus.value = 'idle';
-      gdriveStatusMessage.value = '';
-      const client = getSupabaseClient();
-      if (client && navigator.onLine) {
-        try {
-          await client.from('customer_notes').delete().eq('buyer', '__gdrive_auth_sync__').eq('profile_id', activeProfileId.value);
-        } catch (e) {
-          console.warn(e);
+        const res = await uploadToCloudflareR2(testKey, testDataUrl, r2Form);
+        if (res.success && res.url) {
+          r2Status.value = 'connected';
+          r2StatusMessage.value = `✓ Connected successfully to R2! Uploaded & verified: ${res.url.substring(0, 45)}...`;
+          showToast('Cloudflare R2 connection successful! ⚡');
+          playBeep('success', settings.value.soundEnabled);
+          saveR2Settings();
+        } else {
+          r2Status.value = 'error';
+          r2StatusMessage.value = 'Connection failed: ' + (res.error || 'Check CORS or credentials');
+          showToast('R2 connection error: ' + (res.error || 'Check CORS and credentials'));
         }
-      }
-      showToast('Google Drive disconnected');
-    }
-
-    function copyAppOrigin() {
-      if (navigator.clipboard) {
-        navigator.clipboard.writeText(window.location.origin);
-        showToast('App URL copied for Google Cloud Console!');
+      } catch (err: any) {
+        r2Status.value = 'error';
+        r2StatusMessage.value = 'Connection test failed: ' + (err.message || 'Unknown error');
+        showToast('R2 test error: ' + (err.message || 'Failed'));
+      } finally {
+        r2Testing.value = false;
       }
     }
 
-    async function triggerArchiveToDrive(daysThreshold = 7, forceAll = false) {
-      if (!gdriveClientId.value.trim()) {
-        showToast('Please configure Google OAuth Client ID in Settings first');
-        gdriveGuideModalOpen.value = true;
+    async function migrateLegacyPhotosToR2() {
+      if (!isR2Configured(r2Form)) {
+        showToast('Please configure Cloudflare R2 credentials first');
+        return;
+      }
+      const legacyItems = allMines.value.filter(m => m.photo && m.photo.trim().startsWith('data:image'));
+      if (legacyItems.length === 0) {
+        showToast('No legacy base64 photos to migrate');
         return;
       }
 
-      gdriveStatus.value = 'archiving';
-      gdriveStatusMessage.value = 'Preparing photos for Google Drive archive...';
+      r2Status.value = 'uploading';
+      r2StatusMessage.value = `Migrating ${legacyItems.length} photos to Cloudflare R2...`;
 
-      try {
-        const result = await archiveOldPhotosToGDrive(
-          allMines.value,
-          daysThreshold,
-          forceAll,
-          (msg) => {
-            gdriveStatusMessage.value = msg;
+      let migratedCount = 0;
+      for (const item of legacyItems) {
+        try {
+          const cleanSession = (sessionDate.value || 'live').replace(/[^a-zA-Z0-9_-]/g, '');
+          const cleanStore = (activeProfile.value.id || 'store').replace(/[^a-zA-Z0-9_-]/g, '');
+          const fileKey = `${cleanStore}/${cleanSession}/item_${item.id}.jpg`;
+
+          const res = await uploadToCloudflareR2(fileKey, item.photo!, r2Form);
+          if (res.success && res.url) {
+            item.photo = res.url;
+            migratedCount++;
+            r2StatusMessage.value = `Migrated ${migratedCount}/${legacyItems.length} photos to Cloudflare R2...`;
           }
-        );
-
-        const modifiedCount = result.totalArchived;
-
-        // Preserve photo viewing: replace heavy base64 strings with lightweight Google Drive URLs (~50 bytes)
-        // Photos remain 100% visible on the webapp, recent mines, invoices, and collages!
-        if (result.archivedItems && result.archivedItems.length > 0) {
-          const photoUrlMap = new Map<string, string>();
-          for (const item of result.archivedItems) {
-            photoUrlMap.set(item.id, item.photoUrl);
-          }
-
-          for (const mine of allMines.value) {
-            if (photoUrlMap.has(mine.id)) {
-              mine.photo = photoUrlMap.get(mine.id)!;
-            }
-          }
-
-          // Update Supabase with the lightweight URL & remove heavy base64 customer_notes backup
-          const client = getSupabaseClient();
-          if (client && navigator.onLine) {
-            gdriveStatusMessage.value = 'Optimizing database storage with Google Drive links...';
-            for (const item of result.archivedItems) {
-              try {
-                await client.from('mined_items').update({ photo: item.photoUrl }).eq('id', item.id);
-                await client.from('customer_notes').delete().eq('buyer', '__photo_' + item.id).eq('profile_id', activeProfileId.value);
-              } catch (e) {
-                console.warn('Database optimization notice for id', item.id, e);
-              }
-            }
-          }
+        } catch (e) {
+          console.warn('Migration error for item', item.id, e);
         }
-
-        // 6-Month URL Prune: remove database image links older than 180 days to keep Supabase storage at minimum
-        const { prunedIds, totalPruned } = pruneSixMonthOldPhotoUrls(allMines.value, 6);
-        if (totalPruned > 0) {
-          const client = getSupabaseClient();
-          if (client && navigator.onLine) {
-            for (const pId of prunedIds) {
-              try {
-                await client.from('mined_items').update({ photo: '' }).eq('id', pId);
-              } catch (e) {
-                console.warn('Prune cleanup notice for id', pId, e);
-              }
-            }
-          }
-        }
-
-        saveProfileData(activeProfileId.value);
-        gdriveLastArchived.value = getGDriveLastArchivedTime();
-        gdriveStatus.value = 'idle';
-
-        if (modifiedCount === 0 && totalPruned === 0) {
-          gdriveStatusMessage.value = '';
-          showToast('No photos met the archive threshold.');
-          return;
-        }
-
-        let summaryMsg = `✓ Archived ${modifiedCount} photos to Google Drive (viewable in-app for 6 months)`;
-        if (totalPruned > 0) {
-          summaryMsg += ` & pruned ${totalPruned} items older than 6 months`;
-        }
-        gdriveStatusMessage.value = summaryMsg;
-        playBeep('success', settings.value.soundEnabled);
-        showToast(`Google Drive archive complete! Photos remain viewable in-app.`);
-      } catch (err: any) {
-        console.error('Google Drive archive error:', err);
-        gdriveStatus.value = 'error';
-        gdriveStatusMessage.value = 'Archive failed: ' + (err.message || 'Error uploading');
-        showToast('Google Drive error: ' + (err.message || 'Upload failed'));
       }
+
+      saveProfileData(activeProfileId.value);
+      r2Status.value = 'connected';
+      r2StatusMessage.value = `✓ Successfully migrated ${migratedCount} photos to Cloudflare R2!`;
+      showToast(`Migrated ${migratedCount} photos directly to Cloudflare R2!`);
+      playBeep('success', settings.value.soundEnabled);
+      syncAllWithSupabase(false);
     }
 
     function toggleSound() {
@@ -2546,12 +2441,6 @@ const app = createApp({
 
       if (navigator.onLine) {
         syncAllWithSupabase(false);
-        // Gentle background check for Google Drive auto-archive if configured
-        if (gdriveClientId.value && gdriveAutoArchiveEnabled.value && oldPhotosCount.value > 0) {
-          setTimeout(() => {
-            triggerArchiveToDrive(7, false);
-          }, 3000);
-        }
       }
 
       // Realtime subscription: sync immediately when any device undos or logs an item
@@ -2732,23 +2621,18 @@ const app = createApp({
       restartAutoSync,
       pushProfileToSupabase,
       pushActiveProfileToSupabase,
-      gdriveClientId,
-      gdriveAutoArchiveEnabled,
-      gdriveLastArchived,
-      gdriveUser,
-      gdriveStatus,
-      gdriveStatusMessage,
-      gdriveGuideModalOpen,
+      r2Form,
+      r2Status,
+      r2StatusMessage,
+      r2GuideModalOpen,
+      r2Testing,
+      isR2Ready,
       currentAppOrigin,
-      oldPhotosCount,
       totalPhotosCount,
-      sixMonthsPhotosCount,
-      saveGDriveClientId,
-      saveGDriveAutoArchiveSetting,
-      connectGoogleDrive,
-      disconnectGoogleDrive,
-      copyAppOrigin,
-      triggerArchiveToDrive
+      legacyBase64PhotosCount,
+      saveR2Settings,
+      testR2Connection,
+      migrateLegacyPhotosToR2
     };
   }
 });
