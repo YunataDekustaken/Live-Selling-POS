@@ -61,14 +61,64 @@ export async function pushActiveProfileToSupabase(id: string) {
   }
 }
 
+export async function fetchCloudDeletedProfiles(): Promise<string[]> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return [];
+  try {
+    const { data, error } = await client
+      .from('customer_notes')
+      .select('notes')
+      .eq('profile_id', '_meta_')
+      .eq('buyer', '__deleted_profiles__')
+      .limit(1);
+    if (!error && data && data.length > 0 && data[0].notes) {
+      const parsed = JSON.parse(data[0].notes);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (e) {
+    console.warn('fetchCloudDeletedProfiles error:', e);
+  }
+  return [];
+}
+
+export async function removeDeletedProfileTombstone(id: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !id) return;
+  try {
+    const existing = await fetchCloudDeletedProfiles();
+    if (existing.includes(id)) {
+      const updated = existing.filter(item => item !== id);
+      await client.from('customer_notes').upsert([{
+        profile_id: '_meta_',
+        buyer: '__deleted_profiles__',
+        notes: JSON.stringify(updated)
+      }]);
+    }
+  } catch (e) {
+    console.warn('removeDeletedProfileTombstone error:', e);
+  }
+}
+
 export async function deleteProfileFromSupabase(id: string) {
   const client = getSupabaseClient();
   if (!client || !navigator.onLine || !id) return;
   try {
+    // 1. Delete all records belonging to this profile
     await client.from('business_profiles').delete().eq('id', id);
     await client.from('mined_items').delete().eq('profile_id', id);
     await client.from('customer_payments').delete().eq('profile_id', id);
     await client.from('customer_notes').delete().eq('profile_id', id);
+
+    // 2. Add to cloud tombstone list so other devices immediately purge this profile too
+    const existing = await fetchCloudDeletedProfiles();
+    if (!existing.includes(id)) {
+      existing.push(id);
+      await client.from('customer_notes').upsert([{
+        profile_id: '_meta_',
+        buyer: '__deleted_profiles__',
+        notes: JSON.stringify(existing)
+      }]);
+    }
   } catch (e) {
     console.warn('Supabase delete profile notice:', e);
   }

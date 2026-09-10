@@ -23,6 +23,8 @@ import {
   pushProfileToSupabase,
   pushActiveProfileToSupabase,
   deleteProfileFromSupabase,
+  fetchCloudDeletedProfiles,
+  removeDeletedProfileTombstone,
   pushSingleMineToSupabase,
   deleteSingleMineFromSupabase,
   pushSinglePaymentToSupabase,
@@ -500,15 +502,31 @@ const app = createApp({
       supabaseSyncMessage.value = 'Syncing profiles & data with cloud...';
 
       try {
+        // 1. Synchronize cloud deletion tombstones across devices
+        const cloudDeleted = await fetchCloudDeletedProfiles();
+        const localDeleted = safeParseJson(safeGetItem('live_pos_deleted_profile_ids'), []);
+        const deletedIds = new Set<string>([...localDeleted, ...cloudDeleted]);
+        safeSetItem('live_pos_deleted_profile_ids', Array.from(deletedIds));
+
+        // 2. Immediately purge any deleted profiles from local state
+        const remainingLocal = profiles.value.filter(p => !deletedIds.has(p.id));
+        if (remainingLocal.length !== profiles.value.length) {
+          profiles.value = remainingLocal.length > 0 ? remainingLocal : [defaultProfiles[0]];
+          safeSetItem('live_pos_profiles', profiles.value);
+          if (deletedIds.has(activeProfileId.value)) {
+            activeProfileId.value = profiles.value[0].id;
+            safeSetItem('live_pos_active_profile_id', activeProfileId.value);
+            loadProfileData(activeProfileId.value);
+          }
+        }
+
         const { data: remoteProfiles, error: profErr } = await client
           .from('business_profiles')
           .select('*')
           .order('created_at', { ascending: true });
 
-        const deletedIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_profile_ids'), []));
-
         if (remoteProfiles && !profErr && remoteProfiles.length > 0) {
-          // Immediately purge any deleted profiles from Supabase if found remotely
+          // Immediately purge any remote profiles that match deleted tombstones
           for (const rp of remoteProfiles) {
             if (deletedIds.has(rp.id)) {
               deleteProfileFromSupabase(rp.id);
@@ -543,6 +561,7 @@ const app = createApp({
               localMap.delete(rp.id);
             }
 
+            // Only push local profiles that were never deleted and are truly new custom profiles
             for (const [, localProf] of localMap.entries()) {
               if (!deletedIds.has(localProf.id)) {
                 merged.push(localProf);
@@ -1429,12 +1448,13 @@ const app = createApp({
         paymentDetails: editingProfileForm.paymentDetails.trim()
       };
 
-      // If creating or updating a profile, remove it from the deleted set
+      // If creating or updating a profile, remove it from the deleted set and cloud tombstones
       const deletedIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_profile_ids'), []));
       if (deletedIds.has(profileData.id)) {
         deletedIds.delete(profileData.id);
         safeSetItem('live_pos_deleted_profile_ids', Array.from(deletedIds));
       }
+      removeDeletedProfileTombstone(profileData.id);
 
       if (editingProfileForm.isNew) {
         profiles.value.push(profileData);
@@ -1455,13 +1475,13 @@ const app = createApp({
       profileEditModalOpen.value = false;
     }
 
-    function deleteProfile(id: string) {
+    async function deleteProfile(id: string) {
       if (profiles.value.length <= 1) {
         showToast('You must keep at least one business profile.');
         return;
       }
       const target = profiles.value.find(p => p.id === id);
-      if (!confirm(`Delete profile "${target?.name}"? All logs for this business will be removed.`)) {
+      if (!confirm(`Delete profile "${target?.name}"? All logs for this business will be removed across all devices.`)) {
         return;
       }
 
@@ -1480,7 +1500,6 @@ const app = createApp({
 
       profiles.value = profiles.value.filter(p => p.id !== id);
       safeSetItem('live_pos_profiles', profiles.value);
-      deleteProfileFromSupabase(id);
 
       if (activeProfileId.value === id) {
         activeProfileId.value = profiles.value[0].id;
@@ -1490,7 +1509,10 @@ const app = createApp({
       }
       saveAll();
       profileEditModalOpen.value = false;
-      showToast('Business profile removed');
+      showToast('Deleting business profile from cloud...');
+
+      await deleteProfileFromSupabase(id);
+      showToast('Business profile deleted across all devices');
     }
 
     function goToMining() {
