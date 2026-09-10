@@ -23,6 +23,23 @@ export function safeSetItem(key: string, val: unknown): void {
     localStorage.setItem(key, typeof val === 'string' ? val : JSON.stringify(val));
   } catch (e) {
     console.warn('Storage save notice:', e);
+    // If browser localStorage quota is reached with base64 photos, preserve full records in memory/cloud
+    // while keeping a quota-safe lightweight payload in localStorage
+    if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object') {
+      try {
+        const lightweight = val.map((item: any, idx: number) => {
+          // Retain photos for the most recent 25 items in localStorage cache
+          if (idx < val.length - 25 && item && item.photo) {
+            const { photo, ...rest } = item;
+            return rest;
+          }
+          return item;
+        });
+        localStorage.setItem(key, JSON.stringify(lightweight));
+      } catch (err2) {
+        console.warn('Secondary storage fallback notice:', err2);
+      }
+    }
   }
 }
 

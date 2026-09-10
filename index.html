@@ -44,6 +44,9 @@
   <!-- Supabase JS Client (Local Vendored with offline resilience) -->
   <script src="/vendor/supabase.js"></script>
 
+  <!-- Google Identity Services (GSI) for direct Google Drive OAuth -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
   <!-- Clear any stale development service worker registrations -->
   <script>
     if ('serviceWorker' in navigator) {
@@ -2716,6 +2719,128 @@
               </div>
             </div>
 
+            <!-- Google Drive Photo Auto-Archive Panel -->
+            <div class="p-3.5 rounded-xl bg-gradient-to-b from-amber-50/60 to-zinc-50 border border-amber-200/90 text-xs space-y-3 shadow-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-zinc-900 flex items-center space-x-1.5">
+                  <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  <span>Google Drive Photo Auto-Archive</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
+                      :class="gdriveUser ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : (gdriveStatus === 'archiving' ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse' : 'bg-zinc-100 text-zinc-600 border-zinc-300')">
+                  <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :class="gdriveUser ? 'bg-emerald-500' : (gdriveStatus === 'archiving' ? 'bg-amber-500' : 'bg-zinc-400')"></span>
+                  {{ gdriveUser ? 'Connected' : (gdriveStatus === 'archiving' ? 'Archiving...' : 'Not Connected') }}
+                </span>
+              </div>
+
+              <div class="text-[11px] text-zinc-600 space-y-2">
+                <p class="leading-relaxed">
+                  Automatically uploads session item photos older than <strong>7 days</strong> to your personal Google Drive (<code>LivePOS_Archives/</code>), then frees up your Supabase database space so you never hit storage limits.
+                </p>
+
+                <!-- Connected Account or Setup View -->
+                <div v-if="gdriveUser" class="p-2.5 rounded-lg bg-emerald-50/80 border border-emerald-200/80 flex items-center justify-between">
+                  <div>
+                    <div class="font-semibold text-emerald-900 text-xs flex items-center space-x-1">
+                      <span>✓ Connected to Google Drive</span>
+                    </div>
+                    <div class="text-[11px] text-emerald-700">{{ gdriveUser.email || gdriveUser.name || 'Personal Google Account' }}</div>
+                    <div v-if="gdriveLastArchived" class="text-[10px] text-emerald-600 mt-0.5 font-mono">Last archive: {{ gdriveLastArchived }}</div>
+                  </div>
+                  <button 
+                    @click="disconnectGoogleDrive" 
+                    type="button" 
+                    class="px-2 py-1 rounded bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-medium cursor-pointer transition-colors shadow-2xs">
+                    Disconnect
+                  </button>
+                </div>
+
+                <!-- Google OAuth Client ID Input -->
+                <div v-else class="space-y-1.5 bg-white p-2.5 rounded-lg border border-amber-200 shadow-2xs">
+                  <div class="flex items-center justify-between">
+                    <label class="font-semibold text-zinc-800 text-[11px]">Google OAuth Client ID:</label>
+                    <button 
+                      @click="gdriveGuideModalOpen = true" 
+                      type="button" 
+                      class="text-sky-700 hover:text-sky-800 font-medium text-[10px] underline cursor-pointer">
+                      📖 View Google Console Steps
+                    </button>
+                  </div>
+                  <input 
+                    v-model="gdriveClientId" 
+                    @change="saveGDriveClientId" 
+                    type="text" 
+                    placeholder="xxxxxxxxxxxx-xxxxxxxx.apps.googleusercontent.com" 
+                    class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
+                  />
+                  <div class="flex items-center justify-between pt-1">
+                    <span class="text-[10px] text-zinc-500">Free from your Google Cloud Console</span>
+                    <button 
+                      @click="connectGoogleDrive" 
+                      type="button" 
+                      :disabled="!gdriveClientId || gdriveStatus === 'archiving'"
+                      class="py-1 px-3 rounded bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold text-[11px] flex items-center space-x-1 cursor-pointer shadow-xs transition-colors">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" /></svg>
+                      <span>Connect Google Drive</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Auto-Archive Options -->
+                <div class="space-y-2 pt-1 border-t border-amber-200/60">
+                  <label class="flex items-center justify-between cursor-pointer p-1.5 rounded hover:bg-amber-100/40 transition-colors">
+                    <div>
+                      <div class="font-medium text-zinc-800 text-[11px]">Auto-Archive on App Open</div>
+                      <div class="text-[10px] text-zinc-500">Automatically backup photos >7 days old to Drive & prune DB</div>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      v-model="gdriveAutoArchiveEnabled" 
+                      @change="saveGDriveAutoArchiveSetting" 
+                      class="h-4 w-4 rounded border-zinc-300 text-amber-600 focus:ring-0 cursor-pointer"
+                    />
+                  </label>
+
+                  <!-- Status summary of photos ready for archiving -->
+                  <div class="p-2 rounded bg-white/80 border border-zinc-200/80 flex items-center justify-between text-[11px]">
+                    <div>
+                      <span class="text-zinc-600">Old Photos (>7 days):</span>
+                      <strong class="text-zinc-900 ml-1">{{ oldPhotosCount }} items</strong>
+                    </div>
+                    <div class="text-[10px] text-zinc-500">
+                      Total Photos in POS: <strong>{{ totalPhotosCount }}</strong>
+                    </div>
+                  </div>
+
+                  <!-- Progress / Status Message -->
+                  <div v-if="gdriveStatusMessage" class="p-2 rounded bg-amber-100/80 text-amber-900 text-[11px] font-medium flex items-center space-x-2">
+                    <svg v-if="gdriveStatus === 'archiving'" class="w-4 h-4 animate-spin shrink-0 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    <span>{{ gdriveStatusMessage }}</span>
+                  </div>
+
+                  <!-- Action Buttons -->
+                  <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button 
+                      @click="triggerArchiveToDrive(7, false)" 
+                      type="button" 
+                      :disabled="!gdriveClientId || gdriveStatus === 'archiving' || oldPhotosCount === 0"
+                      class="py-1.5 px-2 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 disabled:opacity-40 text-white text-[11px] font-semibold flex items-center justify-center space-x-1 transition-colors shadow-xs cursor-pointer">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                      <span>Archive >7 Days ({{ oldPhotosCount }})</span>
+                    </button>
+                    <button 
+                      @click="triggerArchiveToDrive(0, true)" 
+                      type="button" 
+                      :disabled="!gdriveClientId || gdriveStatus === 'archiving' || totalPhotosCount === 0"
+                      class="py-1.5 px-2 rounded-lg bg-white hover:bg-zinc-100 disabled:opacity-40 text-zinc-800 border border-zinc-300 text-[11px] font-medium flex items-center justify-center space-x-1 transition-colors cursor-pointer">
+                      <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                      <span>Archive ALL Photos</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <!-- Offline & Storage Status Panel -->
             <div class="p-3 rounded-lg bg-zinc-50 border border-zinc-200 text-xs space-y-2">
               <div class="flex items-center justify-between">
@@ -3148,6 +3273,76 @@
           </button>
         </div>
 
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 6: GOOGLE CLOUD CONSOLE STEP-BY-STEP SETUP GUIDE MODAL    -->
+    <!-- =============================================================== -->
+    <div v-if="gdriveGuideModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-xs animate-fadeIn" @click.self="gdriveGuideModalOpen = false">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-zinc-900">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 bg-amber-50/70">
+          <div class="flex items-center space-x-2">
+            <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+            <span class="font-bold text-sm text-zinc-900">Google Cloud Console Setup (3 Steps)</span>
+          </div>
+          <button @click="gdriveGuideModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs leading-relaxed text-zinc-700">
+          <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-200 text-amber-900 text-[11px]">
+            <strong>Free & Personal Account Compatible:</strong> Works with any standard free 15 GB personal <code>@gmail.com</code> account. No paid Google Workspace required!
+          </div>
+
+          <!-- Step 1 -->
+          <div class="space-y-1.5 border-l-2 border-amber-500 pl-3">
+            <div class="font-bold text-zinc-900 text-xs">Step 1: Open Google Cloud Console & Enable Google Drive API</div>
+            <ol class="list-decimal list-inside space-y-1 text-zinc-600 text-[11px]">
+              <li>Go to <a href="https://console.cloud.google.com/" target="_blank" class="text-sky-600 underline font-semibold">console.cloud.google.com</a> and sign in with your Gmail.</li>
+              <li>Create a new project (e.g. name it <code>LiveSelling-POS</code>).</li>
+              <li>In the search bar at the top, type <strong>"Google Drive API"</strong> and click <strong>Enable</strong>.</li>
+            </ol>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="space-y-1.5 border-l-2 border-amber-500 pl-3">
+            <div class="font-bold text-zinc-900 text-xs">Step 2: Configure OAuth Consent Screen</div>
+            <ol class="list-decimal list-inside space-y-1 text-zinc-600 text-[11px]">
+              <li>Go to <strong>APIs & Services &gt; OAuth consent screen</strong>.</li>
+              <li>Select User Type: <strong>External</strong> &gt; Click <em>Create</em>.</li>
+              <li>Enter App name: <code>LivePOS Photo Archive</code> and your email for support.</li>
+              <li>Under <strong>Scopes</strong>, add <code>.../auth/drive.file</code>.</li>
+              <li>Under <strong>Test users</strong>, add your personal Gmail address.</li>
+            </ol>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="space-y-1.5 border-l-2 border-amber-500 pl-3">
+            <div class="font-bold text-zinc-900 text-xs">Step 3: Create OAuth Client ID (Web Application)</div>
+            <ol class="list-decimal list-inside space-y-1 text-zinc-600 text-[11px]">
+              <li>Go to <strong>APIs & Services &gt; Credentials</strong> &gt; Click <strong>Create Credentials &gt; OAuth client ID</strong>.</li>
+              <li>Application type: <strong>Web application</strong>.</li>
+              <li>Under <strong>Authorized JavaScript origins</strong>, add:
+                <div class="mt-1 flex items-center space-x-1.5 font-mono text-[10px] bg-zinc-100 p-1.5 rounded border border-zinc-300">
+                  <span class="truncate">{{ currentAppOrigin }}</span>
+                  <button @click="copyAppOrigin" type="button" class="px-2 py-0.5 rounded bg-zinc-900 text-white shrink-0 hover:bg-black font-sans text-[10px]">Copy</button>
+                </div>
+              </li>
+              <li>Click <strong>Create</strong> and copy your <strong>Client ID</strong> (ends in <code>.apps.googleusercontent.com</code>).</li>
+              <li>Paste it into the <em>Google OAuth Client ID</em> input box in this app's Cloud Settings!</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="border-t border-zinc-200 px-4 py-3 bg-zinc-50 flex items-center justify-between">
+          <span class="text-[11px] text-zinc-500">Need help? You only need to do this once.</span>
+          <button @click="gdriveGuideModalOpen = false" class="px-4 py-1.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors">
+            Got it!
+          </button>
+        </div>
       </div>
     </div>
 

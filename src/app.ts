@@ -42,6 +42,18 @@ import {
   printDirectTest,
   getConnectedPrinterName
 } from './utils/bluetoothPrinter';
+import {
+  getStoredGDriveClientId,
+  setStoredGDriveClientId,
+  isGDriveAutoArchiveEnabled,
+  setGDriveAutoArchiveEnabled,
+  getGDriveLastArchivedTime,
+  getGDriveUserInfo,
+  clearGDriveSession,
+  requestGDriveAccessToken,
+  archiveOldPhotosToGDrive,
+  isItemOlderThanDays
+} from './utils/gdrive';
 
 const app = createApp({
   setup() {
@@ -419,7 +431,7 @@ const app = createApp({
         const rawUrl = e.target?.result as string;
         const img = new Image();
         img.onload = () => {
-          const maxDim = 800;
+          const maxDim = 640;
           let w = img.width;
           let h = img.height;
           if (w > maxDim || h > maxDim) {
@@ -437,7 +449,7 @@ const app = createApp({
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, w, h);
-            form.photo = canvas.toDataURL('image/jpeg', 0.80);
+            form.photo = canvas.toDataURL('image/jpeg', 0.75);
             showToast('Photo attached for this item! 📸');
             playBeep('success', settings.value.soundEnabled);
           }
@@ -565,9 +577,27 @@ const app = createApp({
             tag: m.tag,
             price: m.price,
             buyer: m.buyer,
+            photo: m.photo || '',
             timestamp: String(m.timestamp || Date.now())
           }));
-          await client.from('mined_items').upsert(minePayloads);
+          const { error: batchErr } = await client.from('mined_items').upsert(minePayloads);
+          if (batchErr) {
+            // Fallback if table does not yet have photo column
+            const fallbackPayloads = minePayloads.map(({ photo, ...rest }) => rest);
+            await client.from('mined_items').upsert(fallbackPayloads);
+          }
+
+          // Also backup all photos to customer_notes for 100% resilient cross-device sync
+          const photoNotesPayloads = activeMines
+            .filter(m => m.photo)
+            .map(m => ({
+              profile_id: activeProfileId.value,
+              buyer: '__photo_' + m.id,
+              notes: m.photo!
+            }));
+          if (photoNotesPayloads.length > 0) {
+            await client.from('customer_notes').upsert(photoNotesPayloads);
+          }
         }
 
         if (allPayments.value.length > 0) {
@@ -790,6 +820,7 @@ const app = createApp({
                 description: localCleanDesc,
                 price: Number(rm.price) || local.price,
                 buyer: rm.buyer || local.buyer,
+                photo: rm.photo || local.photo || '',
                 date: rm.session_date || local.date || sessionDate.value
               });
               localMap.delete(rm.id);
@@ -802,6 +833,7 @@ const app = createApp({
                 description: cleanRemoteDesc,
                 price: Number(rm.price) || 0,
                 buyer: rm.buyer || '',
+                photo: rm.photo || '',
                 date: rm.session_date || sessionDate.value,
                 time: '',
                 timestamp: Number(rm.timestamp) || Date.now()
@@ -854,10 +886,25 @@ const app = createApp({
           .eq('profile_id', activeProfileId.value);
 
         if (remoteNotes && !nErr) {
+          const photoMap = new Map<string, string>();
           for (const rn of remoteNotes) {
-            if (rn.buyer && !rn.buyer.startsWith('__')) {
+            if (rn.buyer && rn.buyer.startsWith('__photo_')) {
+              const mId = rn.buyer.replace('__photo_', '');
+              if (rn.notes) {
+                photoMap.set(mId, rn.notes);
+              }
+            } else if (rn.buyer && !rn.buyer.startsWith('__')) {
               if (!customerNotes.value[rn.buyer]) {
                 customerNotes.value[rn.buyer] = rn.notes || '';
+              }
+            }
+          }
+
+          // Restore item photos from customer_notes backup for any items missing photo
+          if (photoMap.size > 0) {
+            for (const m of allMines.value) {
+              if (!m.photo && photoMap.has(m.id)) {
+                m.photo = photoMap.get(m.id) || '';
               }
             }
           }
@@ -880,6 +927,142 @@ const app = createApp({
         supabaseStatus.value = 'connected';
         supabaseSyncMessage.value = 'Sync active (auto-retrying)';
         if (showNotification) showToast('Sync notice: check connection');
+      }
+    }
+
+    // Google Drive Photo Auto-Archive State & Logic
+    const gdriveClientId = ref(getStoredGDriveClientId());
+    const gdriveAutoArchiveEnabled = ref(isGDriveAutoArchiveEnabled());
+    const gdriveLastArchived = ref(getGDriveLastArchivedTime());
+    const gdriveUser = ref(getGDriveUserInfo());
+    const gdriveStatus = ref<'idle' | 'connected' | 'archiving' | 'error'>('idle');
+    const gdriveStatusMessage = ref('');
+    const gdriveGuideModalOpen = ref(false);
+
+    const currentAppOrigin = computed(() => {
+      try {
+        return window.location.origin;
+      } catch {
+        return 'https://...';
+      }
+    });
+
+    const oldPhotosCount = computed(() => {
+      return allMines.value.filter(m => m.photo && m.photo.trim() !== '' && isItemOlderThanDays(m, 7)).length;
+    });
+
+    const totalPhotosCount = computed(() => {
+      return allMines.value.filter(m => m.photo && m.photo.trim() !== '').length;
+    });
+
+    function saveGDriveClientId() {
+      setStoredGDriveClientId(gdriveClientId.value);
+      showToast('Google OAuth Client ID saved');
+    }
+
+    function saveGDriveAutoArchiveSetting() {
+      setGDriveAutoArchiveEnabled(gdriveAutoArchiveEnabled.value);
+      showToast(gdriveAutoArchiveEnabled.value ? 'Auto-archive enabled' : 'Auto-archive paused');
+    }
+
+    async function connectGoogleDrive() {
+      if (!gdriveClientId.value.trim()) {
+        showToast('Please enter your Google OAuth Client ID first');
+        return;
+      }
+      saveGDriveClientId();
+      gdriveStatus.value = 'archiving';
+      gdriveStatusMessage.value = 'Connecting to Google Drive...';
+      try {
+        await requestGDriveAccessToken(gdriveClientId.value);
+        gdriveUser.value = getGDriveUserInfo();
+        gdriveStatus.value = 'connected';
+        gdriveStatusMessage.value = 'Connected to Google Drive!';
+        playBeep('success', settings.value.soundEnabled);
+        showToast('Google Drive connected successfully!');
+      } catch (err: any) {
+        gdriveStatus.value = 'error';
+        gdriveStatusMessage.value = err.message || 'Connection failed';
+        showToast('Google Drive connect error: ' + (err.message || 'Please check Client ID'));
+      }
+    }
+
+    function disconnectGoogleDrive() {
+      clearGDriveSession();
+      gdriveUser.value = null;
+      gdriveStatus.value = 'idle';
+      gdriveStatusMessage.value = '';
+      showToast('Google Drive disconnected');
+    }
+
+    function copyAppOrigin() {
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(window.location.origin);
+        showToast('App URL copied for Google Cloud Console!');
+      }
+    }
+
+    async function triggerArchiveToDrive(daysThreshold = 7, forceAll = false) {
+      if (!gdriveClientId.value.trim()) {
+        showToast('Please configure Google OAuth Client ID in Settings first');
+        gdriveGuideModalOpen.value = true;
+        return;
+      }
+
+      gdriveStatus.value = 'archiving';
+      gdriveStatusMessage.value = 'Preparing photos for Google Drive archive...';
+
+      try {
+        const result = await archiveOldPhotosToGDrive(
+          allMines.value,
+          daysThreshold,
+          forceAll,
+          (msg) => {
+            gdriveStatusMessage.value = msg;
+          }
+        );
+
+        if (result.totalArchived === 0) {
+          gdriveStatus.value = 'idle';
+          gdriveStatusMessage.value = '';
+          showToast('No photos met the archive threshold.');
+          return;
+        }
+
+        // Clean up archived photos from local array and save
+        const archivedSet = new Set(result.archivedMineIds);
+        for (const mine of allMines.value) {
+          if (archivedSet.has(mine.id)) {
+            mine.photo = '';
+          }
+        }
+
+        saveProfileData(activeProfileId.value);
+
+        // Update Supabase to strip photo base64 strings and delete photo backup notes
+        const client = getSupabaseClient();
+        if (client && navigator.onLine) {
+          gdriveStatusMessage.value = 'Freeing up Supabase database space...';
+          for (const id of result.archivedMineIds) {
+            try {
+              await client.from('mined_items').update({ photo: '' }).eq('id', id);
+              await client.from('customer_notes').delete().eq('buyer', '__photo_' + id).eq('profile_id', activeProfileId.value);
+            } catch (e) {
+              console.warn('Database cleanup notice for id', id, e);
+            }
+          }
+        }
+
+        gdriveLastArchived.value = getGDriveLastArchivedTime();
+        gdriveStatus.value = 'idle';
+        gdriveStatusMessage.value = `✓ Archived ${result.totalArchived} photos to Google Drive (LivePOS_Archives/) and cleared DB space!`;
+        playBeep('success', settings.value.soundEnabled);
+        showToast(`Successfully archived ${result.totalArchived} photos to Google Drive!`);
+      } catch (err: any) {
+        console.error('Google Drive archive error:', err);
+        gdriveStatus.value = 'error';
+        gdriveStatusMessage.value = 'Archive failed: ' + (err.message || 'Error uploading');
+        showToast('Google Drive error: ' + (err.message || 'Upload failed'));
       }
     }
 
@@ -2272,6 +2455,12 @@ const app = createApp({
 
       if (navigator.onLine) {
         syncAllWithSupabase(false);
+        // Gentle background check for Google Drive auto-archive if configured
+        if (gdriveClientId.value && gdriveAutoArchiveEnabled.value && oldPhotosCount.value > 0) {
+          setTimeout(() => {
+            triggerArchiveToDrive(7, false);
+          }, 3000);
+        }
       }
 
       // Realtime subscription: sync immediately when any device undos or logs an item
@@ -2451,7 +2640,23 @@ const app = createApp({
       pushAllToSupabase,
       restartAutoSync,
       pushProfileToSupabase,
-      pushActiveProfileToSupabase
+      pushActiveProfileToSupabase,
+      gdriveClientId,
+      gdriveAutoArchiveEnabled,
+      gdriveLastArchived,
+      gdriveUser,
+      gdriveStatus,
+      gdriveStatusMessage,
+      gdriveGuideModalOpen,
+      currentAppOrigin,
+      oldPhotosCount,
+      totalPhotosCount,
+      saveGDriveClientId,
+      saveGDriveAutoArchiveSetting,
+      connectGoogleDrive,
+      disconnectGoogleDrive,
+      copyAppOrigin,
+      triggerArchiveToDrive
     };
   }
 });

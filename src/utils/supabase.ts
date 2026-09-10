@@ -128,7 +128,7 @@ export async function pushSingleMineToSupabase(mine: MinedItem, activeProfileId:
   const client = getSupabaseClient();
   if (!client || !navigator.onLine) return;
   try {
-    await client.from('mined_items').upsert([{
+    const payload: any = {
       id: mine.id,
       profile_id: activeProfileId,
       session_date: mine.date || sessionDate,
@@ -136,8 +136,25 @@ export async function pushSingleMineToSupabase(mine: MinedItem, activeProfileId:
       tag: mine.description || mine.tag || '',
       price: mine.price,
       buyer: mine.buyer,
+      photo: mine.photo || '',
       timestamp: String(mine.timestamp || Date.now())
-    }]);
+    };
+
+    const { error: upsertErr } = await client.from('mined_items').upsert([payload]);
+    if (upsertErr) {
+      // If the mined_items table doesn't have a photo column, retry without the photo field
+      delete payload.photo;
+      await client.from('mined_items').upsert([payload]);
+    }
+
+    // Always persist photo into customer_notes as a guaranteed cloud backup
+    if (mine.photo) {
+      await client.from('customer_notes').upsert([{
+        profile_id: activeProfileId,
+        buyer: '__photo_' + mine.id,
+        notes: mine.photo
+      }]);
+    }
   } catch (e) {
     console.warn('Supabase mine sync notice:', e);
   }
@@ -169,6 +186,7 @@ export async function deleteSingleMineFromSupabase(mineId: string) {
   try {
     // 1. Delete from mined_items table in Supabase
     await client.from('mined_items').delete().eq('id', mineId);
+    await client.from('customer_notes').delete().eq('buyer', '__photo_' + mineId);
 
     // 2. Append to cloud deleted mines tombstone so all other devices purge it on sync
     const existing = await fetchCloudDeletedMines();
