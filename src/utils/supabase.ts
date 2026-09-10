@@ -143,13 +143,45 @@ export async function pushSingleMineToSupabase(mine: MinedItem, activeProfileId:
   }
 }
 
+export async function fetchCloudDeletedMines(): Promise<string[]> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return [];
+  try {
+    const { data, error } = await client
+      .from('customer_notes')
+      .select('notes')
+      .eq('profile_id', '_meta_')
+      .eq('buyer', '__deleted_mines__')
+      .limit(1);
+    if (!error && data && data.length > 0 && data[0].notes) {
+      const parsed = JSON.parse(data[0].notes);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (e) {
+    console.warn('fetchCloudDeletedMines error:', e);
+  }
+  return [];
+}
+
 export async function deleteSingleMineFromSupabase(mineId: string) {
   const client = getSupabaseClient();
-  if (!client || !navigator.onLine) return;
+  if (!client || !navigator.onLine || !mineId) return;
   try {
+    // 1. Delete from mined_items table in Supabase
     await client.from('mined_items').delete().eq('id', mineId);
+
+    // 2. Append to cloud deleted mines tombstone so all other devices purge it on sync
+    const existing = await fetchCloudDeletedMines();
+    if (!existing.includes(mineId)) {
+      const updated = [...existing.slice(-1000), mineId];
+      await client.from('customer_notes').upsert([{
+        profile_id: '_meta_',
+        buyer: '__deleted_mines__',
+        notes: JSON.stringify(updated)
+      }]);
+    }
   } catch (e) {
-    console.warn('Supabase delete notice:', e);
+    console.warn('Supabase delete mine notice:', e);
   }
 }
 

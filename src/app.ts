@@ -27,6 +27,7 @@ import {
   removeDeletedProfileTombstone,
   pushSingleMineToSupabase,
   deleteSingleMineFromSupabase,
+  fetchCloudDeletedMines,
   pushSinglePaymentToSupabase,
   pushCustomerNoteToSupabase
 } from './utils/supabase';
@@ -155,9 +156,11 @@ const app = createApp({
       return seq;
     }
 
-    // Core Data Stores (Profile-isolated)
+    // Core Data Stores (Profile-isolated with deleted mine tombstones)
+    const initialDeletedMineIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []));
     const allMines = ref<MinedItem[]>(
       safeParseJson(safeGetItem('live_pos_mines_' + activeProfileId.value) || safeGetItem('live_pos_mines'), [])
+        .filter((m: MinedItem) => m && m.id && !initialDeletedMineIds.has(m.id))
     );
     const allPayments = ref<PaymentRecord[]>(
       safeParseJson(safeGetItem('live_pos_payments_' + activeProfileId.value) || safeGetItem('live_pos_payments'), [])
@@ -539,8 +542,12 @@ const app = createApp({
           }]);
         }
 
-        if (allMines.value.length > 0) {
-          const minePayloads = allMines.value.map(m => ({
+        // Filter out any locally or cloud deleted mines so they are never pushed back
+        const currentDeletedMineIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []));
+        const activeMines = allMines.value.filter(m => !currentDeletedMineIds.has(m.id));
+
+        if (activeMines.length > 0) {
+          const minePayloads = activeMines.map(m => ({
             id: m.id,
             profile_id: activeProfileId.value,
             session_date: m.date || sessionDate.value,
@@ -608,13 +615,26 @@ const app = createApp({
       supabaseSyncMessage.value = 'Syncing profiles & data with cloud...';
 
       try {
-        // 1. Synchronize cloud deletion tombstones across devices
+        // 1. Synchronize cloud deletion tombstones across devices (Profiles)
         const cloudDeleted = await fetchCloudDeletedProfiles();
         const localDeleted = safeParseJson(safeGetItem('live_pos_deleted_profile_ids'), []);
         const deletedIds = new Set<string>([...localDeleted, ...cloudDeleted]);
         safeSetItem('live_pos_deleted_profile_ids', Array.from(deletedIds));
 
-        // 2. Immediately purge any deleted profiles from local state
+        // 2. Synchronize cloud deletion tombstones across devices (Mined Items)
+        const cloudDeletedMines = await fetchCloudDeletedMines();
+        const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
+        const deletedMineIds = new Set<string>([...localDeletedMines, ...cloudDeletedMines]);
+        safeSetItem('live_pos_deleted_mine_ids', Array.from(deletedMineIds));
+
+        // Immediately purge any deleted mines from local state
+        const remainingLocalMines = allMines.value.filter(m => !deletedMineIds.has(m.id));
+        if (remainingLocalMines.length !== allMines.value.length) {
+          allMines.value = remainingLocalMines;
+          safeSetItem('live_pos_mines_' + activeProfileId.value, allMines.value);
+        }
+
+        // 3. Immediately purge any deleted profiles from local state
         const remainingLocal = profiles.value.filter(p => !deletedIds.has(p.id));
         if (remainingLocal.length !== profiles.value.length) {
           profiles.value = remainingLocal.length > 0 ? remainingLocal : [defaultProfiles[0]];
@@ -734,10 +754,31 @@ const app = createApp({
           .eq('profile_id', activeProfileId.value);
 
         if (remoteMines && !mErr) {
-          const localMap = new Map(allMines.value.map(m => [m.id, m]));
+          // Immediately purge remote items matching deleted tombstones
           for (const rm of remoteMines) {
-            if (!localMap.has(rm.id)) {
-              localMap.set(rm.id, {
+            if (deletedMineIds.has(rm.id)) {
+              deleteSingleMineFromSupabase(rm.id);
+            }
+          }
+
+          const validRemote = remoteMines.filter((rm: any) => !deletedMineIds.has(rm.id));
+          const localMap = new Map(allMines.value.map(m => [m.id, m]));
+          const mergedMines: MinedItem[] = [];
+
+          for (const rm of validRemote) {
+            const local = localMap.get(rm.id);
+            if (local) {
+              mergedMines.push({
+                ...local,
+                controlCode: rm.control_code || local.controlCode,
+                tag: rm.tag || local.tag,
+                price: Number(rm.price) || local.price,
+                buyer: rm.buyer || local.buyer,
+                date: rm.session_date || local.date || sessionDate.value
+              });
+              localMap.delete(rm.id);
+            } else {
+              mergedMines.push({
                 id: rm.id,
                 controlCode: rm.control_code || '',
                 controlNum: 0,
@@ -751,7 +792,20 @@ const app = createApp({
               });
             }
           }
-          allMines.value = Array.from(localMap.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+          // Retain recent offline items created on this device within the last 5 minutes
+          const nowTs = Date.now();
+          for (const [, localMine] of localMap.entries()) {
+            if (!deletedMineIds.has(localMine.id)) {
+              const isRecentOffline = (nowTs - (localMine.timestamp || 0)) < 300000;
+              if (isRecentOffline) {
+                mergedMines.push(localMine);
+                pushSingleMineToSupabase(localMine, activeProfileId.value, sessionDate.value);
+              }
+            }
+          }
+
+          allMines.value = mergedMines.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         }
 
         const { data: remotePayments, error: pErr } = await client
@@ -1181,9 +1235,20 @@ const app = createApp({
       if (!confirm(`Cancel and delete ${itemLabel} for ${mine.buyer} - ${activeProfile.value.currency}${mine.price}?`)) {
         return;
       }
+      // 1. Add to local deleted mine tombstones so it is never re-added on sync
+      const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
+      if (!localDeletedMines.includes(mine.id)) {
+        localDeletedMines.push(mine.id);
+        safeSetItem('live_pos_deleted_mine_ids', localDeletedMines);
+      }
+
+      // 2. Remove locally and persist
       allMines.value = allMines.value.filter(m => m.id !== mine.id);
       saveAll();
+
+      // 3. Delete from Supabase database and update cloud tombstone
       deleteSingleMineFromSupabase(mine.id);
+
       playBeep('undo', settings.value.soundEnabled);
       showToast(`Removed ${itemLabel}`);
     }
@@ -1382,12 +1447,13 @@ const app = createApp({
 
     function loadProfileData(profId: string) {
       try {
+        const deletedMineIds = new Set<string>(safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []));
         const storedMines = safeGetItem('live_pos_mines_' + profId);
         if (storedMines) {
-          allMines.value = safeParseJson(storedMines as string, []);
+          allMines.value = safeParseJson(storedMines as string, []).filter((m: MinedItem) => m && m.id && !deletedMineIds.has(m.id));
         } else if (profId === 'prof_main') {
           const legacyMines = safeGetItem('live_pos_mines');
-          allMines.value = legacyMines ? safeParseJson(legacyMines as string, []) : [];
+          allMines.value = legacyMines ? safeParseJson(legacyMines as string, []).filter((m: MinedItem) => m && m.id && !deletedMineIds.has(m.id)) : [];
         } else {
           allMines.value = [];
         }
@@ -2182,6 +2248,24 @@ const app = createApp({
 
       if (navigator.onLine) {
         syncAllWithSupabase(false);
+      }
+
+      // Realtime subscription: sync immediately when any device undos or logs an item
+      try {
+        const client = getSupabaseClient();
+        if (client && typeof client.channel === 'function') {
+          client
+            .channel('live_pos_realtime_sync')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'mined_items' }, () => {
+              syncAllWithSupabase(false);
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_notes' }, () => {
+              syncAllWithSupabase(false);
+            })
+            .subscribe();
+        }
+      } catch (e) {
+        console.warn('Realtime subscription notice:', e);
       }
     });
 
