@@ -297,9 +297,110 @@ export async function buildStickerCanvasRaster(
   ctx.fillStyle = '#000000';
   ctx.strokeStyle = '#000000';
 
-  const useQrLayout = cfg.showQrCode !== false; // Default true: 2D QR Code matching reference design
+  const useQrLayout = cfg.showQrCode !== false;
 
-  if (useQrLayout) {
+  if (cfg.customElements && cfg.customElements.length > 0) {
+    // -------------------------------------------------------------------------
+    // DYNAMIC INTERACTIVE VISUAL DESIGNER LAYOUT:
+    // Renders each user-customized element at its exact (x, y) coordinates,
+    // font size, weight, alignment, and dimensions.
+    // -------------------------------------------------------------------------
+    for (const elem of cfg.customElements) {
+      if (!elem.visible) continue;
+
+      if (elem.id === 'qrCode') {
+        const qrSize = elem.width || 88;
+        const qrText = item.controlCode || (item.controlNum ? `#${item.controlNum}` : '001');
+        try {
+          const qr = QRCode.create(qrText, { errorCorrectionLevel: 'M' });
+          const moduleCount = qr.modules.size;
+          const marginModules = 1;
+          const totalModules = moduleCount + (marginModules * 2);
+          const modPixel = Math.max(1, Math.floor(qrSize / totalModules));
+          const actualQrW = totalModules * modPixel;
+
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(elem.x, elem.y, actualQrW, actualQrW);
+          ctx.fillStyle = '#000000';
+          for (let r = 0; r < moduleCount; r++) {
+            for (let c = 0; c < moduleCount; c++) {
+              if (qr.modules.get(r, c)) {
+                ctx.fillRect(
+                  elem.x + ((c + marginModules) * modPixel),
+                  elem.y + ((r + marginModules) * modPixel),
+                  modPixel,
+                  modPixel
+                );
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('QR render error:', e);
+        }
+      } else if (elem.id === 'barcode') {
+        const barH = elem.height || 36;
+        const totalW = elem.width || 200;
+        ctx.fillStyle = '#000000';
+        const codeNum = (item.controlCode || (item.controlNum ? String(item.controlNum) : '001')).replace(/[^A-Za-z0-9]/g, '');
+        let bX = elem.x;
+        for (let i = 0; i < codeNum.length; i++) {
+          const charCode = codeNum.charCodeAt(i);
+          for (let b = 0; b < 7; b++) {
+            if ((charCode >> b) & 1) {
+              ctx.fillRect(bX, elem.y, 2, Math.max(16, barH - 12));
+            }
+            bX += 3;
+            if (bX >= elem.x + totalW) break;
+          }
+        }
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.font = '9px monospace';
+        ctx.fillText(`*${codeNum}*`, elem.x + (totalW / 2), elem.y + barH - 10);
+      } else if (elem.id === 'divider') {
+        const lineW = elem.width || (stickerW - 16);
+        ctx.beginPath();
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 2]);
+        ctx.moveTo(elem.x, elem.y);
+        ctx.lineTo(elem.x + lineW, elem.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        // Text element
+        let val = '';
+        if (elem.id === 'controlCode') {
+          val = (item.controlCode || (item.controlNum ? `#${item.controlNum}` : 'L0911-002')).replace(/^\[\s*|\s*\]$/g, '');
+        } else if (elem.id === 'time') {
+          val = item.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        } else if (elem.id === 'buyer') {
+          val = (item.buyer || '').replace(/^@+/, '') || 'Buyer';
+        } else if (elem.id === 'tag') {
+          val = item.tag || item.description || 'Item';
+        } else if (elem.id === 'price') {
+          const cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || 'P').replace(/₱/g, 'P');
+          val = `${cur}${item.price.toLocaleString()}`;
+        } else if (elem.id === 'storeName') {
+          val = profile.name || 'Store';
+        } else if (elem.id === 'sessionDate') {
+          val = sessionDate || '0911';
+        } else if (elem.id === 'footerText') {
+          val = elem.customText || cfg.footerText || cfg.customFooterText || '';
+        }
+
+        if (elem.prefix && elem.id !== 'price') val = elem.prefix + val;
+        if (elem.suffix) val = val + elem.suffix;
+
+        const weight = elem.fontWeight === 'black' ? '900' : (elem.fontWeight === 'bold' ? 'bold' : 'normal');
+        const family = elem.fontFamily === 'mono' ? 'monospace' : 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.font = `${weight} ${elem.fontSize || 14}px ${family}`;
+        ctx.textAlign = elem.align || 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = '#000000';
+        ctx.fillText(val, elem.x, elem.y);
+      }
+    }
+  } else if (useQrLayout) {
     // -------------------------------------------------------------------------
     // EXACT REFERENCE DESIGN:
     // Top: [ControlCode] (e.g. L0911-002, bold)   [Time] (e.g. 13:02, regular)
@@ -960,84 +1061,164 @@ export function buildPackingSlipEscPos(
 
   enc.init();
 
-  if (cfg.showStoreName || cfg.showTitle) {
-    enc.alignCenter().bold(true);
-    if (cfg.showStoreName) {
-      enc.line(profile.name || 'LIVE SELLING POS');
+  if (cfg.customSections && cfg.customSections.length > 0) {
+    const sorted = [...cfg.customSections].sort((a, b) => (a.order || 0) - (b.order || 0));
+    for (const sec of sorted) {
+      if (!sec.visible) continue;
+
+      const setAlign = () => {
+        if (sec.align === 'left') enc.alignLeft();
+        else if (sec.align === 'right') enc.alignRight();
+        else enc.alignCenter();
+      };
+
+      if (sec.id === 'storeName') {
+        setAlign();
+        if (sec.fontWeight !== 'normal') enc.bold(true);
+        if (sec.fontSize >= 16) enc.size(2, 2);
+        enc.line(profile.name || 'LIVE SELLING POS');
+        enc.normal();
+      } else if (sec.id === 'title') {
+        setAlign();
+        if (sec.fontWeight !== 'normal') enc.bold(true);
+        enc.line(sec.customText || 'PARCEL PACKING SLIP');
+        enc.normal();
+      } else if (sec.id === 'sessionDate') {
+        setAlign();
+        const parts: string[] = [];
+        if (sessionDate) parts.push(`Session: #${sessionDate}`);
+        parts.push(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        enc.line(parts.join(' - '));
+      } else if (sec.id === 'buyer') {
+        setAlign();
+        enc.bold(true);
+        if (sec.fontSize >= 18) enc.size(2, 2);
+        enc.line(`@${(basket.displayName || basket.handle).replace(/^@+/, '')}`);
+        enc.normal();
+      } else if (sec.id === 'status') {
+        setAlign();
+        enc.line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
+      } else if (sec.id === 'itemsTable') {
+        enc.twoColumns('ITEM / CODE', `AMT (${currencyStr})`);
+        enc.separator('-');
+        basket.items.forEach((it, idx) => {
+          const numPart = `${idx + 1}. `;
+          const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
+          const tag = it.tag ? ` [${it.tag}]` : '';
+          const desc = it.description ? ` (${it.description})` : '';
+          enc.twoColumns(`${numPart}${code}${tag}${desc}`, `${it.price.toLocaleString()}`);
+        });
+      } else if (sec.id === 'totals') {
+        enc.bold(true);
+        enc.twoColumns(`Total Items:`, `${basket.items.length} pcs`);
+        enc.twoColumns(`Subtotal:`, `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
+        if (basket.totalPaid > 0) {
+          enc.twoColumns(`Paid:`, `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
+        }
+        if (sec.fontSize >= 16) enc.size(1, 2);
+        enc.twoColumns(`BALANCE DUE:`, `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`);
+        enc.normal();
+      } else if (sec.id === 'qcCheckbox') {
+        setAlign();
+        enc.line('QC Verified: [  ] Packed Pass');
+      } else if (sec.id === 'paymentDetails') {
+        if (profile.paymentDetails && profile.paymentDetails.trim()) {
+          setAlign();
+          enc.line('Payment Details:');
+          const lines = profile.paymentDetails.split('\n');
+          lines.forEach(l => { if (l.trim()) enc.line(l.trim()); });
+        }
+      } else if (sec.id === 'footer') {
+        setAlign();
+        const note = sec.customText || cfg.customFooterNote || 'Thank you for mining with us!';
+        if (note.trim()) enc.line(note.trim());
+        enc.line(`*${basket.handle}*`);
+      }
+
+      if (sec.showDividerBelow) {
+        enc.separator('-');
+      }
     }
-    if (cfg.showTitle) {
-      enc.line('PARCEL PACKING SLIP');
+  } else {
+    if (cfg.showStoreName || cfg.showTitle) {
+      enc.alignCenter().bold(true);
+      if (cfg.showStoreName) {
+        enc.line(profile.name || 'LIVE SELLING POS');
+      }
+      if (cfg.showTitle) {
+        enc.line('PARCEL PACKING SLIP');
+      }
+      enc.normal();
     }
-    enc.normal();
+
+    if (cfg.showSessionDate || cfg.showDateTime) {
+      const parts: string[] = [];
+      if (cfg.showSessionDate) parts.push(`Session: #${sessionDate}`);
+      if (cfg.showDateTime) parts.push(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      enc.alignCenter().line(parts.join(' - '));
+    }
+
+    if (cfg.showDividers) enc.separator('-');
+
+    // Customer Name
+    if (cfg.showBuyerName) {
+      enc.alignCenter()
+        .size(2, 2)
+        .bold(true)
+        .line(`@${(basket.displayName || basket.handle).replace(/^@+/, '')}`)
+        .normal();
+    }
+
+    if (cfg.showPaymentStatus) {
+      enc.alignCenter()
+        .line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
+    }
+
+    if (cfg.showDividers) enc.separator('-');
+
+    // Items Header
+    enc.twoColumns('ITEM / CODE', `AMT (${currencyStr})`);
+    if (cfg.showDividers) enc.separator('-');
+
+    basket.items.forEach((it, idx) => {
+      const numPart = cfg.showItemNumber ? `${idx + 1}. ` : '';
+      const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
+      const tag = cfg.showItemTag ? ` [${it.tag || code}]` : '';
+      const desc = (cfg.showItemDescription && it.description) ? ` (${it.description})` : '';
+      const label = `${numPart}${code}${tag}${desc}`;
+      enc.twoColumns(label, `${it.price.toLocaleString()}`);
+    });
+
+    if (cfg.showDividers) enc.separator('-');
+
+    enc.bold(true);
+    if (cfg.showItemCount) {
+      enc.twoColumns(`Total Items:`, `${basket.items.length} pcs`);
+    }
+    if (cfg.showSubtotal) {
+      enc.twoColumns(`Subtotal:`, `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
+    }
+    if (cfg.showTotalPaid && basket.totalPaid > 0) {
+      enc.twoColumns(`Paid:`, `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
+    }
+    if (cfg.showBalanceDue) {
+      enc.size(1, 2)
+        .twoColumns(`BALANCE DUE:`, `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`)
+        .normal();
+    }
+
+    if (cfg.showDividers) enc.doubleSeparator();
+
+    if (cfg.showQcCheckbox) {
+      enc.alignCenter().line('QC Verified: [  ] Packed Pass');
+    }
+
+    if (cfg.customFooterNote && cfg.customFooterNote.trim()) {
+      enc.alignCenter().line(cfg.customFooterNote.trim());
+    }
+
+    enc.alignCenter().line(`*${basket.handle}*`);
   }
-
-  if (cfg.showSessionDate || cfg.showDateTime) {
-    const parts: string[] = [];
-    if (cfg.showSessionDate) parts.push(`Session: #${sessionDate}`);
-    if (cfg.showDateTime) parts.push(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    enc.alignCenter().line(parts.join(' - '));
-  }
-
-  if (cfg.showDividers) enc.separator('-');
-
-  // Customer Name
-  if (cfg.showBuyerName) {
-    enc.alignCenter()
-      .size(2, 2)
-      .bold(true)
-      .line(`@${(basket.displayName || basket.handle).replace(/^@+/, '')}`)
-      .normal();
-  }
-
-  if (cfg.showPaymentStatus) {
-    enc.alignCenter()
-      .line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
-  }
-
-  if (cfg.showDividers) enc.separator('-');
-
-  // Items Header
-  enc.twoColumns('ITEM / CODE', `AMT (${currencyStr})`);
-  if (cfg.showDividers) enc.separator('-');
-
-  basket.items.forEach((it, idx) => {
-    const numPart = cfg.showItemNumber ? `${idx + 1}. ` : '';
-    const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
-    const tag = cfg.showItemTag ? ` [${it.tag || code}]` : '';
-    const desc = (cfg.showItemDescription && it.description) ? ` (${it.description})` : '';
-    const label = `${numPart}${code}${tag}${desc}`;
-    enc.twoColumns(label, `${it.price.toLocaleString()}`);
-  });
-
-  if (cfg.showDividers) enc.separator('-');
-
-  enc.bold(true);
-  if (cfg.showItemCount) {
-    enc.twoColumns(`Total Items:`, `${basket.items.length} pcs`);
-  }
-  if (cfg.showSubtotal) {
-    enc.twoColumns(`Subtotal:`, `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
-  }
-  if (cfg.showTotalPaid && basket.totalPaid > 0) {
-    enc.twoColumns(`Paid:`, `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
-  }
-  if (cfg.showBalanceDue) {
-    enc.size(1, 2)
-      .twoColumns(`BALANCE DUE:`, `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`)
-      .normal();
-  }
-
-  if (cfg.showDividers) enc.doubleSeparator();
-
-  if (cfg.showQcCheckbox) {
-    enc.alignCenter().line('QC Verified: [  ] Packed Pass');
-  }
-
-  if (cfg.customFooterNote && cfg.customFooterNote.trim()) {
-    enc.alignCenter().line(cfg.customFooterNote.trim());
-  }
-
-  enc.alignCenter().line(`*${basket.handle}*`);
 
   const lines = cfg.feedLines !== undefined ? cfg.feedLines : 3;
   if (lines > 0) {

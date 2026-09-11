@@ -80,6 +80,37 @@ export interface LabelLayoutSettings {
   gapFeedMode?: 'gs_ff' | 'form_feed' | 'feed_lines' | 'none' | string;
   extraFeedLines?: number; // 0, 1, 2, 3
   compactSpacing?: boolean;
+  customElements?: VisualLabelElement[];
+}
+
+export interface VisualLabelElement {
+  id: string; // 'controlCode' | 'time' | 'buyer' | 'tag' | 'price' | 'qrCode' | 'barcode' | 'storeName' | 'sessionDate' | 'footerText' | 'divider'
+  name: string;
+  visible: boolean;
+  x: number; // in dots (0-240 for 30mm)
+  y: number; // in dots (0-160 for 20mm)
+  width?: number; // in dots
+  height?: number; // in dots
+  fontSize: number; // in px (10 to 32)
+  fontWeight: 'normal' | 'bold' | 'black';
+  align: 'left' | 'center' | 'right';
+  fontFamily?: 'sans' | 'mono';
+  prefix?: string;
+  suffix?: string;
+  customText?: string;
+}
+
+export interface VisualReceiptSection {
+  id: string; // 'storeName' | 'title' | 'sessionDate' | 'buyer' | 'status' | 'itemsTable' | 'totals' | 'qcCheckbox' | 'paymentDetails' | 'footer'
+  name: string;
+  visible: boolean;
+  order: number;
+  fontSize: number; // px (10 to 24)
+  fontWeight: 'normal' | 'bold' | 'black';
+  align: 'left' | 'center' | 'right';
+  showDividerBelow: boolean;
+  paddingY: number;
+  customText?: string;
 }
 
 export interface ReceiptLayoutSettings {
@@ -102,6 +133,7 @@ export interface ReceiptLayoutSettings {
   showQcCheckbox: boolean;
   customFooterNote: string;
   feedLines: number;
+  customSections?: VisualReceiptSection[];
 }
 
 export interface AppSettings {

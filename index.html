@@ -187,23 +187,27 @@
                   <svg class="w-3.5 h-3.5 shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
                   <span class="truncate">Mined Items</span>
                 </button>
+
+                <button 
+                  @click="openDesigner(); appMenuOpen = false"
+                  class="col-span-2 flex items-center justify-between p-2 rounded-xl transition-colors text-left cursor-pointer border"
+                  :class="currentTab === 'designer' ? 'bg-indigo-900 text-white font-semibold border-indigo-700 shadow-xs' : 'bg-indigo-50/90 hover:bg-indigo-100 text-indigo-950 border-indigo-200'">
+                  <div class="flex items-center space-x-2">
+                    <span class="text-sm">🎨</span>
+                    <div>
+                      <div class="font-bold">Visual Designer Studio</div>
+                      <div class="text-[10px] opacity-75">Full-page drag & drop PT-265 & PT-210 layouts</div>
+                    </div>
+                  </div>
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/40 font-bold">PRO</span>
+                </button>
               </div>
             </div>
 
-            <!-- Section 2: Quick Tools & Actions -->
+            <!-- Section 2: Quick Tools & Printing -->
             <div>
               <div class="text-[10px] uppercase font-mono tracking-wider font-semibold text-zinc-400 mb-1 px-1">Quick Tools & Printing</div>
               <div class="space-y-1">
-                <!-- Label & Receipt Layout Customizer -->
-                <button 
-                  @click="openPrinterLayoutModal('label'); appMenuOpen = false"
-                  class="w-full flex items-center justify-between p-2 rounded-xl bg-indigo-50/80 hover:bg-indigo-100 text-indigo-950 text-left transition-colors cursor-pointer border border-indigo-200">
-                  <div class="flex items-center space-x-2">
-                    <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                    <span class="font-bold text-xs">Label & Receipt Customizer</span>
-                  </div>
-                  <span class="text-[10px] font-mono bg-indigo-200/80 text-indigo-900 px-1.5 py-0.5 rounded font-bold">PT-265/210</span>
-                </button>
 
                 <!-- Reprint Last Sticker -->
                 <button 
@@ -316,8 +320,8 @@
       </span>
     </div>
 
-    <!-- TAB NAVIGATION BAR (Removed on Home/Dashboard; shown when inside workspaces for fast tab switching) -->
-    <nav v-if="currentTab !== 'dashboard'" id="app-navigation" class="screen-ui sticky top-[45px] sm:top-[49px] z-30 bg-white border-b border-zinc-200 px-2 sm:px-4 pt-1 shadow-2xs">
+    <!-- TAB NAVIGATION BAR (Removed on Home/Dashboard and Designer full-page; shown on workspaces for fast tab switching) -->
+    <nav v-if="currentTab !== 'dashboard' && currentTab !== 'designer'" id="app-navigation" class="screen-ui sticky top-[45px] sm:top-[49px] z-30 bg-white border-b border-zinc-200 px-2 sm:px-4 pt-1 shadow-2xs">
       <div class="grid grid-cols-4 gap-1 sm:gap-2">
         <!-- Return to Home Dashboard -->
         <button @click="currentTab = 'dashboard'"
@@ -578,8 +582,8 @@
             </div>
           </div>
 
-          <!-- 3 Workspace Cards Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <!-- 4 Workspace Cards Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <!-- 1. Live Mining -->
             <button 
               @click="goToMining" 
@@ -638,6 +642,26 @@
                 </div>
               </div>
               <svg class="w-4 h-4 text-zinc-500 group-hover:text-blue-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+
+            <!-- 4. Interactive Visual Designer -->
+            <button 
+              @click="openDesigner()" 
+              type="button"
+              class="group p-3.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 active:scale-[0.99] text-left transition-all border border-zinc-700/80 hover:border-indigo-400/50 shadow-xs flex items-center justify-between cursor-pointer">
+              <div class="flex items-center space-x-3 min-w-0">
+                <div class="w-10 h-10 rounded-lg bg-indigo-400/10 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-400/20 group-hover:scale-105 transition-transform">
+                  <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                </div>
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors flex items-center space-x-1.5">
+                    <span>Visual Designer</span>
+                    <span class="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/30 text-indigo-300 font-mono font-normal">PRO</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-400 truncate">Drag & drop PT-265 / PT-210</div>
+                </div>
+              </div>
+              <svg class="w-4 h-4 text-zinc-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
             </button>
           </div>
         </div>
@@ -1883,6 +1907,891 @@
               </tbody>
             </table>
           </div>
+        </div>
+
+      </div>
+
+      <!-- =============================================================== -->
+      <!-- SCREEN 4: INTERACTIVE VISUAL DESIGNER (PT-265 & PT-210)         -->
+      <!-- =============================================================== -->
+      <div v-if="!isCustomerCheckoutView && currentTab === 'designer'" id="visual-designer-screen" class="space-y-4 animate-fadeIn">
+
+        <!-- Dedicated Full-Page Studio Navigation & Exit Bar -->
+        <div class="bg-zinc-950 text-white rounded-2xl p-3 sm:p-4 shadow-sm border border-zinc-800/80 flex items-center justify-between gap-3">
+          <!-- Back / Exit Button -->
+          <button 
+            type="button" 
+            id="exit-designer-top-btn"
+            @click="exitDesigner"
+            class="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer border border-zinc-700/80 shrink-0 shadow-xs group">
+            <svg class="w-4 h-4 text-indigo-400 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <span>Exit Studio</span>
+            <span class="text-[10px] text-zinc-400 font-normal hidden sm:inline">
+              ({{ previousTab === 'mining' ? 'Return to Mining' : previousTab === 'balances' ? 'Return to Balances' : previousTab === 'mined_items' ? 'Return to Items' : 'Return to Dashboard' }})
+            </span>
+          </button>
+
+          <!-- Studio Title / Badge -->
+          <div class="flex items-center space-x-2 min-w-0">
+            <div class="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            </div>
+            <div class="min-w-0 hidden md:block">
+              <span class="text-xs font-bold text-white tracking-tight">Full-Page Visual Designer</span>
+              <span class="text-[10px] text-zinc-400 ml-1.5">• Independent Studio Mode</span>
+            </div>
+          </div>
+
+          <!-- Printer Target Switcher (PT-265 vs PT-210) -->
+          <div class="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800 shrink-0">
+            <button 
+              type="button"
+              id="designer-tab-label-btn"
+              @click="designerMode = 'label'"
+              class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              :class="designerMode === 'label' ? 'bg-indigo-600 text-white shadow-xs' : 'text-zinc-400 hover:text-white'">
+              <span>🏷️ PT-265</span>
+              <span class="text-[10px] font-mono px-1 py-0.2 rounded bg-black/20 hidden xs:inline">30×20mm</span>
+            </button>
+
+            <button 
+              type="button"
+              id="designer-tab-receipt-btn"
+              @click="designerMode = 'receipt'"
+              class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              :class="designerMode === 'receipt' ? 'bg-indigo-600 text-white shadow-xs' : 'text-zinc-400 hover:text-white'">
+              <span>🧾 PT-210</span>
+              <span class="text-[10px] font-mono px-1 py-0.2 rounded bg-black/20 hidden xs:inline">58mm</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Top Designer Control Banner -->
+        <div class="bg-zinc-900 text-white rounded-2xl p-4 sm:p-5 shadow-sm border border-zinc-800 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                <span class="text-[10px] font-mono uppercase tracking-wider text-indigo-300 font-semibold">Interactive Output Designer</span>
+              </div>
+              <h2 class="text-base sm:text-lg font-black tracking-tight text-white mt-0.5">Pixel-Perfect Visual Layout Studio</h2>
+              <p class="text-xs text-zinc-400 mt-0.5">Drag & drop elements, adjust coordinates, font sizes, and ordering for PT-265 and PT-210</p>
+            </div>
+          </div>
+
+          <!-- Action bar with Direct Bluetooth Print & Gap Calibrate -->
+          <div class="pt-2 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div class="flex items-center space-x-2">
+              <span class="w-2 h-2 rounded-full" :class="btPrinterConnected ? 'bg-emerald-400' : 'bg-zinc-600'"></span>
+              <span class="text-zinc-300 font-mono text-[11px]">
+                Printer: <strong class="text-white">{{ btPrinterName || (designerMode === 'label' ? 'PT-265 (Label)' : 'PT-210 (Receipt)') }}</strong>
+                ({{ btPrinterConnected ? 'Connected' : 'Offline' }})
+              </span>
+              <button 
+                v-if="!btPrinterConnected"
+                type="button" 
+                @click="connectBluetooth" 
+                class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 text-[10px] font-mono cursor-pointer transition-colors">
+                Connect Bluetooth
+              </button>
+            </div>
+
+            <div class="flex items-center space-x-2">
+              <button 
+                v-if="designerMode === 'label'"
+                type="button"
+                id="designer-calibrate-gap-btn"
+                @click="calibratePt265Gap"
+                title="Feed sticker precisely to the die-cut cutoff gap"
+                class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer">
+                <span>⚡ Feed to Gap</span>
+              </button>
+
+              <button 
+                type="button"
+                id="designer-test-print-btn"
+                @click="designerMode === 'label' ? testLabelPrint() : testReceiptPrint()"
+                class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                <span>Print Test {{ designerMode === 'label' ? 'Label (PT-265)' : 'Slip (PT-210)' }}</span>
+              </button>
+
+              <button 
+                type="button"
+                id="designer-reset-btn"
+                @click="designerMode === 'label' ? applyDesignerLabelPreset('reference_qr') : resetReceiptDesigner()"
+                class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 border border-zinc-700 text-xs font-medium transition-colors cursor-pointer"
+                title="Reset layout to default reference">
+                ↺ Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- MODE 1: PT-265 INTERACTIVE LABEL DESIGNER                      -->
+        <!-- ============================================================= -->
+        <div v-if="designerMode === 'label'" class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+          <!-- Left / Center: Interactive Canvas Studio (7 cols on lg) -->
+          <div class="lg:col-span-7 space-y-3">
+            
+            <!-- Canvas Toolbar: Zoom, Grid & Snapping -->
+            <div class="bg-white border border-zinc-200 rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2 text-xs shadow-2xs">
+              <div class="flex items-center space-x-1.5">
+                <span class="text-[11px] font-semibold text-zinc-500 uppercase font-mono">Zoom:</span>
+                <div class="flex items-center space-x-1 bg-zinc-100 p-0.5 rounded-lg">
+                  <button 
+                    v-for="z in [100, 150, 200, 250, 300]" 
+                    :key="z"
+                    type="button"
+                    @click="designerCanvasZoom = z"
+                    class="px-2 py-0.5 rounded text-[11px] font-mono transition-colors cursor-pointer"
+                    :class="designerCanvasZoom === z ? 'bg-white text-zinc-900 font-bold shadow-2xs' : 'text-zinc-500 hover:text-zinc-800'">
+                    {{ z }}%
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex items-center space-x-3">
+                <!-- Grid Toggle -->
+                <label class="flex items-center space-x-1.5 cursor-pointer select-none text-[11px] text-zinc-600">
+                  <input type="checkbox" v-model="designerShowGrid" class="rounded text-indigo-600 focus:ring-0 cursor-pointer" />
+                  <span>Show Grid</span>
+                </label>
+
+                <!-- Snap Toggle -->
+                <label class="flex items-center space-x-1.5 cursor-pointer select-none text-[11px] text-zinc-600">
+                  <input type="checkbox" v-model="designerSnapGrid" class="rounded text-indigo-600 focus:ring-0 cursor-pointer" />
+                  <span>Snap (0.5mm)</span>
+                </label>
+
+                <!-- Physical Size Indicator -->
+                <span class="text-[11px] font-mono bg-zinc-100 text-zinc-700 px-2 py-0.5 rounded font-bold border border-zinc-200">
+                  {{ settings.labelLayout?.labelSize || '30x20mm' }} ({{ designerCanvasWidth }}×{{ designerCanvasHeight }} dots)
+                </span>
+              </div>
+            </div>
+
+            <!-- Canvas Stage Viewport with Physical Millimeter Rulers -->
+            <div class="bg-zinc-100 border border-zinc-300 rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center overflow-auto shadow-inner relative min-h-[340px]">
+              
+              <div class="relative select-none" :style="{ width: (designerCanvasWidth * (designerCanvasZoom / 100)) + 'px' }">
+                
+                <!-- Top Millimeter Ruler -->
+                <div class="flex justify-between items-center text-[9px] font-mono text-zinc-400 pb-1 px-1">
+                  <span>0mm</span>
+                  <span>7.5mm</span>
+                  <span>15mm (Center)</span>
+                  <span>22.5mm</span>
+                  <span>30mm</span>
+                </div>
+
+                <!-- Physical Sticker Container with Die-cut Rounded Border -->
+                <div 
+                  id="label-designer-canvas-stage"
+                  class="relative bg-white border-2 border-zinc-800 rounded-xl shadow-lg overflow-hidden transition-all duration-75 select-none cursor-crosshair"
+                  :style="{
+                    width: (designerCanvasWidth * (designerCanvasZoom / 100)) + 'px',
+                    height: (designerCanvasHeight * (designerCanvasZoom / 100)) + 'px',
+                    backgroundImage: designerShowGrid ? 'radial-gradient(circle, #d4d4d8 1px, transparent 1px)' : 'none',
+                    backgroundSize: (4 * (designerCanvasZoom / 100)) + 'px ' + (4 * (designerCanvasZoom / 100)) + 'px'
+                  }">
+
+                  <!-- Center Guideline (Subtle) -->
+                  <div class="absolute top-0 bottom-0 left-1/2 w-[1px] bg-indigo-200/40 pointer-events-none"></div>
+                  <div class="absolute left-0 right-0 top-1/2 h-[1px] bg-indigo-200/40 pointer-events-none"></div>
+
+                  <!-- Dynamic Custom Label Elements -->
+                  <div 
+                    v-for="elem in labelElementsList" 
+                    :key="elem.id"
+                    v-show="elem.visible"
+                    @mousedown="onElementPointerDown(elem.id, $event)"
+                    @touchstart="onElementPointerDown(elem.id, $event)"
+                    :id="'label-element-' + elem.id"
+                    class="absolute cursor-move select-none transition-shadow group"
+                    :class="designerSelectedId === elem.id ? 'ring-2 ring-indigo-600 ring-offset-1 z-30 bg-indigo-50/30' : 'hover:ring-1 hover:ring-indigo-400/80 z-10'"
+                    :style="{
+                      left: (elem.x * (designerCanvasZoom / 100)) + 'px',
+                      top: (elem.y * (designerCanvasZoom / 100)) + 'px',
+                      width: elem.width ? (elem.width * (designerCanvasZoom / 100)) + 'px' : 'auto',
+                      height: elem.height ? (elem.height * (designerCanvasZoom / 100)) + 'px' : 'auto'
+                    }">
+
+                    <!-- Selected Element Coordinate Tag -->
+                    <div 
+                      v-if="designerSelectedId === elem.id"
+                      class="absolute -top-5 left-0 px-1.5 py-0.2 rounded bg-indigo-600 text-white font-mono text-[9px] font-bold whitespace-nowrap shadow-xs pointer-events-none z-40">
+                      {{ elem.name }}: ({{ elem.x }}, {{ elem.y }}) • {{ Math.round(elem.x / 8 * 10) / 10 }}mm
+                    </div>
+
+                    <!-- 1. QR Code Element -->
+                    <div v-if="elem.id === 'qrCode'" class="w-full h-full flex flex-col items-center justify-center p-0.5 bg-white border border-zinc-300 rounded">
+                      <img 
+                        v-if="samplePreviewQrDataUrl" 
+                        :src="samplePreviewQrDataUrl" 
+                        alt="QR Code" 
+                        class="w-full h-full object-contain pointer-events-none" 
+                      />
+                      <div v-else class="w-full h-full bg-zinc-900 flex items-center justify-center text-white text-[9px] font-mono">
+                        QR
+                      </div>
+                    </div>
+
+                    <!-- 2. Barcode Element -->
+                    <div v-else-if="elem.id === 'barcode'" class="w-full h-full flex flex-col items-center justify-center bg-white border border-zinc-300 rounded p-1">
+                      <div class="w-full h-3/4 flex items-center justify-between overflow-hidden">
+                        <div v-for="n in 36" :key="n" class="h-full bg-black" :style="{ width: (n % 3 === 0 ? '3px' : '1.5px') }"></div>
+                      </div>
+                      <div class="text-[9px] font-mono font-bold text-center tracking-wider text-black">
+                        *{{ samplePreviewItem.controlNum || '001' }}*
+                      </div>
+                    </div>
+
+                    <!-- 3. Divider Line Element -->
+                    <div v-else-if="elem.id === 'divider'" class="w-full h-[2px] border-b border-dashed border-zinc-800"></div>
+
+                    <!-- 4. Text Element -->
+                    <div 
+                      v-else 
+                      class="whitespace-nowrap leading-none font-sans"
+                      :style="{
+                        fontSize: ((elem.fontSize || 14) * (designerCanvasZoom / 100)) + 'px',
+                        fontWeight: elem.fontWeight === 'black' ? '900' : (elem.fontWeight === 'bold' ? 'bold' : 'normal'),
+                        fontFamily: elem.fontFamily === 'mono' ? 'monospace' : 'system-ui, sans-serif',
+                        textAlign: elem.align || 'left',
+                        color: '#000000'
+                      }">
+                      <!-- Dynamic Text Values based on Element ID -->
+                      <template v-if="elem.id === 'controlCode'">
+                        {{ (elem.prefix || '') + (samplePreviewItem.controlCode || '#001') + (elem.suffix || '') }}
+                      </template>
+                      <template v-else-if="elem.id === 'time'">
+                        {{ (elem.prefix || '') + (samplePreviewItem.time || '14:30') + (elem.suffix || '') }}
+                      </template>
+                      <template v-else-if="elem.id === 'buyer'">
+                        {{ (elem.prefix || '') + (samplePreviewItem.buyer || 'Sarah_Styles') + (elem.suffix || '') }}
+                      </template>
+                      <template v-else-if="elem.id === 'tag'">
+                        {{ (elem.prefix || '') + (samplePreviewItem.tag || 'Denim Jacket') + (elem.suffix || '') }}
+                      </template>
+                      <template v-else-if="elem.id === 'price'">
+                        {{ (elem.prefix !== undefined ? elem.prefix : activeProfile.currency) + samplePreviewItem.price.toLocaleString() + (elem.suffix || '') }}
+                      </template>
+                      <template v-else-if="elem.id === 'storeName'">
+                        {{ (elem.prefix || '') + (activeProfile.name || 'Store') + (elem.suffix || '') }}
+                      </template>
+                      <template v-else-if="elem.id === 'sessionDate'">
+                        {{ (elem.prefix || '') + sessionDate + (elem.suffix || '') }}
+                      </template>
+                      <template v-else-if="elem.id === 'footerText'">
+                        {{ elem.customText || settings.labelLayout?.footerText || 'THANK YOU!' }}
+                      </template>
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <!-- Bottom Millimeter Ruler -->
+                <div class="flex justify-between items-center text-[9px] font-mono text-zinc-400 pt-1 px-1">
+                  <span>0,0 (Top-Left)</span>
+                  <span>Physical Thermal Cutoff Gap</span>
+                  <span>240×160 Dots</span>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Canvas Quick Positioning & Nudge Controls -->
+            <div v-if="selectedLabelElement" class="bg-white border border-zinc-200 rounded-xl p-3 space-y-2 text-xs shadow-2xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-zinc-800 flex items-center space-x-1.5">
+                  <span>Target:</span>
+                  <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-900 font-mono text-[11px] font-bold">
+                    {{ selectedLabelElement.name }}
+                  </span>
+                </span>
+                <span class="font-mono text-[11px] text-zinc-500">
+                  X: {{ selectedLabelElement.x }}px ({{ Math.round(selectedLabelElement.x / 8 * 10) / 10 }}mm) • Y: {{ selectedLabelElement.y }}px ({{ Math.round(selectedLabelElement.y / 8 * 10) / 10 }}mm)
+                </span>
+              </div>
+
+              <!-- Alignment Toolbar -->
+              <div class="flex flex-wrap items-center gap-1.5 pt-1">
+                <span class="text-[10px] uppercase font-mono text-zinc-400 font-semibold mr-1">Align:</span>
+                <button type="button" @click="alignSelectedElement('left')" class="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-mono font-medium cursor-pointer shadow-2xs">⬅ Left</button>
+                <button type="button" @click="alignSelectedElement('center-h')" class="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-mono font-medium cursor-pointer shadow-2xs">↔ Center</button>
+                <button type="button" @click="alignSelectedElement('right')" class="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-mono font-medium cursor-pointer shadow-2xs">➡ Right</button>
+                <button type="button" @click="alignSelectedElement('top')" class="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-mono font-medium cursor-pointer shadow-2xs">⬆ Top</button>
+                <button type="button" @click="alignSelectedElement('center-v')" class="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-mono font-medium cursor-pointer shadow-2xs">↕ Middle</button>
+                <button type="button" @click="alignSelectedElement('bottom')" class="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-mono font-medium cursor-pointer shadow-2xs">⬇ Bottom</button>
+
+                <div class="ml-auto flex items-center space-x-1">
+                  <span class="text-[10px] uppercase font-mono text-zinc-400 font-semibold mr-1">Nudge:</span>
+                  <button type="button" @click="nudgeSelectedElement(-1, 0)" class="w-6 h-6 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold flex items-center justify-center cursor-pointer shadow-2xs">◀</button>
+                  <button type="button" @click="nudgeSelectedElement(1, 0)" class="w-6 h-6 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold flex items-center justify-center cursor-pointer shadow-2xs">▶</button>
+                  <button type="button" @click="nudgeSelectedElement(0, -1)" class="w-6 h-6 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold flex items-center justify-center cursor-pointer shadow-2xs">▲</button>
+                  <button type="button" @click="nudgeSelectedElement(0, 1)" class="w-6 h-6 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold flex items-center justify-center cursor-pointer shadow-2xs">▼</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Instant Layout Presets -->
+            <div class="bg-white border border-zinc-200 rounded-xl p-3 space-y-2 text-xs shadow-2xs">
+              <div class="text-[10px] uppercase font-mono tracking-wider font-semibold text-zinc-500">1-Click Layout Presets</div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button 
+                  type="button"
+                  @click="applyDesignerLabelPreset('reference_qr')"
+                  class="p-2 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-950 font-semibold text-left transition-colors cursor-pointer">
+                  <div class="font-bold text-xs">⭐ 30x20 QR Side</div>
+                  <div class="text-[10px] opacity-75 font-normal">QR right, info left</div>
+                </button>
+
+                <button 
+                  type="button"
+                  @click="applyDesignerLabelPreset('barcode_center')"
+                  class="p-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-800 font-semibold text-left transition-colors cursor-pointer">
+                  <div class="font-bold text-xs">||| 1D Barcode</div>
+                  <div class="text-[10px] opacity-75 font-normal">Centered barcode</div>
+                </button>
+
+                <button 
+                  type="button"
+                  @click="applyDesignerLabelPreset('minimal_text')"
+                  class="p-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-800 font-semibold text-left transition-colors cursor-pointer">
+                  <div class="font-bold text-xs">🔤 Bold Text Only</div>
+                  <div class="text-[10px] opacity-75 font-normal">Maximized font size</div>
+                </button>
+
+                <button 
+                  type="button"
+                  @click="applyDesignerLabelPreset('vertical_qr')"
+                  class="p-2 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-800 font-semibold text-left transition-colors cursor-pointer">
+                  <div class="font-bold text-xs">📱 Stacked QR</div>
+                  <div class="text-[10px] opacity-75 font-normal">Symmetrical center</div>
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right: Elements Palette & Selected Property Inspector (5 cols on lg) -->
+          <div class="lg:col-span-5 space-y-3">
+            
+            <!-- Element Palette (Layers list) -->
+            <div class="bg-white border border-zinc-200 rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+              <div class="flex items-center justify-between">
+                <h3 class="font-bold text-xs uppercase tracking-wider text-zinc-800 flex items-center space-x-1.5">
+                  <span>🎨 Sticker Elements & Layers</span>
+                  <span class="text-[10px] font-mono text-zinc-500 font-normal">({{ labelElementsList.filter(e => e.visible).length }} active)</span>
+                </h3>
+                <span class="text-[10px] text-zinc-400">Click to select & edit</span>
+              </div>
+
+              <!-- Elements List -->
+              <div class="divide-y divide-zinc-100 max-h-[220px] overflow-y-auto pr-1">
+                <div 
+                  v-for="elem in labelElementsList" 
+                  :key="elem.id"
+                  @click="selectDesignerElement(elem.id)"
+                  class="py-1.5 px-2 rounded-lg flex items-center justify-between text-xs cursor-pointer transition-colors"
+                  :class="designerSelectedId === elem.id ? 'bg-indigo-50 text-indigo-950 font-bold border border-indigo-200' : 'hover:bg-zinc-50 text-zinc-700'">
+                  
+                  <div class="flex items-center space-x-2 min-w-0">
+                    <button 
+                      type="button" 
+                      @click.stop="toggleElementVisibility(elem.id)"
+                      :title="elem.visible ? 'Hide element' : 'Show element'"
+                      class="text-xs p-0.5 rounded hover:bg-zinc-200 transition-colors">
+                      {{ elem.visible ? '👁️' : '🙈' }}
+                    </button>
+                    <span class="truncate">{{ elem.name }}</span>
+                  </div>
+
+                  <div class="flex items-center space-x-2 font-mono text-[10px] text-zinc-500 shrink-0">
+                    <span v-if="elem.fontSize">{{ elem.fontSize }}px</span>
+                    <span v-if="elem.width">{{ elem.width }}×{{ elem.height }}</span>
+                    <span class="bg-zinc-100 px-1 py-0.2 rounded text-zinc-600">({{ elem.x }},{{ elem.y }})</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Active Selected Element Property Inspector -->
+            <div v-if="selectedLabelElement" class="bg-white border border-zinc-200 rounded-xl p-3.5 space-y-3 shadow-2xs">
+              <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
+                <div>
+                  <h4 class="font-bold text-xs text-zinc-900 uppercase tracking-wider">
+                    Element Properties: {{ selectedLabelElement.name }}
+                  </h4>
+                  <p class="text-[10px] text-zinc-500 font-mono">ID: {{ selectedLabelElement.id }}</p>
+                </div>
+                <button 
+                  type="button" 
+                  @click="toggleElementVisibility(selectedLabelElement.id)"
+                  class="px-2 py-0.5 rounded text-xs font-semibold cursor-pointer"
+                  :class="selectedLabelElement.visible ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-zinc-100 text-zinc-500 border border-zinc-200'">
+                  {{ selectedLabelElement.visible ? '✓ Visible' : 'Hidden' }}
+                </button>
+              </div>
+
+              <!-- Coordinate Steppers (X, Y) -->
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">
+                    X Position (Dots / 8 = mm)
+                  </label>
+                  <div class="flex items-center space-x-1">
+                    <input 
+                      type="number" 
+                      v-model.number="selectedLabelElement.x"
+                      @input="saveSettings(false)"
+                      min="0" 
+                      :max="designerCanvasWidth" 
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-zinc-900 text-center focus:outline-none focus:border-zinc-900" 
+                    />
+                    <span class="text-[10px] font-mono text-zinc-400 shrink-0">dots</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">
+                    Y Position (Dots / 8 = mm)
+                  </label>
+                  <div class="flex items-center space-x-1">
+                    <input 
+                      type="number" 
+                      v-model.number="selectedLabelElement.y"
+                      @input="saveSettings(false)"
+                      min="0" 
+                      :max="designerCanvasHeight" 
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-zinc-900 text-center focus:outline-none focus:border-zinc-900" 
+                    />
+                    <span class="text-[10px] font-mono text-zinc-400 shrink-0">dots</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Typography Settings (for text elements) -->
+              <div v-if="selectedLabelElement.id !== 'qrCode' && selectedLabelElement.id !== 'barcode' && selectedLabelElement.id !== 'divider'" class="space-y-2.5 pt-1">
+                <div class="grid grid-cols-2 gap-2">
+                  <!-- Font Size -->
+                  <div>
+                    <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">Font Size</label>
+                    <select 
+                      v-model.number="selectedLabelElement.fontSize"
+                      @change="saveSettings(true)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs font-bold text-zinc-900 focus:outline-none focus:border-zinc-900">
+                      <option :value="9">9px (Micro)</option>
+                      <option :value="10">10px (Small)</option>
+                      <option :value="12">12px (Regular)</option>
+                      <option :value="14">14px (Medium)</option>
+                      <option :value="15">15px (Headline)</option>
+                      <option :value="16">16px (Large)</option>
+                      <option :value="18">18px (XL)</option>
+                      <option :value="20">20px (2XL)</option>
+                      <option :value="24">24px (3XL)</option>
+                      <option :value="28">28px (Hero)</option>
+                      <option :value="32">32px (Giant)</option>
+                    </select>
+                  </div>
+
+                  <!-- Font Weight -->
+                  <div>
+                    <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">Weight</label>
+                    <select 
+                      v-model="selectedLabelElement.fontWeight"
+                      @change="saveSettings(true)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs font-bold text-zinc-900 focus:outline-none focus:border-zinc-900">
+                      <option value="normal">Normal (400)</option>
+                      <option value="bold">Bold (700)</option>
+                      <option value="black">Heavy Black (900)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Text Alignment -->
+                <div>
+                  <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">Text Alignment</label>
+                  <div class="flex items-center space-x-1 bg-zinc-100 p-0.5 rounded-lg">
+                    <button 
+                      type="button" 
+                      @click="selectedLabelElement.align = 'left'; saveSettings(true)"
+                      class="flex-1 py-1 rounded text-xs font-semibold transition-colors cursor-pointer"
+                      :class="selectedLabelElement.align === 'left' || !selectedLabelElement.align ? 'bg-white text-zinc-900 shadow-2xs' : 'text-zinc-500'">
+                      Left
+                    </button>
+                    <button 
+                      type="button" 
+                      @click="selectedLabelElement.align = 'center'; saveSettings(true)"
+                      class="flex-1 py-1 rounded text-xs font-semibold transition-colors cursor-pointer"
+                      :class="selectedLabelElement.align === 'center' ? 'bg-white text-zinc-900 shadow-2xs' : 'text-zinc-500'">
+                      Center
+                    </button>
+                    <button 
+                      type="button" 
+                      @click="selectedLabelElement.align = 'right'; saveSettings(true)"
+                      class="flex-1 py-1 rounded text-xs font-semibold transition-colors cursor-pointer"
+                      :class="selectedLabelElement.align === 'right' ? 'bg-white text-zinc-900 shadow-2xs' : 'text-zinc-500'">
+                      Right
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Prefix & Suffix -->
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">Prefix</label>
+                    <input 
+                      type="text" 
+                      v-model="selectedLabelElement.prefix"
+                      @input="saveSettings(false)"
+                      placeholder="e.g. @"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono" 
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">Suffix</label>
+                    <input 
+                      type="text" 
+                      v-model="selectedLabelElement.suffix"
+                      @input="saveSettings(false)"
+                      placeholder="e.g. pcs"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-mono" 
+                    />
+                  </div>
+                </div>
+
+                <!-- Custom Footer Note (if footerText) -->
+                <div v-if="selectedLabelElement.id === 'footerText'">
+                  <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">Custom Text</label>
+                  <input 
+                    type="text" 
+                    v-model="selectedLabelElement.customText"
+                    @input="saveSettings(false)"
+                    placeholder="e.g. THANK YOU FOR MINING!"
+                    class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900" 
+                  />
+                </div>
+              </div>
+
+              <!-- Barcode / QR Dimensions -->
+              <div v-if="selectedLabelElement.id === 'qrCode' || selectedLabelElement.id === 'barcode'" class="grid grid-cols-2 gap-2 pt-1">
+                <div>
+                  <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">Width (dots)</label>
+                  <input 
+                    type="number" 
+                    v-model.number="selectedLabelElement.width"
+                    @input="saveSettings(false)"
+                    class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-zinc-900 focus:outline-none focus:border-zinc-900" 
+                  />
+                </div>
+                <div>
+                  <label class="block text-[10px] uppercase font-mono font-semibold text-zinc-500 mb-1">Height (dots)</label>
+                  <input 
+                    type="number" 
+                    v-model.number="selectedLabelElement.height"
+                    @input="saveSettings(false)"
+                    class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-zinc-900 focus:outline-none focus:border-zinc-900" 
+                  />
+                </div>
+              </div>
+
+              <!-- Save Feedback button -->
+              <div class="pt-2">
+                <button 
+                  type="button"
+                  @click="saveSettings(true); showToast('Label element layout saved!')"
+                  class="w-full py-2 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors cursor-pointer shadow-xs">
+                  Save Changes
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- ============================================================= -->
+        <!-- MODE 2: PT-210 INTERACTIVE RECEIPT & PACKING SLIP DESIGNER      -->
+        <!-- ============================================================= -->
+        <div v-if="designerMode === 'receipt'" class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+          <!-- Left: Realistic 58mm Thermal Slip Live Preview (6 cols on lg) -->
+          <div class="lg:col-span-6 space-y-3">
+            <div class="bg-zinc-100 border border-zinc-300 rounded-2xl p-4 sm:p-6 flex flex-col items-center justify-center overflow-auto shadow-inner min-h-[480px]">
+              
+              <!-- Thermal Receipt Paper Roll Container -->
+              <div class="w-full max-w-[340px] bg-white border border-zinc-300 rounded-t-lg shadow-xl font-mono text-xs text-black select-none overflow-hidden">
+                
+                <!-- Jagged Perforated Paper Top Edge -->
+                <div class="h-3 bg-zinc-200 border-b border-zinc-300 flex items-center justify-around opacity-60">
+                  <div v-for="p in 18" :key="p" class="w-1.5 h-1.5 bg-zinc-100 rotate-45"></div>
+                </div>
+
+                <!-- Receipt Body (dynamically iterates over sorted customSections) -->
+                <div class="p-4 sm:p-5 space-y-2">
+                  <template v-for="sec in receiptSectionsList" :key="sec.id">
+                    <div 
+                      v-if="sec.visible" 
+                      :id="'receipt-preview-' + sec.id"
+                      class="transition-colors hover:bg-indigo-50/40 p-1 rounded"
+                      :style="{
+                        textAlign: sec.align || 'center',
+                        fontSize: (sec.fontSize || 14) + 'px',
+                        fontWeight: sec.fontWeight === 'black' ? '900' : (sec.fontWeight === 'bold' ? 'bold' : 'normal')
+                      }">
+
+                      <!-- 1. Store Name -->
+                      <div v-if="sec.id === 'storeName'">
+                        {{ activeProfile.name || 'LIVE SELLING POS' }}
+                      </div>
+
+                      <!-- 2. Slip Title -->
+                      <div v-else-if="sec.id === 'title'" class="text-[12px] tracking-wide">
+                        {{ sec.customText || 'PARCEL PACKING SLIP' }}
+                      </div>
+
+                      <!-- 3. Session & Date -->
+                      <div v-else-if="sec.id === 'sessionDate'" class="text-[11px] text-zinc-600 font-normal">
+                        Session: #{{ sessionDate }} - 14:30
+                      </div>
+
+                      <!-- 4. Customer Handle Banner -->
+                      <div v-else-if="sec.id === 'buyer'" class="text-base font-black py-0.5">
+                        @Sarah_Styles
+                      </div>
+
+                      <!-- 5. Payment Status -->
+                      <div v-else-if="sec.id === 'status'" class="text-[11px] font-bold">
+                        STATUS: FULLY SETTLED (PAID)
+                      </div>
+
+                      <!-- 6. Items Breakdown Table -->
+                      <div v-else-if="sec.id === 'itemsTable'" class="text-[11px] text-left space-y-1 my-1">
+                        <div class="flex justify-between font-bold border-b border-zinc-400 pb-0.5">
+                          <span>ITEM / CODE</span>
+                          <span>AMT (PHP)</span>
+                        </div>
+                        <div class="flex justify-between">
+                          <span>1. #001 [Denim Jacket]</span>
+                          <span>500</span>
+                        </div>
+                        <div class="flex justify-between">
+                          <span>2. #002 [Cropped Top]</span>
+                          <span>250</span>
+                        </div>
+                      </div>
+
+                      <!-- 7. Totals & Balance Due -->
+                      <div v-else-if="sec.id === 'totals'" class="text-[11px] text-left font-bold space-y-0.5 border-t border-zinc-400 pt-1">
+                        <div class="flex justify-between font-normal">
+                          <span>Total Items:</span>
+                          <span>2 pcs</span>
+                        </div>
+                        <div class="flex justify-between font-normal">
+                          <span>Subtotal:</span>
+                          <span>PHP 750</span>
+                        </div>
+                        <div class="flex justify-between text-base font-black pt-1 border-t border-black">
+                          <span>BALANCE DUE:</span>
+                          <span>PHP 0</span>
+                        </div>
+                      </div>
+
+                      <!-- 8. QC Checkbox -->
+                      <div v-else-if="sec.id === 'qcCheckbox'" class="text-[11px]">
+                        QC Verified: [  ] Packed Pass
+                      </div>
+
+                      <!-- 9. Payment Details -->
+                      <div v-else-if="sec.id === 'paymentDetails'" class="text-[10px] text-left text-zinc-600 border border-zinc-300 rounded p-1.5 whitespace-pre-line">
+                        Payment Details:&#10;GCash: 0917-123-4567&#10;Thank you!
+                      </div>
+
+                      <!-- 10. Footer -->
+                      <div v-else-if="sec.id === 'footer'" class="text-[11px] pt-1">
+                        <div>{{ sec.customText || 'Thank you for mining with us!' }}</div>
+                        <div class="text-[10px] font-bold tracking-widest mt-0.5">*sarah_styles*</div>
+                      </div>
+
+                      <!-- Divider below section if enabled -->
+                      <div v-if="sec.showDividerBelow" class="border-b border-dashed border-zinc-400 my-1"></div>
+
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Jagged Perforated Paper Bottom Edge -->
+                <div class="h-3 bg-zinc-200 border-t border-zinc-300 flex items-center justify-around opacity-60">
+                  <div v-for="p in 18" :key="p" class="w-1.5 h-1.5 bg-zinc-100 rotate-45"></div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Section Ordering & Properties Customizer (6 cols on lg) -->
+          <div class="lg:col-span-6 space-y-3">
+            <div class="bg-white border border-zinc-200 rounded-xl p-4 space-y-3 shadow-2xs">
+              <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
+                <div>
+                  <h3 class="font-bold text-xs uppercase tracking-wider text-zinc-800">
+                    Receipt Sections & Print Sequence
+                  </h3>
+                  <p class="text-[11px] text-zinc-500">Reorder with arrows, toggle visibility, and customize typography</p>
+                </div>
+                <button 
+                  type="button" 
+                  @click="resetReceiptDesigner" 
+                  class="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold cursor-pointer">
+                  Reset Order
+                </button>
+              </div>
+
+              <!-- Reorderable Sections List -->
+              <div class="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                <div 
+                  v-for="(sec, idx) in receiptSectionsList" 
+                  :key="sec.id"
+                  class="p-2.5 rounded-xl border transition-all"
+                  :class="sec.visible ? 'bg-white border-zinc-200 hover:border-zinc-300 shadow-2xs' : 'bg-zinc-50 border-dashed border-zinc-200 opacity-60'">
+                  
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2 min-w-0">
+                      <!-- Reorder Buttons -->
+                      <div class="flex flex-col space-y-0.5 shrink-0">
+                        <button 
+                          type="button" 
+                          @click="moveReceiptSection(idx, -1)"
+                          :disabled="idx === 0"
+                          title="Move up"
+                          class="w-5 h-4 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-[9px] font-bold cursor-pointer">
+                          ▲
+                        </button>
+                        <button 
+                          type="button" 
+                          @click="moveReceiptSection(idx, 1)"
+                          :disabled="idx === receiptSectionsList.length - 1"
+                          title="Move down"
+                          class="w-5 h-4 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-[9px] font-bold cursor-pointer">
+                          ▼
+                        </button>
+                      </div>
+
+                      <div class="min-w-0">
+                        <div class="flex items-center space-x-1.5">
+                          <span class="font-bold text-xs text-zinc-900 truncate">{{ sec.name }}</span>
+                          <span class="text-[9px] font-mono text-zinc-400">#{{ sec.order }}</span>
+                        </div>
+                        <div class="text-[10px] text-zinc-500 font-mono">
+                          {{ sec.fontSize }}px • {{ sec.align || 'center' }} • {{ sec.fontWeight || 'normal' }}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2 shrink-0">
+                      <!-- Divider Below Toggle -->
+                      <button 
+                        type="button"
+                        @click="toggleReceiptDivider(sec.id)"
+                        :title="sec.showDividerBelow ? 'Divider line ON' : 'Divider line OFF'"
+                        class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium transition-colors cursor-pointer"
+                        :class="sec.showDividerBelow ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'">
+                        ---
+                      </button>
+
+                      <!-- Visibility Toggle -->
+                      <button 
+                        type="button"
+                        @click="toggleReceiptSectionVisibility(sec.id)"
+                        class="px-2 py-0.5 rounded text-xs font-semibold transition-colors cursor-pointer"
+                        :class="sec.visible ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-200 text-zinc-600'">
+                        {{ sec.visible ? 'Show' : 'Hide' }}
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Quick Settings for Selected Section -->
+                  <div v-if="sec.visible" class="mt-2 pt-2 border-t border-zinc-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <!-- Font Size -->
+                    <div class="flex items-center space-x-1">
+                      <span class="text-[10px] font-mono text-zinc-400">Font:</span>
+                      <select 
+                        v-model.number="sec.fontSize"
+                        @change="saveSettings(true)"
+                        class="bg-zinc-50 border border-zinc-200 rounded px-1.5 py-0.5 text-xs text-zinc-800">
+                        <option :value="10">10px</option>
+                        <option :value="12">12px</option>
+                        <option :value="14">14px</option>
+                        <option :value="16">16px</option>
+                        <option :value="18">18px (Large)</option>
+                        <option :value="22">22px (Double-Height)</option>
+                      </select>
+                    </div>
+
+                    <!-- Alignment -->
+                    <div class="flex items-center space-x-1">
+                      <span class="text-[10px] font-mono text-zinc-400">Align:</span>
+                      <div class="flex bg-zinc-100 p-0.5 rounded">
+                        <button type="button" @click="sec.align = 'left'; saveSettings(true)" class="px-1.5 py-0.5 rounded text-[10px] font-semibold" :class="sec.align === 'left' ? 'bg-white font-bold shadow-2xs' : 'text-zinc-500'">L</button>
+                        <button type="button" @click="sec.align = 'center'; saveSettings(true)" class="px-1.5 py-0.5 rounded text-[10px] font-semibold" :class="sec.align === 'center' || !sec.align ? 'bg-white font-bold shadow-2xs' : 'text-zinc-500'">C</button>
+                        <button type="button" @click="sec.align = 'right'; saveSettings(true)" class="px-1.5 py-0.5 rounded text-[10px] font-semibold" :class="sec.align === 'right' ? 'bg-white font-bold shadow-2xs' : 'text-zinc-500'">R</button>
+                      </div>
+                    </div>
+
+                    <!-- Custom Text input (if title, footer, qc) -->
+                    <div v-if="sec.id === 'title' || sec.id === 'footer'" class="w-full mt-1">
+                      <input 
+                        type="text" 
+                        v-model="sec.customText" 
+                        @input="saveSettings(false)"
+                        :placeholder="sec.id === 'title' ? 'PARCEL PACKING SLIP' : 'Thank you message'"
+                        class="w-full bg-zinc-50 border border-zinc-200 rounded px-2 py-1 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 font-sans" 
+                      />
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <!-- Save receipt changes -->
+              <div class="pt-2">
+                <button 
+                  type="button"
+                  @click="saveSettings(true); showToast('Receipt sequence and layout saved!')"
+                  class="w-full py-2.5 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors cursor-pointer shadow-xs">
+                  Save Receipt Layout
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Studio Exit & Quick Return Banner -->
+        <div class="bg-zinc-950 text-white rounded-2xl p-3.5 sm:p-4 border border-zinc-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs shadow-sm">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0 font-bold">
+              ✨
+            </div>
+            <div>
+              <div class="font-bold text-white">Visual Layouts Active & Ready</div>
+              <div class="text-[11px] text-zinc-400">All coordinate and sequence adjustments apply instantly to your Bluetooth thermal printouts.</div>
+            </div>
+          </div>
+          <button 
+            type="button" 
+            id="exit-designer-bottom-btn"
+            @click="exitDesigner" 
+            class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-sm transition-all cursor-pointer shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+            <span>Exit Studio & Return to POS</span>
+          </button>
         </div>
 
       </div>
@@ -3754,13 +4663,30 @@
                   <div>
                     <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Vertical Offset</label>
                     <select v-model.number="settings.labelLayout.verticalOffsetMm" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option :value="-1">-1 mm (Up)</option>
-                      <option :value="0">0 mm (Normal)</option>
-                      <option :value="1">+1 mm (Down)</option>
-                      <option :value="2">+2 mm</option>
+                       <option :value="-1">-1 mm (Up)</option>
+                       <option :value="0">0 mm (Normal)</option>
+                       <option :value="1">+1 mm (Down)</option>
+                       <option :value="2">+2 mm</option>
                     </select>
                   </div>
                 </div>
+              </div>
+
+              <!-- Visual Designer Link Banner -->
+              <div class="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between gap-2 text-xs">
+                <div class="flex items-center space-x-2">
+                  <span class="text-base">🎨</span>
+                  <div>
+                    <div class="font-bold text-indigo-950">Drag & Drop Visual Designer</div>
+                    <div class="text-[10px] text-indigo-700">Freely drag coordinates, test print, and tweak sizes visually</div>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  @click="openDesigner('label'); printerLayoutModalOpen = false" 
+                  class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition-colors">
+                  Open Studio →
+                </button>
               </div>
 
               <!-- Element Toggles & Sizes -->
@@ -4144,6 +5070,23 @@
                     Reset 58mm Defaults
                   </button>
                 </div>
+              </div>
+
+              <!-- Visual Designer Link Banner for Receipt -->
+              <div class="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between gap-2 text-xs">
+                <div class="flex items-center space-x-2">
+                  <span class="text-base">🎨</span>
+                  <div>
+                    <div class="font-bold text-indigo-950">Visual Receipt & Slip Designer</div>
+                    <div class="text-[10px] text-indigo-700">Reorder sections, adjust alignments and font sizes visually</div>
+                  </div>
+                </div>
+                <button 
+                  type="button" 
+                  @click="openDesigner('receipt'); printerLayoutModalOpen = false" 
+                  class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition-colors">
+                  Open Studio →
+                </button>
               </div>
 
               <!-- Header & Titles -->

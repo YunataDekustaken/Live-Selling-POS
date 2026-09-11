@@ -11,7 +11,7 @@ import type {
   ReceiptLayoutSettings
 } from './types';
 import { defaultProfiles } from './data/defaultProfiles';
-import { defaultSettings, defaultLabelLayout, defaultReceiptLayout } from './data/defaultSettings';
+import { defaultSettings, defaultLabelLayout, defaultReceiptLayout, defaultLabelElements, defaultReceiptSections } from './data/defaultSettings';
 import { getSampleMines, getSamplePayments, sampleCustomerNotes } from './data/sampleData';
 import { playBeep } from './utils/audio';
 import { safeGetItem, safeSetItem, safeParseJson } from './utils/storage';
@@ -70,7 +70,24 @@ import QRCode from 'qrcode';
 const app = createApp({
   setup() {
     // App Navigation: Default to Home Dashboard
-    const currentTab = ref('dashboard'); // 'dashboard', 'mining', 'balances', 'mined_items'
+    const currentTab = ref('dashboard'); // 'dashboard', 'mining', 'balances', 'mined_items', 'designer'
+    const previousTab = ref('dashboard');
+
+    function openDesigner(mode?: 'label' | 'receipt') {
+      if (mode) {
+        designerMode.value = mode;
+      }
+      if (currentTab.value !== 'designer') {
+        previousTab.value = currentTab.value;
+      }
+      currentTab.value = 'designer';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function exitDesigner() {
+      currentTab.value = (previousTab.value && previousTab.value !== 'designer') ? previousTab.value : 'dashboard';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
 
     // Multi-Business Profiles Definition (with deleted IDs tombstone tracking)
     const deletedProfileIds = new Set<string>(
@@ -293,10 +310,17 @@ const app = createApp({
     } else {
       initialSettings.labelLayout = { ...defaultLabelLayout, ...initialSettings.labelLayout };
     }
+    if (!initialSettings.labelLayout.customElements || initialSettings.labelLayout.customElements.length === 0) {
+      initialSettings.labelLayout.customElements = JSON.parse(JSON.stringify(defaultLabelElements));
+    }
+
     if (!initialSettings.receiptLayout) {
       initialSettings.receiptLayout = { ...defaultReceiptLayout };
     } else {
       initialSettings.receiptLayout = { ...defaultReceiptLayout, ...initialSettings.receiptLayout };
+    }
+    if (!initialSettings.receiptLayout.customSections || initialSettings.receiptLayout.customSections.length === 0) {
+      initialSettings.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
     }
     if (!initialSettings.labelPrinterName) {
       initialSettings.labelPrinterName = 'PT-265';
@@ -1658,6 +1682,261 @@ const app = createApp({
       settings.value.receiptLayout = { ...defaultReceiptLayout };
       saveSettings(true);
       showToast('Receipt layout reset to PT-210 (58mm) default');
+    }
+
+    // =========================================================================
+    // INTERACTIVE VISUAL DESIGNER STATE & HANDLERS (PT-265 & PT-210)
+    // =========================================================================
+    const designerMode = ref<'label' | 'receipt'>('label');
+    const designerSelectedId = ref<string>('controlCode');
+    const designerCanvasZoom = ref<number>(200); // 100, 150, 200, 250, 300%
+    const designerShowGrid = ref<boolean>(true);
+    const designerSnapGrid = ref<boolean>(true);
+    const designerShowSampleData = ref<boolean>(true);
+    const designerIsDragging = ref<boolean>(false);
+    const designerDragStart = ref<{ startX: number; startY: number; origX: number; origY: number; zoom: number }>({
+      startX: 0,
+      startY: 0,
+      origX: 0,
+      origY: 0,
+      zoom: 2
+    });
+
+    const designerCanvasWidth = computed(() => {
+      const is30x20 = (settings.value.labelLayout?.labelSize || '30x20mm') === '30x20mm';
+      return is30x20 ? 240 : 320;
+    });
+    const designerCanvasHeight = computed(() => {
+      const is30x20 = (settings.value.labelLayout?.labelSize || '30x20mm') === '30x20mm';
+      return is30x20 ? 160 : 240;
+    });
+
+    const labelElementsList = computed(() => {
+      if (!settings.value.labelLayout) {
+        settings.value.labelLayout = { ...defaultLabelLayout };
+      }
+      if (!settings.value.labelLayout.customElements || settings.value.labelLayout.customElements.length === 0) {
+        settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(defaultLabelElements));
+      }
+      return settings.value.labelLayout.customElements;
+    });
+
+    const selectedLabelElement = computed(() => {
+      return labelElementsList.value.find(e => e.id === designerSelectedId.value) || null;
+    });
+
+    const receiptSectionsList = computed(() => {
+      if (!settings.value.receiptLayout) {
+        settings.value.receiptLayout = { ...defaultReceiptLayout };
+      }
+      if (!settings.value.receiptLayout.customSections || settings.value.receiptLayout.customSections.length === 0) {
+        settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
+      }
+      return settings.value.receiptLayout.customSections;
+    });
+
+    const selectedReceiptSection = computed(() => {
+      return receiptSectionsList.value.find(s => s.id === designerSelectedId.value) || null;
+    });
+
+    function selectDesignerElement(id: string) {
+      designerSelectedId.value = id;
+    }
+
+    function onElementPointerDown(elemId: string, event: MouseEvent | TouchEvent) {
+      designerSelectedId.value = elemId;
+      designerIsDragging.value = true;
+      const elem = labelElementsList.value.find(e => e.id === elemId);
+      if (!elem) return;
+
+      const clientX = 'touches' in event ? event.touches[0].clientX : (event as MouseEvent).clientX;
+      const clientY = 'touches' in event ? event.touches[0].clientY : (event as MouseEvent).clientY;
+
+      designerDragStart.value = {
+        startX: clientX,
+        startY: clientY,
+        origX: elem.x,
+        origY: elem.y,
+        zoom: designerCanvasZoom.value / 100
+      };
+
+      const onMove = (e: MouseEvent | TouchEvent) => {
+        if (!designerIsDragging.value) return;
+        const curX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+        const curY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+
+        const deltaX = (curX - designerDragStart.value.startX) / designerDragStart.value.zoom;
+        const deltaY = (curY - designerDragStart.value.startY) / designerDragStart.value.zoom;
+
+        let targetX = Math.round(designerDragStart.value.origX + deltaX);
+        let targetY = Math.round(designerDragStart.value.origY + deltaY);
+
+        if (designerSnapGrid.value) {
+          targetX = Math.round(targetX / 4) * 4;
+          targetY = Math.round(targetY / 4) * 4;
+        }
+
+        const maxW = designerCanvasWidth.value;
+        const maxH = designerCanvasHeight.value;
+        const elW = elem.width || (elem.id === 'qrCode' ? 88 : 40);
+        const elH = elem.height || (elem.id === 'qrCode' ? 88 : 18);
+
+        elem.x = Math.max(0, Math.min(maxW - elW, targetX));
+        elem.y = Math.max(0, Math.min(maxH - elH, targetY));
+        saveSettings(false);
+      };
+
+      const onUp = () => {
+        designerIsDragging.value = false;
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend', onUp);
+        saveSettings(true);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onUp);
+    }
+
+    function alignSelectedElement(alignment: 'left' | 'center-h' | 'right' | 'top' | 'center-v' | 'bottom') {
+      const elem = selectedLabelElement.value;
+      if (!elem) return;
+      const canvasW = designerCanvasWidth.value;
+      const canvasH = designerCanvasHeight.value;
+      const elW = elem.width || (elem.id === 'qrCode' ? 88 : 40);
+      const elH = elem.height || (elem.id === 'qrCode' ? 88 : 18);
+
+      if (alignment === 'left') elem.x = 8;
+      else if (alignment === 'center-h') elem.x = Math.max(0, Math.round((canvasW - elW) / 2));
+      else if (alignment === 'right') elem.x = Math.max(0, canvasW - elW - 8);
+      else if (alignment === 'top') elem.y = 8;
+      else if (alignment === 'center-v') elem.y = Math.max(0, Math.round((canvasH - elH) / 2));
+      else if (alignment === 'bottom') elem.y = Math.max(0, canvasH - elH - 8);
+
+      saveSettings(true);
+      showToast(`Aligned ${elem.name} to ${alignment}`);
+    }
+
+    function nudgeSelectedElement(dx: number, dy: number) {
+      const elem = selectedLabelElement.value;
+      if (!elem) return;
+      const canvasW = designerCanvasWidth.value;
+      const canvasH = designerCanvasHeight.value;
+      const elW = elem.width || 30;
+      const elH = elem.height || 16;
+      elem.x = Math.max(0, Math.min(canvasW - elW, elem.x + dx));
+      elem.y = Math.max(0, Math.min(canvasH - elH, elem.y + dy));
+      saveSettings(false);
+    }
+
+    function toggleElementVisibility(elemId: string) {
+      const elem = labelElementsList.value.find(e => e.id === elemId);
+      if (elem) {
+        elem.visible = !elem.visible;
+        saveSettings(true);
+      }
+    }
+
+    function applyDesignerLabelPreset(presetName: string) {
+      if (!settings.value.labelLayout) settings.value.labelLayout = { ...defaultLabelLayout };
+
+      if (presetName === 'reference_qr') {
+        settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(defaultLabelElements));
+        showToast('Applied 30x20mm QR Reference Layout!');
+      } else if (presetName === 'barcode_center') {
+        const elems = JSON.parse(JSON.stringify(defaultLabelElements));
+        const qr = elems.find((e: any) => e.id === 'qrCode');
+        if (qr) qr.visible = false;
+        const bar = elems.find((e: any) => e.id === 'barcode');
+        if (bar) { bar.visible = true; bar.x = 16; bar.y = 36; bar.width = 208; bar.height = 36; }
+        const code = elems.find((e: any) => e.id === 'controlCode');
+        if (code) { code.x = 120; code.y = 10; code.align = 'center'; }
+        const buyer = elems.find((e: any) => e.id === 'buyer');
+        if (buyer) { buyer.x = 10; buyer.y = 86; }
+        const tag = elems.find((e: any) => e.id === 'tag');
+        if (tag) { tag.x = 10; tag.y = 110; }
+        const price = elems.find((e: any) => e.id === 'price');
+        if (price) { price.x = 10; price.y = 132; price.fontSize = 18; }
+        const time = elems.find((e: any) => e.id === 'time');
+        if (time) { time.x = 160; time.y = 132; }
+        settings.value.labelLayout.customElements = elems;
+        showToast('Applied Centered Barcode Layout!');
+      } else if (presetName === 'minimal_text') {
+        const elems = JSON.parse(JSON.stringify(defaultLabelElements));
+        const qr = elems.find((e: any) => e.id === 'qrCode');
+        if (qr) qr.visible = false;
+        const bar = elems.find((e: any) => e.id === 'barcode');
+        if (bar) bar.visible = false;
+        const code = elems.find((e: any) => e.id === 'controlCode');
+        if (code) { code.x = 10; code.y = 10; code.fontSize = 18; }
+        const time = elems.find((e: any) => e.id === 'time');
+        if (time) { time.x = 160; time.y = 12; }
+        const buyer = elems.find((e: any) => e.id === 'buyer');
+        if (buyer) { buyer.x = 10; buyer.y = 44; buyer.fontSize = 22; buyer.fontWeight = 'black'; }
+        const tag = elems.find((e: any) => e.id === 'tag');
+        if (tag) { tag.x = 10; tag.y = 82; tag.fontSize = 16; }
+        const price = elems.find((e: any) => e.id === 'price');
+        if (price) { price.x = 10; price.y = 116; price.fontSize = 24; price.fontWeight = 'black'; }
+        settings.value.labelLayout.customElements = elems;
+        showToast('Applied Bold Minimalist Text Layout!');
+      } else if (presetName === 'vertical_qr') {
+        const elems = JSON.parse(JSON.stringify(defaultLabelElements));
+        const code = elems.find((e: any) => e.id === 'controlCode');
+        if (code) { code.x = 120; code.y = 6; code.align = 'center'; }
+        const time = elems.find((e: any) => e.id === 'time');
+        if (time) { time.visible = false; }
+        const buyer = elems.find((e: any) => e.id === 'buyer');
+        if (buyer) { buyer.x = 120; buyer.y = 26; buyer.align = 'center'; }
+        const qr = elems.find((e: any) => e.id === 'qrCode');
+        if (qr) { qr.x = 76; qr.y = 48; qr.width = 88; qr.height = 88; qr.visible = true; }
+        const price = elems.find((e: any) => e.id === 'price');
+        if (price) { price.x = 120; price.y = 138; price.align = 'center'; price.fontSize = 16; }
+        const tag = elems.find((e: any) => e.id === 'tag');
+        if (tag) { tag.visible = false; }
+        settings.value.labelLayout.customElements = elems;
+        showToast('Applied Centered Stacked QR Layout!');
+      }
+
+      saveSettings(true);
+      updateSamplePreviewQr();
+    }
+
+    function moveReceiptSection(index: number, direction: number) {
+      const list = receiptSectionsList.value;
+      const target = index + direction;
+      if (target < 0 || target >= list.length) return;
+      const tmp = list[index];
+      list[index] = list[target];
+      list[target] = tmp;
+      list.forEach((sec, idx) => { sec.order = idx + 1; });
+      saveSettings(true);
+    }
+
+    function toggleReceiptSectionVisibility(secId: string) {
+      const sec = receiptSectionsList.value.find(s => s.id === secId);
+      if (sec) {
+        sec.visible = !sec.visible;
+        saveSettings(true);
+      }
+    }
+
+    function toggleReceiptDivider(secId: string) {
+      const sec = receiptSectionsList.value.find(s => s.id === secId);
+      if (sec) {
+        sec.showDividerBelow = !sec.showDividerBelow;
+        saveSettings(true);
+      }
+    }
+
+    function resetReceiptDesigner() {
+      if (settings.value.receiptLayout) {
+        settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
+        saveSettings(true);
+        showToast('Receipt layout reset to default sections');
+      }
     }
 
     async function directPrintStickerBt(mine: MinedItem) {
@@ -3099,7 +3378,33 @@ const app = createApp({
       cleanupOldPhotos,
       samplePreviewQrDataUrl,
       updateSamplePreviewQr,
-      applyReferenceLabelPreset
+      applyReferenceLabelPreset,
+      designerMode,
+      designerSelectedId,
+      designerCanvasZoom,
+      designerShowGrid,
+      designerSnapGrid,
+      designerShowSampleData,
+      designerIsDragging,
+      designerCanvasWidth,
+      designerCanvasHeight,
+      labelElementsList,
+      selectedLabelElement,
+      receiptSectionsList,
+      selectedReceiptSection,
+      selectDesignerElement,
+      onElementPointerDown,
+      alignSelectedElement,
+      nudgeSelectedElement,
+      toggleElementVisibility,
+      applyDesignerLabelPreset,
+      moveReceiptSection,
+      toggleReceiptSectionVisibility,
+      toggleReceiptDivider,
+      resetReceiptDesigner,
+      previousTab,
+      openDesigner,
+      exitDesigner
     };
   }
 });
