@@ -394,10 +394,27 @@ export async function buildStickerCanvasRaster(
         const weight = elem.fontWeight === 'black' ? '900' : (elem.fontWeight === 'bold' ? 'bold' : 'normal');
         const family = elem.fontFamily === 'mono' ? 'monospace' : 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
         ctx.font = `${weight} ${elem.fontSize || 14}px ${family}`;
-        ctx.textAlign = elem.align || 'left';
         ctx.textBaseline = 'top';
         ctx.fillStyle = '#000000';
-        ctx.fillText(val, elem.x, elem.y);
+
+        let drawX = elem.x;
+        if (elem.width) {
+          if (elem.align === 'right') {
+            ctx.textAlign = 'right';
+            drawX = elem.x + elem.width;
+          } else if (elem.align === 'center') {
+            ctx.textAlign = 'center';
+            drawX = elem.x + Math.round(elem.width / 2);
+          } else {
+            ctx.textAlign = 'left';
+            drawX = elem.x;
+          }
+        } else {
+          ctx.textAlign = elem.align || 'left';
+          drawX = elem.x;
+        }
+
+        ctx.fillText(val, drawX, elem.y);
       }
     }
   } else if (useQrLayout) {
@@ -942,58 +959,125 @@ export function buildStickerTSPL(
   tspl += `REFERENCE ${xOffsetDots},${yOffsetDots}\r\n`;
   tspl += `CLS\r\n`;
 
-  // Center coordinate on 30mm sticker (240 dots wide / 2 = 120 dots)
-  const stickerCenter = Math.round((widthMm * 8) / 2); // 120 for 30mm
-  const stickerRight = Math.round((widthMm * 8) - 10); // 230 for 30mm
-  const stickerLeft = 10;
+  if (cfg.customElements && cfg.customElements.length > 0) {
+    // -------------------------------------------------------------------------
+    // RENDER VISUAL DESIGNER CUSTOM ELEMENTS IN TSPL HARDWARE PROTOCOL
+    // -------------------------------------------------------------------------
+    for (const elem of cfg.customElements) {
+      if (!elem.visible) continue;
 
-  let yPos = is30x20 ? 8 : 12;
+      if (elem.id === 'qrCode') {
+        const qrText = (item.controlCode || (item.controlNum ? `#${item.controlNum}` : '001')).replace(/"/g, '');
+        const cellW = elem.width ? Math.max(2, Math.min(6, Math.floor(elem.width / 24))) : 4;
+        tspl += `QRCODE ${elem.x},${elem.y},M,${cellW},A,0,"${qrText}"\r\n`;
+      } else if (elem.id === 'barcode') {
+        const rawCode = (item.controlCode || (item.controlNum ? String(item.controlNum) : '001')).replace(/[^A-Za-z0-9]/g, '') || '001';
+        const bH = elem.height || 28;
+        tspl += `BARCODE ${elem.x},${elem.y},"128",${bH},1,0,2,2,"${rawCode}"\r\n`;
+      } else if (elem.id === 'divider') {
+        const lineW = elem.width || (widthMm * 8 - 16);
+        tspl += `BAR ${elem.x},${elem.y},${lineW},1\r\n`;
+      } else {
+        let val = '';
+        if (elem.id === 'controlCode') {
+          val = (item.controlCode || (item.controlNum ? `#${item.controlNum}` : 'L0911-002')).replace(/^\[\s*|\s*\]$/g, '');
+        } else if (elem.id === 'time') {
+          val = item.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        } else if (elem.id === 'buyer') {
+          val = (item.buyer || '').replace(/^@+/, '') || 'Buyer';
+        } else if (elem.id === 'tag') {
+          val = item.tag || item.description || 'Item';
+        } else if (elem.id === 'price') {
+          const cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || 'P').replace(/₱/g, 'P');
+          val = `${cur}${item.price.toLocaleString()}`;
+        } else if (elem.id === 'storeName') {
+          val = profile.name || 'Store';
+        } else if (elem.id === 'sessionDate') {
+          val = sessionDate || '0911';
+        } else if (elem.id === 'footerText') {
+          val = elem.customText || cfg.footerText || cfg.customFooterText || '';
+        }
 
-  // 1. Store Name (Optional on 30x20mm)
-  if (cfg.showStoreName) {
-    const storeName = (profile.name || 'LIVE POS').replace(/"/g, '').substring(0, 14);
-    tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${storeName}"\r\n`;
-    yPos += is30x20 ? 18 : 22;
-  }
+        if (elem.prefix && elem.id !== 'price') val = elem.prefix + val;
+        if (elem.suffix) val = val + elem.suffix;
+        val = val.replace(/"/g, '');
 
-  // 2. Control Code (e.g. [ #001 ])
-  if (cfg.showControlCode) {
-    const font = cfg.codeSize === 'extra_large' ? '3' : (cfg.codeSize === 'large' ? '3' : '2');
-    tspl += `TEXT ${stickerCenter},${yPos},"${font}",0,1,1,2,"[ ${codeStr} ]"\r\n`;
-    yPos += is30x20 ? 30 : 34;
-  }
+        let font = '2';
+        let xM = 1;
+        let yM = 1;
+        if (elem.fontSize >= 24) { font = '3'; xM = 1; yM = 2; }
+        else if (elem.fontSize >= 18) { font = '3'; xM = 1; yM = 1; }
+        else if (elem.fontSize <= 10) { font = '1'; xM = 1; yM = 1; }
 
-  // 3. Buyer Handle (e.g. @janedoe)
-  if (cfg.showBuyer) {
-    const buyerFont = cfg.buyerSize === 'large' ? '3' : '2';
-    tspl += `TEXT ${stickerCenter},${yPos},"${buyerFont}",0,1,1,2,"@${cleanBuyer.substring(0, 13)}"\r\n`;
-    yPos += is30x20 ? 28 : 32;
-  }
+        let alignNum = 1; // 1 = left, 2 = center, 3 = right
+        let posX = elem.x;
+        if (elem.width) {
+          if (elem.align === 'right') { alignNum = 3; posX = elem.x + elem.width; }
+          else if (elem.align === 'center') { alignNum = 2; posX = elem.x + Math.round(elem.width / 2); }
+          else { alignNum = 1; posX = elem.x; }
+        } else {
+          if (elem.align === 'right') alignNum = 3;
+          else if (elem.align === 'center') alignNum = 2;
+          else alignNum = 1;
+        }
 
-  // 4. Tag / Description & Price (Smart compact 20mm layout)
-  if (cfg.showPrice || cfg.showTag || cfg.showDescription) {
-    const tagPart = cfg.showTag ? (item.tag || item.controlCode || '') : '';
-    const descPart = (cfg.showDescription && item.description) ? item.description : '';
-    const labelText = (tagPart || descPart).replace(/"/g, '').substring(0, 10);
+        tspl += `TEXT ${posX},${elem.y},"${font}",0,${xM},${yM},${alignNum},"${val}"\r\n`;
+      }
+    }
+  } else {
+    // Center coordinate on 30mm sticker (240 dots wide / 2 = 120 dots)
+    const stickerCenter = Math.round((widthMm * 8) / 2); // 120 for 30mm
+    const stickerRight = Math.round((widthMm * 8) - 10); // 230 for 30mm
+    const stickerLeft = 10;
 
-    if (cfg.showPrice && labelText) {
-      // Print Tag on left, Price on right
-      tspl += `TEXT ${stickerLeft},${yPos},"1",0,1,1,1,"${labelText}"\r\n`;
-      tspl += `TEXT ${stickerRight},${yPos},"2",0,1,1,3,"${priceStr}"\r\n`;
-      yPos += is30x20 ? 22 : 26;
-    } else if (cfg.showPrice) {
-      tspl += `TEXT ${stickerCenter},${yPos},"3",0,1,1,2,"${priceStr}"\r\n`;
-      yPos += is30x20 ? 24 : 28;
-    } else if (labelText) {
-      tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${labelText}"\r\n`;
+    let yPos = is30x20 ? 8 : 12;
+
+    // 1. Store Name (Optional on 30x20mm)
+    if (cfg.showStoreName) {
+      const storeName = (profile.name || 'LIVE POS').replace(/"/g, '').substring(0, 14);
+      tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${storeName}"\r\n`;
       yPos += is30x20 ? 18 : 22;
     }
-  }
 
-  // 5. Custom Footer (if space and configured)
-  if (cfg.customFooterText && cfg.customFooterText.trim() && yPos <= 140) {
-    const footer = cfg.customFooterText.trim().replace(/"/g, '').substring(0, 14);
-    tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${footer}"\r\n`;
+    // 2. Control Code (e.g. [ #001 ])
+    if (cfg.showControlCode) {
+      const font = cfg.codeSize === 'extra_large' ? '3' : (cfg.codeSize === 'large' ? '3' : '2');
+      tspl += `TEXT ${stickerCenter},${yPos},"${font}",0,1,1,2,"[ ${codeStr} ]"\r\n`;
+      yPos += is30x20 ? 30 : 34;
+    }
+
+    // 3. Buyer Handle (e.g. @janedoe)
+    if (cfg.showBuyer) {
+      const buyerFont = cfg.buyerSize === 'large' ? '3' : '2';
+      tspl += `TEXT ${stickerCenter},${yPos},"${buyerFont}",0,1,1,2,"@${cleanBuyer.substring(0, 13)}"\r\n`;
+      yPos += is30x20 ? 28 : 32;
+    }
+
+    // 4. Tag / Description & Price (Smart compact 20mm layout)
+    if (cfg.showPrice || cfg.showTag || cfg.showDescription) {
+      const tagPart = cfg.showTag ? (item.tag || item.controlCode || '') : '';
+      const descPart = (cfg.showDescription && item.description) ? item.description : '';
+      const labelText = (tagPart || descPart).replace(/"/g, '').substring(0, 10);
+
+      if (cfg.showPrice && labelText) {
+        // Print Tag on left, Price on right
+        tspl += `TEXT ${stickerLeft},${yPos},"1",0,1,1,1,"${labelText}"\r\n`;
+        tspl += `TEXT ${stickerRight},${yPos},"2",0,1,1,3,"${priceStr}"\r\n`;
+        yPos += is30x20 ? 22 : 26;
+      } else if (cfg.showPrice) {
+        tspl += `TEXT ${stickerCenter},${yPos},"3",0,1,1,2,"${priceStr}"\r\n`;
+        yPos += is30x20 ? 24 : 28;
+      } else if (labelText) {
+        tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${labelText}"\r\n`;
+        yPos += is30x20 ? 18 : 22;
+      }
+    }
+
+    // 5. Custom Footer (if space and configured)
+    if (cfg.customFooterText && cfg.customFooterText.trim() && yPos <= 140) {
+      const footer = cfg.customFooterText.trim().replace(/"/g, '').substring(0, 14);
+      tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${footer}"\r\n`;
+    }
   }
 
   // 6. Print Command: PT-265 will print exactly 1 label and stop precisely at gap

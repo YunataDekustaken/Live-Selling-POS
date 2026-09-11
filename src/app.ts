@@ -8,7 +8,9 @@ import type {
   ActiveStoreForm,
   LiveMiningForm,
   LabelLayoutSettings,
-  ReceiptLayoutSettings
+  ReceiptLayoutSettings,
+  SavedLabelProfile,
+  VisualLabelElement
 } from './types';
 import { defaultProfiles } from './data/defaultProfiles';
 import { defaultSettings, defaultLabelLayout, defaultReceiptLayout, defaultLabelElements, defaultReceiptSections } from './data/defaultSettings';
@@ -1743,6 +1745,321 @@ const app = createApp({
       designerSelectedId.value = id;
     }
 
+    const savedLabelProfiles = ref<SavedLabelProfile[]>([]);
+    const activeLabelProfileId = ref<string>('reference_qr');
+    const showSaveProfileModal = ref<boolean>(false);
+    const newProfileName = ref<string>('');
+    const showPasteCoordinatesModal = ref<boolean>(false);
+    const pasteCoordinatesText = ref<string>('');
+
+    function getBuiltInLabelProfiles(): SavedLabelProfile[] {
+      const qrRefElements: VisualLabelElement[] = JSON.parse(JSON.stringify(defaultLabelElements));
+
+      const barCenterElements: VisualLabelElement[] = JSON.parse(JSON.stringify(defaultLabelElements));
+      const qrB = barCenterElements.find(e => e.id === 'qrCode'); if (qrB) qrB.visible = false;
+      const barB = barCenterElements.find(e => e.id === 'barcode'); if (barB) { barB.visible = true; barB.x = 16; barB.y = 36; barB.width = 208; barB.height = 36; }
+      const codeB = barCenterElements.find(e => e.id === 'controlCode'); if (codeB) { codeB.x = 120; codeB.y = 10; codeB.align = 'center'; }
+      const buyerB = barCenterElements.find(e => e.id === 'buyer'); if (buyerB) { buyerB.x = 10; buyerB.y = 86; }
+      const tagB = barCenterElements.find(e => e.id === 'tag'); if (tagB) { tagB.x = 10; tagB.y = 110; }
+      const priceB = barCenterElements.find(e => e.id === 'price'); if (priceB) { priceB.x = 10; priceB.y = 132; priceB.fontSize = 18; }
+      const timeB = barCenterElements.find(e => e.id === 'time'); if (timeB) { timeB.x = 232; timeB.y = 10; timeB.align = 'right'; }
+
+      const minimalElements: VisualLabelElement[] = JSON.parse(JSON.stringify(defaultLabelElements));
+      const qrM = minimalElements.find(e => e.id === 'qrCode'); if (qrM) qrM.visible = false;
+      const barM = minimalElements.find(e => e.id === 'barcode'); if (barM) barM.visible = false;
+      const codeM = minimalElements.find(e => e.id === 'controlCode'); if (codeM) { codeM.x = 10; codeM.y = 10; codeM.fontSize = 18; }
+      const timeM = minimalElements.find(e => e.id === 'time'); if (timeM) { timeM.x = 232; timeM.y = 10; timeM.align = 'right'; }
+      const buyerM = minimalElements.find(e => e.id === 'buyer'); if (buyerM) { buyerM.x = 10; buyerM.y = 44; buyerM.fontSize = 22; buyerM.fontWeight = 'black'; }
+      const tagM = minimalElements.find(e => e.id === 'tag'); if (tagM) { tagM.x = 10; tagM.y = 82; tagM.fontSize = 16; }
+      const priceM = minimalElements.find(e => e.id === 'price'); if (priceM) { priceM.x = 10; priceM.y = 116; priceM.fontSize = 24; priceM.fontWeight = 'black'; }
+
+      const verticalElements: VisualLabelElement[] = JSON.parse(JSON.stringify(defaultLabelElements));
+      const codeV = verticalElements.find(e => e.id === 'controlCode'); if (codeV) { codeV.x = 120; codeV.y = 6; codeV.align = 'center'; }
+      const timeV = verticalElements.find(e => e.id === 'time'); if (timeV) { timeV.visible = false; }
+      const buyerV = verticalElements.find(e => e.id === 'buyer'); if (buyerV) { buyerV.x = 120; buyerV.y = 26; buyerV.align = 'center'; }
+      const qrV = verticalElements.find(e => e.id === 'qrCode'); if (qrV) { qrV.x = 76; qrV.y = 48; qrV.width = 88; qrV.height = 88; qrV.visible = true; }
+      const priceV = verticalElements.find(e => e.id === 'price'); if (priceV) { priceV.x = 120; priceV.y = 138; priceV.align = 'center'; priceV.fontSize = 16; }
+      const tagV = verticalElements.find(e => e.id === 'tag'); if (tagV) { tagV.visible = false; }
+
+      return [
+        { id: 'reference_qr', name: '⭐ 30x20 QR Side (Default)', createdAt: 1, labelSize: '30x20mm', isBuiltIn: true, elements: qrRefElements, description: 'QR on right, customer & price on left' },
+        { id: 'barcode_center', name: '||| 1D Barcode Centered', createdAt: 2, labelSize: '30x20mm', isBuiltIn: true, elements: barCenterElements, description: 'Centered linear barcode with info stack' },
+        { id: 'minimal_text', name: '🔤 Bold Text Only', createdAt: 3, labelSize: '30x20mm', isBuiltIn: true, elements: minimalElements, description: 'Maximized typography without QR or barcode' },
+        { id: 'vertical_qr', name: '📱 Stacked QR Center', createdAt: 4, labelSize: '30x20mm', isBuiltIn: true, elements: verticalElements, description: 'Symmetrical center-stacked QR layout' }
+      ];
+    }
+
+    function initSavedLabelProfiles() {
+      try {
+        const raw = localStorage.getItem('pos_saved_label_profiles_v1');
+        const builtIns = getBuiltInLabelProfiles();
+        if (raw) {
+          const userProfiles: SavedLabelProfile[] = JSON.parse(raw);
+          const merged = [...builtIns];
+          for (const up of userProfiles) {
+            if (!merged.some(m => m.id === up.id)) {
+              merged.push(up);
+            }
+          }
+          savedLabelProfiles.value = merged;
+        } else {
+          savedLabelProfiles.value = builtIns;
+        }
+      } catch (err) {
+        console.warn('Failed to load label profiles from localStorage:', err);
+        savedLabelProfiles.value = getBuiltInLabelProfiles();
+      }
+    }
+
+    function persistUserLabelProfiles() {
+      const customOnly = savedLabelProfiles.value.filter(p => !p.isBuiltIn);
+      localStorage.setItem('pos_saved_label_profiles_v1', JSON.stringify(customOnly));
+    }
+
+    function loadLabelProfile(profileId: string) {
+      const profile = savedLabelProfiles.value.find(p => p.id === profileId);
+      if (!profile) return;
+      activeLabelProfileId.value = profile.id;
+      if (!settings.value.labelLayout) {
+        settings.value.labelLayout = { ...defaultLabelLayout };
+      }
+      settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(profile.elements));
+      if (profile.labelSize) {
+        settings.value.labelLayout.labelSize = profile.labelSize as any;
+      }
+      saveSettings(true);
+      updateSamplePreviewQr();
+      showToast(`Loaded label profile: "${profile.name}"`);
+    }
+
+    function openSaveProfileModal() {
+      newProfileName.value = `My Label Profile ${savedLabelProfiles.value.filter(p => !p.isBuiltIn).length + 1}`;
+      showSaveProfileModal.value = true;
+    }
+
+    function confirmSaveCurrentLabelProfile() {
+      const name = newProfileName.value.trim();
+      if (!name) {
+        showToast('Please enter a profile name');
+        return;
+      }
+      const elements = JSON.parse(JSON.stringify(labelElementsList.value));
+      const newProfile: SavedLabelProfile = {
+        id: 'prof_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        name: name,
+        createdAt: Date.now(),
+        labelSize: settings.value.labelLayout?.labelSize || '30x20mm',
+        isBuiltIn: false,
+        elements: elements,
+        description: `Custom layout with ${elements.filter((e: any) => e.visible).length} elements`
+      };
+      savedLabelProfiles.value.push(newProfile);
+      activeLabelProfileId.value = newProfile.id;
+      persistUserLabelProfiles();
+      showSaveProfileModal.value = false;
+      showToast(`Profile "${name}" saved! Ready for 1-click loading.`);
+    }
+
+    function deleteUserLabelProfile(profileId: string) {
+      const prof = savedLabelProfiles.value.find(p => p.id === profileId);
+      if (!prof || prof.isBuiltIn) return;
+      savedLabelProfiles.value = savedLabelProfiles.value.filter(p => p.id !== profileId);
+      persistUserLabelProfiles();
+      if (activeLabelProfileId.value === profileId) {
+        activeLabelProfileId.value = 'reference_qr';
+      }
+      showToast(`Profile "${prof.name}" removed.`);
+    }
+
+    function downloadLabelCoordinates() {
+      const elements = labelElementsList.value;
+      const labelSize = settings.value.labelLayout?.labelSize || '30x20mm';
+      const widthDots = designerCanvasWidth.value;
+      const heightDots = designerCanvasHeight.value;
+      const activeProfileObj = savedLabelProfiles.value.find(p => p.id === activeLabelProfileId.value);
+      const profileTitle = activeProfileObj ? activeProfileObj.name : 'Custom Layout';
+
+      const exportData = {
+        appName: 'LiveSeller POS',
+        fileType: 'label_profile_coordinates',
+        version: 1,
+        profileName: profileTitle,
+        labelSize: labelSize,
+        canvasDots: {
+          width: widthDots,
+          height: heightDots,
+          dpi: 203,
+          dotsPerMm: 8
+        },
+        exportedAt: new Date().toISOString(),
+        elements: elements.map(el => ({
+          id: el.id,
+          name: el.name,
+          visible: el.visible,
+          x: el.x,
+          y: el.y,
+          x_mm: Math.round((el.x / 8) * 10) / 10,
+          y_mm: Math.round((el.y / 8) * 10) / 10,
+          width: el.width,
+          height: el.height,
+          fontSize: el.fontSize,
+          fontWeight: el.fontWeight,
+          align: el.align,
+          fontFamily: el.fontFamily || 'sans',
+          prefix: el.prefix || '',
+          suffix: el.suffix || '',
+          customText: el.customText || ''
+        }))
+      };
+
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = profileTitle.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'label_profile';
+      a.href = url;
+      a.download = `${safeName}_coordinates.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded coordinates for "${profileTitle}"!`);
+    }
+
+    function copyLabelCoordinatesJson() {
+      const exportData = {
+        appName: 'LiveSeller POS',
+        fileType: 'label_profile_coordinates',
+        profileName: 'Label Layout Coordinates',
+        labelSize: settings.value.labelLayout?.labelSize || '30x20mm',
+        canvasDots: {
+          width: designerCanvasWidth.value,
+          height: designerCanvasHeight.value
+        },
+        elements: labelElementsList.value
+      };
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      navigator.clipboard.writeText(jsonStr).then(() => {
+        showToast('Coordinates JSON copied to clipboard!');
+      }).catch(() => {
+        showToast('Failed to copy. Please use Download button.');
+      });
+    }
+
+    function handleProfileFileImport(file: File) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          loadCoordinatesFromJsonString(text, file.name.replace(/\.json$/i, ''));
+        } catch (err: any) {
+          showToast(`Invalid coordinates file: ${err.message || err}`);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function onProfileFileInputChange(event: Event) {
+      const target = event.target as HTMLInputElement;
+      const file = target?.files?.[0];
+      if (file) {
+        handleProfileFileImport(file);
+        target.value = '';
+      }
+    }
+
+    function onProfileFileDrop(event: DragEvent) {
+      const file = event.dataTransfer?.files?.[0];
+      if (file) {
+        handleProfileFileImport(file);
+      }
+    }
+
+    function loadCoordinatesFromJsonString(jsonStr: string, defaultName = 'Imported Profile') {
+      const parsed = JSON.parse(jsonStr);
+      let elements: VisualLabelElement[] | null = null;
+      let importedName = defaultName;
+      let importedSize = '30x20mm';
+
+      if (Array.isArray(parsed)) {
+        elements = parsed;
+      } else if (parsed && Array.isArray(parsed.elements)) {
+        elements = parsed.elements;
+        if (parsed.profileName) importedName = parsed.profileName;
+        if (parsed.labelSize) importedSize = parsed.labelSize;
+      } else if (parsed && Array.isArray(parsed.customElements)) {
+        elements = parsed.customElements;
+        if (parsed.profileName) importedName = parsed.profileName;
+        if (parsed.labelSize) importedSize = parsed.labelSize;
+      }
+
+      if (!elements || elements.length === 0) {
+        throw new Error('No valid label elements or coordinates found in JSON.');
+      }
+
+      const mergedElements = defaultLabelElements.map(def => {
+        const found = elements!.find(e => e.id === def.id);
+        if (found) {
+          return {
+            ...def,
+            ...found,
+            x: typeof found.x === 'number' ? found.x : def.x,
+            y: typeof found.y === 'number' ? found.y : def.y,
+            visible: typeof found.visible === 'boolean' ? found.visible : def.visible,
+            fontSize: found.fontSize || def.fontSize,
+            fontWeight: found.fontWeight || def.fontWeight,
+            align: found.align || def.align,
+            fontFamily: found.fontFamily || def.fontFamily
+          };
+        }
+        return { ...def };
+      });
+
+      if (!settings.value.labelLayout) settings.value.labelLayout = { ...defaultLabelLayout };
+      settings.value.labelLayout.customElements = mergedElements;
+      if (importedSize) settings.value.labelLayout.labelSize = importedSize as any;
+      saveSettings(true);
+      updateSamplePreviewQr();
+
+      const newProf: SavedLabelProfile = {
+        id: 'prof_' + Date.now(),
+        name: importedName,
+        createdAt: Date.now(),
+        labelSize: importedSize,
+        isBuiltIn: false,
+        elements: mergedElements,
+        description: `Imported with ${mergedElements.filter(e => e.visible).length} active elements`
+      };
+      savedLabelProfiles.value.push(newProf);
+      activeLabelProfileId.value = newProf.id;
+      persistUserLabelProfiles();
+
+      showToast(`Successfully loaded coordinates: "${importedName}"!`);
+    }
+
+    function setElementAlign(elem: VisualLabelElement, newAlign: 'left' | 'center' | 'right') {
+      if (!elem || elem.align === newAlign) return;
+      const canvasW = designerCanvasWidth.value;
+      const elW = elem.width || (elem.id === 'qrCode' ? 88 : 40);
+
+      if (!elem.width) {
+        let visualLeft = elem.x;
+        if (elem.align === 'right') visualLeft = elem.x - elW;
+        else if (elem.align === 'center') visualLeft = elem.x - Math.round(elW / 2);
+
+        if (newAlign === 'left') {
+          elem.x = Math.max(0, Math.min(canvasW - elW, visualLeft));
+        } else if (newAlign === 'center') {
+          elem.x = Math.max(Math.round(elW / 2), Math.min(canvasW - Math.round(elW / 2), visualLeft + Math.round(elW / 2)));
+        } else if (newAlign === 'right') {
+          elem.x = Math.max(elW, Math.min(canvasW, visualLeft + elW));
+        }
+      }
+      elem.align = newAlign;
+      saveSettings(true);
+    }
+
     function onElementPointerDown(elemId: string, event: MouseEvent | TouchEvent) {
       designerSelectedId.value = elemId;
       designerIsDragging.value = true;
@@ -1781,7 +2098,13 @@ const app = createApp({
         const elW = elem.width || (elem.id === 'qrCode' ? 88 : 40);
         const elH = elem.height || (elem.id === 'qrCode' ? 88 : 18);
 
-        elem.x = Math.max(0, Math.min(maxW - elW, targetX));
+        if (elem.align === 'right' && !elem.width) {
+          elem.x = Math.max(elW, Math.min(maxW, targetX));
+        } else if (elem.align === 'center' && !elem.width) {
+          elem.x = Math.max(Math.round(elW / 2), Math.min(maxW - Math.round(elW / 2), targetX));
+        } else {
+          elem.x = Math.max(0, Math.min(maxW - elW, targetX));
+        }
         elem.y = Math.max(0, Math.min(maxH - elH, targetY));
         saveSettings(false);
       };
@@ -1809,12 +2132,19 @@ const app = createApp({
       const elW = elem.width || (elem.id === 'qrCode' ? 88 : 40);
       const elH = elem.height || (elem.id === 'qrCode' ? 88 : 18);
 
-      if (alignment === 'left') elem.x = 8;
-      else if (alignment === 'center-h') elem.x = Math.max(0, Math.round((canvasW - elW) / 2));
-      else if (alignment === 'right') elem.x = Math.max(0, canvasW - elW - 8);
-      else if (alignment === 'top') elem.y = 8;
-      else if (alignment === 'center-v') elem.y = Math.max(0, Math.round((canvasH - elH) / 2));
-      else if (alignment === 'bottom') elem.y = Math.max(0, canvasH - elH - 8);
+      if (alignment === 'left') {
+        elem.x = (elem.align === 'right' && !elem.width) ? elW + 8 : (elem.align === 'center' && !elem.width ? Math.round(elW / 2) + 8 : 8);
+      } else if (alignment === 'center-h') {
+        elem.x = (elem.align === 'center' && !elem.width) ? Math.round(canvasW / 2) : Math.max(0, Math.round((canvasW - elW) / 2));
+      } else if (alignment === 'right') {
+        elem.x = (elem.align === 'right' && !elem.width) ? canvasW - 8 : Math.max(0, canvasW - elW - 8);
+      } else if (alignment === 'top') {
+        elem.y = 8;
+      } else if (alignment === 'center-v') {
+        elem.y = Math.max(0, Math.round((canvasH - elH) / 2));
+      } else if (alignment === 'bottom') {
+        elem.y = Math.max(0, canvasH - elH - 8);
+      }
 
       saveSettings(true);
       showToast(`Aligned ${elem.name} to ${alignment}`);
@@ -1825,9 +2155,16 @@ const app = createApp({
       if (!elem) return;
       const canvasW = designerCanvasWidth.value;
       const canvasH = designerCanvasHeight.value;
-      const elW = elem.width || 30;
-      const elH = elem.height || 16;
-      elem.x = Math.max(0, Math.min(canvasW - elW, elem.x + dx));
+      const elW = elem.width || (elem.id === 'qrCode' ? 88 : 40);
+      const elH = elem.height || (elem.id === 'qrCode' ? 88 : 18);
+
+      if (elem.align === 'right' && !elem.width) {
+        elem.x = Math.max(elW, Math.min(canvasW, elem.x + dx));
+      } else if (elem.align === 'center' && !elem.width) {
+        elem.x = Math.max(Math.round(elW / 2), Math.min(canvasW - Math.round(elW / 2), elem.x + dx));
+      } else {
+        elem.x = Math.max(0, Math.min(canvasW - elW, elem.x + dx));
+      }
       elem.y = Math.max(0, Math.min(canvasH - elH, elem.y + dy));
       saveSettings(false);
     }
@@ -1842,6 +2179,8 @@ const app = createApp({
 
     function applyDesignerLabelPreset(presetName: string) {
       if (!settings.value.labelLayout) settings.value.labelLayout = { ...defaultLabelLayout };
+
+      activeLabelProfileId.value = presetName;
 
       if (presetName === 'reference_qr') {
         settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(defaultLabelElements));
@@ -1861,7 +2200,7 @@ const app = createApp({
         const price = elems.find((e: any) => e.id === 'price');
         if (price) { price.x = 10; price.y = 132; price.fontSize = 18; }
         const time = elems.find((e: any) => e.id === 'time');
-        if (time) { time.x = 160; time.y = 132; }
+        if (time) { time.x = 232; time.y = 10; time.align = 'right'; }
         settings.value.labelLayout.customElements = elems;
         showToast('Applied Centered Barcode Layout!');
       } else if (presetName === 'minimal_text') {
@@ -1873,7 +2212,7 @@ const app = createApp({
         const code = elems.find((e: any) => e.id === 'controlCode');
         if (code) { code.x = 10; code.y = 10; code.fontSize = 18; }
         const time = elems.find((e: any) => e.id === 'time');
-        if (time) { time.x = 160; time.y = 12; }
+        if (time) { time.x = 232; time.y = 10; time.align = 'right'; }
         const buyer = elems.find((e: any) => e.id === 'buyer');
         if (buyer) { buyer.x = 10; buyer.y = 44; buyer.fontSize = 22; buyer.fontWeight = 'black'; }
         const tag = elems.find((e: any) => e.id === 'tag');
@@ -3090,6 +3429,7 @@ const app = createApp({
     }
 
     onMounted(() => {
+      initSavedLabelProfiles();
       checkAndApplyDailyRollover();
       syncActiveStoreForm();
       nextTick(() => {
@@ -3404,7 +3744,24 @@ const app = createApp({
       resetReceiptDesigner,
       previousTab,
       openDesigner,
-      exitDesigner
+      exitDesigner,
+      savedLabelProfiles,
+      activeLabelProfileId,
+      showSaveProfileModal,
+      newProfileName,
+      showPasteCoordinatesModal,
+      pasteCoordinatesText,
+      loadLabelProfile,
+      openSaveProfileModal,
+      confirmSaveCurrentLabelProfile,
+      deleteUserLabelProfile,
+      downloadLabelCoordinates,
+      copyLabelCoordinatesJson,
+      handleProfileFileImport,
+      onProfileFileInputChange,
+      onProfileFileDrop,
+      loadCoordinatesFromJsonString,
+      setElementAlign
     };
   }
 });

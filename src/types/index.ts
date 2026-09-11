@@ -100,6 +100,16 @@ export interface VisualLabelElement {
   customText?: string;
 }
 
+export interface SavedLabelProfile {
+  id: string;
+  name: string;
+  createdAt: number;
+  labelSize: string;
+  isBuiltIn?: boolean;
+  elements: VisualLabelElement[];
+  description?: string;
+}
+
 export interface VisualReceiptSection {
   id: string; // 'storeName' | 'title' | 'sessionDate' | 'buyer' | 'status' | 'itemsTable' | 'totals' | 'qcCheckbox' | 'paymentDetails' | 'footer'
   name: string;
