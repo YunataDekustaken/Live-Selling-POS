@@ -227,6 +227,39 @@ export async function fetchR2ConfigFromSupabase(): Promise<string | null> {
   return null;
 }
 
+export async function syncAppSettingsToSupabase(settingsJson: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !settingsJson) return;
+  try {
+    await client.from('customer_notes').upsert([{
+      profile_id: '_meta_',
+      buyer: '__app_settings__',
+      notes: settingsJson
+    }]);
+  } catch (e) {
+    console.warn('Supabase app settings sync notice:', e);
+  }
+}
+
+export async function fetchAppSettingsFromSupabase(): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return null;
+  try {
+    const { data, error } = await client
+      .from('customer_notes')
+      .select('notes')
+      .eq('profile_id', '_meta_')
+      .eq('buyer', '__app_settings__')
+      .limit(1);
+    if (!error && data && data.length > 0 && data[0].notes) {
+      return data[0].notes;
+    }
+  } catch (e) {
+    console.warn('fetchAppSettingsFromSupabase notice:', e);
+  }
+  return null;
+}
+
 export async function pushSinglePaymentToSupabase(payment: PaymentRecord, activeProfileId: string) {
   const client = getSupabaseClient();
   if (!client || !navigator.onLine) return;

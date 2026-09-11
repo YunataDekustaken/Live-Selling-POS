@@ -31,7 +31,9 @@ import {
   pushSinglePaymentToSupabase,
   pushCustomerNoteToSupabase,
   syncR2ConfigToSupabase,
-  fetchR2ConfigFromSupabase
+  fetchR2ConfigFromSupabase,
+  syncAppSettingsToSupabase,
+  fetchAppSettingsFromSupabase
 } from './utils/supabase';
 import {
   isWebBluetoothSupported,
@@ -959,6 +961,50 @@ const app = createApp({
         }
 
         saveProfileData(activeProfileId.value);
+
+        // Sync app settings (including photo retention & auto-cleanup) across devices
+        try {
+          const cloudSettingsJson = await fetchAppSettingsFromSupabase();
+          if (cloudSettingsJson) {
+            const parsed = JSON.parse(cloudSettingsJson);
+            if (parsed && typeof parsed === 'object') {
+              let changed = false;
+              if (parsed.photoRetention && parsed.photoRetention !== settings.value.photoRetention) {
+                settings.value.photoRetention = parsed.photoRetention;
+                changed = true;
+              }
+              if (parsed.autoCleanOldPhotos !== undefined && parsed.autoCleanOldPhotos !== settings.value.autoCleanOldPhotos) {
+                settings.value.autoCleanOldPhotos = parsed.autoCleanOldPhotos;
+                changed = true;
+              }
+              if (parsed.printerPaperWidth && parsed.printerPaperWidth !== settings.value.printerPaperWidth) {
+                settings.value.printerPaperWidth = parsed.printerPaperWidth;
+                changed = true;
+              }
+              if (parsed.escPosDirectPrint !== undefined && parsed.escPosDirectPrint !== settings.value.escPosDirectPrint) {
+                settings.value.escPosDirectPrint = parsed.escPosDirectPrint;
+                changed = true;
+              }
+              if (parsed.autoPrint !== undefined && parsed.autoPrint !== settings.value.autoPrint) {
+                settings.value.autoPrint = parsed.autoPrint;
+                changed = true;
+              }
+              if (parsed.soundEnabled !== undefined && parsed.soundEnabled !== settings.value.soundEnabled) {
+                settings.value.soundEnabled = parsed.soundEnabled;
+                changed = true;
+              }
+              if (parsed.miningFieldsOrder && Array.isArray(parsed.miningFieldsOrder)) {
+                settings.value.miningFieldsOrder = parsed.miningFieldsOrder;
+                changed = true;
+              }
+              if (changed) {
+                safeSetItem('live_pos_settings', settings.value);
+              }
+            }
+          }
+        } catch (settingsSyncErr) {
+          console.warn('App settings sync notice:', settingsSyncErr);
+        }
 
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         lastSyncedAt.value = nowTime;
@@ -2328,10 +2374,15 @@ const app = createApp({
       settingsModalOpen.value = true;
       appMenuOpen.value = false;
     }
-    function saveSettings(showToastMessage = false) {
+    async function saveSettings(showToastMessage = false) {
       safeSetItem('live_pos_settings', settings.value);
+      try {
+        await syncAppSettingsToSupabase(JSON.stringify(settings.value));
+      } catch (e) {
+        console.warn('Sync settings error:', e);
+      }
       if (showToastMessage) {
-        showToast('Overall settings saved');
+        showToast('Settings saved & synced across devices');
       }
     }
 
