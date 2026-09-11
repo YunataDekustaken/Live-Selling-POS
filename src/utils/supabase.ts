@@ -466,3 +466,129 @@ export async function fetchSecurityPinFromSupabase(): Promise<string | null> {
   }
   return null;
 }
+
+export async function clearCloudDataForProfile(profileId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profileId) return;
+  try {
+    // 1. Delete all mined_items for this profile
+    await client.from('mined_items').delete().eq('profile_id', profileId);
+    // 2. Delete all customer_payments for this profile
+    await client.from('customer_payments').delete().eq('profile_id', profileId);
+    // 3. Delete customer_notes for this profile
+    await client.from('customer_notes').delete().eq('profile_id', profileId);
+    // 4. Upsert reset meta marker with wipedAt timestamp
+    await client.from('customer_notes').upsert([{
+      profile_id: profileId,
+      buyer: '__store_meta__',
+      notes: JSON.stringify({
+        sequence: 1,
+        sessionDate: '',
+        wipedAt: Date.now()
+      })
+    }]);
+  } catch (e) {
+    console.warn('clearCloudDataForProfile error:', e);
+  }
+}
+
+export async function clearAllCloudData(allProfileIds: string[]) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return;
+  try {
+    for (const pid of allProfileIds) {
+      await clearCloudDataForProfile(pid);
+    }
+  } catch (e) {
+    console.warn('clearAllCloudData error:', e);
+  }
+}
+
+export async function replaceCloudDataWithBackup(params: {
+  profileId: string;
+  mines: MinedItem[];
+  payments: PaymentRecord[];
+  notes: Record<string, string>;
+  sequence: number;
+  sessionDate: string;
+}) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !params.profileId) return;
+  try {
+    const { profileId, mines, payments, notes, sequence, sessionDate } = params;
+
+    // 1. First wipe existing records for this profile in cloud so stale/deleted items don't linger
+    await client.from('mined_items').delete().eq('profile_id', profileId);
+    await client.from('customer_payments').delete().eq('profile_id', profileId);
+    await client.from('customer_notes').delete().eq('profile_id', profileId);
+
+    // 2. Upsert store metadata
+    await client.from('customer_notes').upsert([{
+      profile_id: profileId,
+      buyer: '__store_meta__',
+      notes: JSON.stringify({
+        sequence: sequence || 1,
+        sessionDate: sessionDate || '',
+        wipedAt: Date.now()
+      })
+    }]);
+
+    // 3. Upsert restored mines in batches
+    if (mines && mines.length > 0) {
+      for (let i = 0; i < mines.length; i += 100) {
+        const chunk = mines.slice(i, i + 100).map(m => ({
+          id: m.id,
+          profile_id: profileId,
+          session_date: m.date || sessionDate,
+          control_code: m.controlCode,
+          tag: m.description || m.tag || '',
+          price: m.price,
+          buyer: m.buyer,
+          timestamp: String(m.timestamp || Date.now())
+        }));
+        await client.from('mined_items').upsert(chunk);
+      }
+
+      // Sync photos for restored mines
+      const photosToPush = mines
+        .filter(m => m.photo && m.photo.trim() !== '')
+        .map(m => ({ mineId: m.id, photo: m.photo! }));
+      if (photosToPush.length > 0) {
+        await batchPushPhotosToSupabase(photosToPush, profileId);
+      }
+    }
+
+    // 4. Upsert restored payments in batches
+    if (payments && payments.length > 0) {
+      for (let i = 0; i < payments.length; i += 100) {
+        const chunk = payments.slice(i, i + 100).map(p => ({
+          id: p.id,
+          profile_id: profileId,
+          buyer: p.buyer,
+          amount: p.amount,
+          method: p.method,
+          reference: p.ref || '',
+          timestamp: String(p.timestamp || Date.now())
+        }));
+        await client.from('customer_payments').upsert(chunk);
+      }
+    }
+
+    // 5. Upsert restored customer notes
+    if (notes && typeof notes === 'object') {
+      const notePayloads = Object.entries(notes)
+        .filter(([buyer]) => !buyer.startsWith('__'))
+        .map(([buyer, noteText]) => ({
+          profile_id: profileId,
+          buyer,
+          notes: noteText
+        }));
+      if (notePayloads.length > 0) {
+        await client.from('customer_notes').upsert(notePayloads);
+      }
+    }
+  } catch (e) {
+    console.warn('replaceCloudDataWithBackup error:', e);
+  }
+}
+

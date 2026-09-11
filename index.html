@@ -274,7 +274,7 @@
 
                 <!-- Undo Last Import button (Shown when rollback snapshot is available) -->
                 <button 
-                  v-if="lastImportSnapshot"
+                  v-if="lastImportSnapshot && lastImportSnapshot.previousState"
                   @click="undoLastImport(); appMenuOpen = false"
                   class="w-full flex items-center justify-between p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 text-left transition-colors cursor-pointer shadow-2xs animate-fadeIn">
                   <div class="flex items-center space-x-2">
@@ -1639,6 +1639,16 @@
               </button>
             </div>
 
+            <!-- Bulk Selection Mode Toggle Button -->
+            <button 
+              @click="toggleBulkSelectCustomerMode" 
+              type="button" 
+              class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center space-x-1 cursor-pointer"
+              :class="isBulkSelectCustomerMode ? 'bg-zinc-900 text-amber-300 font-semibold shadow-xs' : 'bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50'">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+              <span>{{ isBulkSelectCustomerMode ? 'Done Selecting' : 'Select / Bulk' }}</span>
+            </button>
+
             <!-- View Switcher -->
             <div class="inline-flex rounded-lg border border-zinc-200 bg-zinc-100 p-0.5 text-xs">
               <button 
@@ -1659,6 +1669,31 @@
           </div>
         </div>
 
+        <!-- Bulk Selection Action Bar (Customer Balances) -->
+        <div v-if="isBulkSelectCustomerMode && selectedCustomersCount > 0" class="p-3 bg-zinc-900 text-white rounded-xl flex items-center justify-between shadow-md flex-wrap gap-2 animate-fadeIn border border-zinc-800">
+          <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">
+            <span class="w-5 h-5 rounded-full bg-red-500/20 text-red-300 font-bold flex items-center justify-center text-[11px]">{{ selectedCustomersCount }}</span>
+            <span class="font-semibold">{{ selectedCustomersCount }} customer{{ selectedCustomersCount === 1 ? '' : 's' }} selected</span>
+            <span class="text-zinc-400">• Total Amount: <strong class="text-white font-mono">{{ activeProfile.currency }}{{ selectedCustomersTotalAmount.toFixed(2) }}</strong></span>
+            <span class="text-zinc-400">• Balance: <strong class="text-amber-300 font-mono">{{ activeProfile.currency }}{{ selectedCustomersTotalBalance.toFixed(2) }}</strong></span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button 
+              @click="deleteBulkCustomers" 
+              type="button" 
+              class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all flex items-center space-x-1 shadow-xs cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              <span>Void / Delete Selected ({{ selectedCustomersCount }})</span>
+            </button>
+            <button 
+              @click="clearSelectedCustomers" 
+              type="button" 
+              class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors cursor-pointer">
+              Clear
+            </button>
+          </div>
+        </div>
+
         <!-- Empty State -->
         <div v-if="filteredBuyerBaskets.length === 0" class="bg-white border border-dashed border-zinc-200 rounded-xl p-8 text-center text-zinc-400">
           <p class="text-sm font-semibold text-zinc-700">No customer records found</p>
@@ -1674,6 +1709,15 @@
             <table class="w-full text-left text-xs border-collapse">
               <thead>
                 <tr class="bg-zinc-50 border-b border-zinc-200 text-zinc-600 font-semibold uppercase text-[10px] tracking-wider">
+                  <th v-if="isBulkSelectCustomerMode" class="py-2.5 px-3 w-8 text-center">
+                    <input 
+                      type="checkbox" 
+                      :checked="isAllCustomersSelected" 
+                      @change="toggleSelectAllCustomers" 
+                      class="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer" 
+                      title="Select / Deselect all filtered customers"
+                    />
+                  </th>
                   <th class="py-2.5 px-3">Customer</th>
                   <th class="py-2.5 px-3">Date Issued</th>
                   <th class="py-2.5 px-3 text-right">Total Amount</th>
@@ -1686,7 +1730,17 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-zinc-200">
-                <tr v-for="b in filteredBuyerBaskets" :key="b.handle" class="hover:bg-zinc-50/60 transition-colors">
+                <tr v-for="b in filteredBuyerBaskets" :key="b.handle" class="hover:bg-zinc-50/60 transition-colors" :class="isBulkSelectCustomerMode && selectedCustomerHandles.includes(b.handle) ? 'bg-red-50/30' : ''">
+                  <!-- Bulk Selection Checkbox -->
+                  <td v-if="isBulkSelectCustomerMode" class="py-2.5 px-3 w-8 text-center" @click.stop>
+                    <input 
+                      type="checkbox" 
+                      :checked="selectedCustomerHandles.includes(b.handle)" 
+                      @click.stop="toggleSelectCustomer(b.handle)" 
+                      class="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer" 
+                    />
+                  </td>
+
                   <!-- 1. Customer -->
                   <td class="py-2.5 px-3 whitespace-nowrap font-medium text-zinc-900">
                     <div class="flex items-center space-x-2">
@@ -1771,8 +1825,7 @@
                       <button 
                         @click="generatePhotoCollage(b)" 
                         title="Generate 1-Tap Photo Collage"
-                        class="p-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[11px]" 
-                        title="Generate Photo Collage">
+                        class="p-1 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-[11px]">
                         🖼️
                       </button>
 
@@ -1805,10 +1858,18 @@
           <div 
             v-for="b in filteredBuyerBaskets" 
             :key="b.handle" 
-            class="bg-white border border-zinc-200 rounded-xl p-4 shadow-xs space-y-3">
+            class="bg-white border rounded-xl p-4 shadow-xs space-y-3 transition-colors"
+            :class="isBulkSelectCustomerMode && selectedCustomerHandles.includes(b.handle) ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'">
             
             <div class="flex items-start justify-between">
               <div class="flex items-center space-x-2.5">
+                <input 
+                  v-if="isBulkSelectCustomerMode"
+                  type="checkbox" 
+                  :checked="selectedCustomerHandles.includes(b.handle)" 
+                  @click.stop="toggleSelectCustomer(b.handle)" 
+                  class="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer mr-1" 
+                />
                 <div class="w-9 h-9 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center font-bold text-zinc-700 text-sm">
                   {{ b.displayName.charAt(0).toUpperCase() }}
                 </div>
@@ -1918,96 +1979,141 @@
           </div>
         </div>
 
-        <!-- Controls: Search, Category Filter, and Export Notion CSV -->
-        <div class="space-y-2">
-          <div class="flex flex-col sm:flex-row sm:items-center gap-2">
-            <div class="relative flex-1">
-              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 text-sm">
+        <!-- Controls: Organized, Minimal & Clean Toolbar (2-Tier Design) -->
+        <div class="space-y-2.5">
+          <!-- Tier 1: Search + Unified Action Controls -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <!-- Search Box -->
+            <div class="relative flex-1 min-w-[200px]">
+              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               </span>
               <input 
                 v-model="minedItemsSearchQuery" 
                 type="text" 
                 placeholder="Search by customer, tag, control #, or description..." 
-                class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-xl pl-9 pr-4 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors"
+                class="w-full bg-white border border-zinc-200 focus:border-zinc-900 rounded-xl pl-9 pr-8 py-2 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors shadow-2xs"
               />
               <button 
                 v-if="minedItemsSearchQuery" 
                 @click="minedItemsSearchQuery = ''" 
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 p-1 text-xs">
+                class="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 p-0.5 text-xs">
                 ✕
               </button>
             </div>
 
-            <!-- Notion Export Button -->
-            <button 
-              @click="exportNotionMinedItemsCsv"
-              type="button"
-              class="py-2 px-3 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-semibold flex items-center justify-center space-x-1.5 transition-colors whitespace-nowrap shadow-xs">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-              <span>Export Notion CSV</span>
-            </button>
+            <!-- Compact Action Controls -->
+            <div class="flex items-center space-x-1.5 flex-wrap sm:flex-nowrap gap-y-1.5 shrink-0">
+              
+              <!-- Date Filter Popover Trigger Button -->
+              <button 
+                @click="openMinedDateFilterModal" 
+                type="button" 
+                title="Filter by Date or Date Range"
+                class="px-2.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors flex items-center space-x-1.5 cursor-pointer shadow-2xs border"
+                :class="minedItemsFilterDate !== 'all' || minedItemsDateFrom || minedItemsDateTo ? 'bg-zinc-900 text-white border-zinc-900 font-semibold' : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'">
+                <svg class="w-3.5 h-3.5" :class="minedItemsFilterDate !== 'all' ? 'text-amber-400' : 'text-zinc-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span>{{ dateRangeLabel || 'All Dates' }}</span>
+                <span v-if="minedItemsFilterDate !== 'all'" @click.stop="clearDateRangeFilter" class="ml-1 text-[10px] text-zinc-400 hover:text-white" title="Reset date filter">✕</span>
+              </button>
+
+              <!-- Compact Sort Dropdown -->
+              <div class="relative inline-flex items-center">
+                <select 
+                  v-model="minedItemsSortKey"
+                  class="appearance-none bg-white border border-zinc-200 hover:border-zinc-300 text-zinc-700 text-xs rounded-xl pl-7 pr-7 py-2 font-medium focus:outline-none focus:border-zinc-900 cursor-pointer shadow-2xs transition-colors">
+                  <option value="date_desc">Date (Newest)</option>
+                  <option value="date_asc">Date (Oldest)</option>
+                  <option value="price_desc">Price (High → Low)</option>
+                  <option value="price_asc">Price (Low → High)</option>
+                  <option value="control_asc">Control # (1 → 99)</option>
+                  <option value="control_desc">Control # (99 → 1)</option>
+                  <option value="buyer_asc">Customer (A → Z)</option>
+                  <option value="buyer_desc">Customer (Z → A)</option>
+                </select>
+                <svg class="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" /></svg>
+                <svg class="w-3 h-3 text-zinc-400 absolute right-2.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+              </div>
+
+              <!-- Bulk Selection Mode Toggle Button -->
+              <button 
+                @click="toggleBulkSelectMinedMode"
+                type="button"
+                class="px-2.5 py-2 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition-colors whitespace-nowrap shadow-2xs cursor-pointer border"
+                :class="isBulkSelectMinedMode ? 'bg-zinc-900 text-amber-300 border-zinc-900 shadow-xs' : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                <span>{{ isBulkSelectMinedMode ? 'Done' : 'Select' }}</span>
+              </button>
+
+              <!-- Notion Export Button -->
+              <button 
+                @click="exportNotionMinedItemsCsv"
+                type="button"
+                title="Export Mined Items to Notion CSV"
+                class="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-semibold flex items-center space-x-1.5 transition-colors whitespace-nowrap shadow-xs cursor-pointer">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <span class="hidden sm:inline">Export Notion CSV</span>
+                <span class="sm:hidden">Export</span>
+              </button>
+
+            </div>
           </div>
 
-          <!-- Date Filter Controls -->
-          <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
-            <span class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1 shrink-0 mr-1">
-              <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              Date:
-            </span>
-
-            <button 
-              @click="minedItemsFilterDate = 'all'; minedItemsCustomDate = ''" 
-              class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
-              :class="minedItemsFilterDate === 'all' ? 'bg-zinc-900 text-white font-semibold' : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'">
-              All Dates
-            </button>
-
-            <button 
-              @click="minedItemsFilterDate = 'today'" 
-              class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
-              :class="minedItemsFilterDate === 'today' ? 'bg-zinc-900 text-white font-semibold' : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'">
-              Today
-            </button>
-
-            <button 
-              @click="minedItemsFilterDate = 'yesterday'" 
-              class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
-              :class="minedItemsFilterDate === 'yesterday' ? 'bg-zinc-900 text-white font-semibold' : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'">
-              Yesterday
-            </button>
-
-            <!-- Custom Calendar Picker -->
-            <div class="inline-flex items-center space-x-1 shrink-0">
-              <input 
-                type="date" 
-                v-model="minedItemsCustomDate"
-                @change="minedItemsFilterDate = 'custom'"
-                class="bg-white border border-zinc-300 text-zinc-700 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-zinc-900 cursor-pointer shadow-2xs font-mono"
-                title="Select specific date"
-              />
+          <!-- Tier 2: Category Filter Pills + Live Filter Counter -->
+          <div class="flex items-center justify-between gap-2 overflow-x-auto pb-0.5 pt-0.5">
+            <!-- Category Pills -->
+            <div class="flex items-center space-x-1">
+              <button 
+                v-for="cat in ['All', ...(activeProfile.defaultCategories || [])]"
+                :key="cat"
+                @click="minedItemsFilterCategory = cat"
+                class="px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+                :class="minedItemsFilterCategory === cat ? 'bg-zinc-900 text-white font-semibold shadow-2xs' : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'">
+                {{ cat }}
+              </button>
             </div>
 
-            <!-- Clear/Reset Date filter -->
-            <button 
-              v-if="minedItemsFilterDate !== 'all'"
-              @click="minedItemsFilterDate = 'all'; minedItemsCustomDate = ''"
-              type="button"
-              title="Reset date filter"
-              class="px-2 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-semibold transition-colors shrink-0">
-              ✕ Clear Date
-            </button>
+            <!-- Counter & Clear Filters Action -->
+            <div class="flex items-center space-x-2 text-[11px] text-zinc-500 whitespace-nowrap pl-2">
+              <span>{{ filteredMinedItems.length }} of {{ allMines.length }} items</span>
+              <button 
+                v-if="isMinedFiltered" 
+                @click="resetAllMinedFilters" 
+                type="button" 
+                class="text-xs text-red-600 hover:text-red-700 font-semibold underline cursor-pointer">
+                Clear filters
+              </button>
+            </div>
           </div>
+        </div>
 
-          <!-- Category Filter Pills -->
-          <div class="flex space-x-1 overflow-x-auto pb-0.5">
+        <!-- Bulk Selection Action Bar (Mined Items) -->
+        <div v-if="isBulkSelectMinedMode && selectedMinesCount > 0" class="p-3 bg-zinc-900 text-white rounded-xl flex items-center justify-between shadow-md flex-wrap gap-2 animate-fadeIn border border-zinc-800">
+          <div class="flex items-center space-x-2 text-xs flex-wrap gap-y-1">
+            <span class="w-5 h-5 rounded-full bg-red-500/20 text-red-300 font-bold flex items-center justify-center text-[11px]">{{ selectedMinesCount }}</span>
+            <span class="font-semibold">{{ selectedMinesCount }} item{{ selectedMinesCount === 1 ? '' : 's' }} selected</span>
+            <span class="text-zinc-400">• Total Amount: <strong class="text-white font-mono">{{ activeProfile.currency }}{{ selectedMinesTotalAmount.toFixed(2) }}</strong></span>
+          </div>
+          <div class="flex items-center space-x-2">
             <button 
-              v-for="cat in ['All', ...(activeProfile.defaultCategories || [])]"
-              :key="cat"
-              @click="minedItemsFilterCategory = cat"
-              class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
-              :class="minedItemsFilterCategory === cat ? 'bg-zinc-900 text-white font-semibold' : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'">
-              {{ cat }}
+              @click="deleteBulkMines" 
+              type="button" 
+              class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-bold transition-all flex items-center space-x-1 shadow-xs cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              <span>Void / Delete Selected ({{ selectedMinesCount }})</span>
+            </button>
+            <button 
+              @click="printBulkStickers" 
+              type="button" 
+              class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold transition-colors flex items-center space-x-1 cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              <span>Print ({{ selectedMinesCount }})</span>
+            </button>
+            <button 
+              @click="clearSelectedMines" 
+              type="button" 
+              class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors cursor-pointer">
+              Clear
             </button>
           </div>
         </div>
@@ -2024,17 +2130,76 @@
             <table class="w-full text-left text-xs border-collapse">
               <thead>
                 <tr class="bg-zinc-50 border-b border-zinc-200 text-zinc-600 font-semibold uppercase text-[10px] tracking-wider">
+                  <th v-if="isBulkSelectMinedMode" class="py-2.5 px-3 w-8 text-center">
+                    <input 
+                      type="checkbox" 
+                      :checked="isAllMinesSelected" 
+                      @change="toggleSelectAllMines" 
+                      class="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer" 
+                      title="Select / Deselect all filtered items"
+                    />
+                  </th>
                   <th class="py-2.5 px-3">Photo</th>
-                  <th class="py-2.5 px-3">Control #</th>
-                  <th class="py-2.5 px-3">Customer</th>
-                  <th class="py-2.5 px-3">Date</th>
+                  <th 
+                    @click="toggleMinedSort('control')" 
+                    class="py-2.5 px-3 cursor-pointer hover:text-zinc-900 transition-colors select-none">
+                    <div class="flex items-center space-x-1">
+                      <span>Control #</span>
+                      <span v-if="minedItemsSortBy === 'control'" class="text-zinc-900 font-bold">
+                        {{ minedItemsSortOrder === 'asc' ? '▲' : '▼' }}
+                      </span>
+                      <span v-else class="text-zinc-300">⇅</span>
+                    </div>
+                  </th>
+                  <th 
+                    @click="toggleMinedSort('buyer')" 
+                    class="py-2.5 px-3 cursor-pointer hover:text-zinc-900 transition-colors select-none">
+                    <div class="flex items-center space-x-1">
+                      <span>Customer</span>
+                      <span v-if="minedItemsSortBy === 'buyer'" class="text-zinc-900 font-bold">
+                        {{ minedItemsSortOrder === 'asc' ? '▲' : '▼' }}
+                      </span>
+                      <span v-else class="text-zinc-300">⇅</span>
+                    </div>
+                  </th>
+                  <th 
+                    @click="toggleMinedSort('date')" 
+                    class="py-2.5 px-3 cursor-pointer hover:text-zinc-900 transition-colors select-none">
+                    <div class="flex items-center space-x-1">
+                      <span>Date</span>
+                      <span v-if="minedItemsSortBy === 'date'" class="text-zinc-900 font-bold">
+                        {{ minedItemsSortOrder === 'asc' ? '▲' : '▼' }}
+                      </span>
+                      <span v-else class="text-zinc-300">⇅</span>
+                    </div>
+                  </th>
                   <th class="py-2.5 px-3">Item Name</th>
-                  <th class="py-2.5 px-3 text-right">Amount</th>
+                  <th 
+                    @click="toggleMinedSort('price')" 
+                    class="py-2.5 px-3 text-right cursor-pointer hover:text-zinc-900 transition-colors select-none">
+                    <div class="flex items-center justify-end space-x-1">
+                      <span>Amount</span>
+                      <span v-if="minedItemsSortBy === 'price'" class="text-zinc-900 font-bold">
+                        {{ minedItemsSortOrder === 'asc' ? '▲' : '▼' }}
+                      </span>
+                      <span v-else class="text-zinc-300">⇅</span>
+                    </div>
+                  </th>
                   <th class="py-2.5 px-3 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-zinc-200 font-mono">
-                <tr v-for="item in filteredMinedItems" :key="item.id" class="hover:bg-zinc-50/60 transition-colors">
+                <tr v-for="item in filteredMinedItems" :key="item.id" class="hover:bg-zinc-50/60 transition-colors" :class="isBulkSelectMinedMode && selectedMineIds.includes(item.id) ? 'bg-red-50/30' : ''">
+                  <!-- Bulk Selection Checkbox -->
+                  <td v-if="isBulkSelectMinedMode" class="py-2.5 px-3 w-8 text-center" @click.stop>
+                    <input 
+                      type="checkbox" 
+                      :checked="selectedMineIds.includes(item.id)" 
+                      @click.stop="toggleSelectMine(item.id)" 
+                      class="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer" 
+                    />
+                  </td>
+
                   <!-- 0. Photo Thumbnail -->
                   <td class="py-2 px-3 whitespace-nowrap">
                     <button 
@@ -5007,11 +5172,11 @@
 
             <!-- Undo Notion / CSV Data Import Rollback Section -->
             <div class="p-3.5 rounded-xl border transition-all"
-                 :class="lastImportSnapshot ? 'bg-amber-50/70 border-amber-300' : 'bg-zinc-50 border-zinc-200'">
+                 :class="(lastImportSnapshot && lastImportSnapshot.previousState) ? 'bg-amber-50/70 border-amber-300' : 'bg-zinc-50 border-zinc-200'">
               <div class="flex items-center justify-between mb-1.5">
                 <div class="flex items-center space-x-2">
                   <div class="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs"
-                       :class="lastImportSnapshot ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'">
+                       :class="(lastImportSnapshot && lastImportSnapshot.previousState) ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'">
                     ↩️
                   </div>
                   <div>
@@ -5019,7 +5184,7 @@
                     <div class="text-[10px] text-zinc-500">Rollback to state before last import</div>
                   </div>
                 </div>
-                <span v-if="lastImportSnapshot" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/80 text-amber-900 border border-amber-300">
+                <span v-if="lastImportSnapshot && lastImportSnapshot.previousState" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/80 text-amber-900 border border-amber-300">
                   Rollback Ready
                 </span>
                 <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 text-zinc-500 border border-zinc-200">
@@ -5027,7 +5192,7 @@
                 </span>
               </div>
 
-              <div v-if="lastImportSnapshot" class="space-y-2 mt-2 pt-2 border-t border-amber-200/80 text-xs">
+              <div v-if="lastImportSnapshot && lastImportSnapshot.previousState" class="space-y-2 mt-2 pt-2 border-t border-amber-200/80 text-xs">
                 <div class="bg-white/90 p-2.5 rounded-lg border border-amber-200 text-[11px] space-y-1">
                   <div class="flex justify-between">
                     <span class="text-zinc-500 font-medium">Import Timestamp:</span>
@@ -5041,7 +5206,7 @@
                   </div>
                   <div class="flex justify-between text-amber-900 font-medium">
                     <span>Restoration Target:</span>
-                    <span>{{ lastImportSnapshot.previousState.allMines ? lastImportSnapshot.previousState.allMines.length : 0 }} items, {{ lastImportSnapshot.previousState.allPayments ? lastImportSnapshot.previousState.allPayments.length : 0 }} payments</span>
+                    <span>{{ (lastImportSnapshot.previousState && lastImportSnapshot.previousState.allMines) ? lastImportSnapshot.previousState.allMines.length : 0 }} items, {{ (lastImportSnapshot.previousState && lastImportSnapshot.previousState.allPayments) ? lastImportSnapshot.previousState.allPayments.length : 0 }} payments</span>
                   </div>
                 </div>
 
@@ -6808,13 +6973,13 @@
         <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
 
           <!-- UNDO / ROLLBACK PREVIOUS IMPORT BANNER -->
-          <div v-if="lastImportSnapshot" class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs animate-fadeIn">
+          <div v-if="lastImportSnapshot && lastImportSnapshot.previousState" class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs animate-fadeIn">
             <div class="flex items-center space-x-2.5 min-w-0 pr-2">
               <span class="text-base shrink-0">↩️</span>
               <div class="min-w-0">
                 <div class="font-bold text-amber-950 truncate">Previous Import Snapshot Ready ({{ lastImportSnapshot.dateStr }})</div>
                 <div class="text-[10px] text-amber-800 truncate">
-                  Source: {{ lastImportSnapshot.fileNames.join(', ') || 'Notion CSV' }} • Click to revert to pre-import state.
+                  Source: {{ (lastImportSnapshot.fileNames && Array.isArray(lastImportSnapshot.fileNames)) ? lastImportSnapshot.fileNames.join(', ') : 'Notion CSV' }} • Click to revert to pre-import state.
                 </div>
               </div>
             </div>
@@ -7166,6 +7331,141 @@
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             <span>Import {{ importNotionCombinedData ? importNotionCombinedData.totalValidRows + ' Records (' + importNotionCombinedData.totalFiles + ' Files)' : 'Records' }} into POS</span>
           </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL: MINED ITEMS DATE RANGE PICKER (FROM & TO POPUP)          -->
+    <!-- =============================================================== -->
+    <div v-if="minedItemsDateFilterModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" @click.self="closeMinedDateFilterModal">
+      <div class="bg-white rounded-2xl max-w-md w-full overflow-hidden shadow-2xl border border-zinc-200 animate-scaleUp">
+        
+        <!-- Header -->
+        <div class="px-5 py-4 bg-zinc-900 text-white flex items-center justify-between">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-amber-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            <div>
+              <h3 class="font-bold text-sm">Filter by Date Range</h3>
+              <p class="text-[11px] text-zinc-400">Select start and end dates or quick presets</p>
+            </div>
+          </div>
+          <button @click="closeMinedDateFilterModal" type="button" class="text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
+            ✕
+          </button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-5 space-y-4">
+          
+          <!-- Quick Presets -->
+          <div>
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Quick Presets</label>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button 
+                type="button" 
+                @click="applyDatePreset('today')"
+                class="px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-zinc-200 hover:bg-zinc-100 hover:border-zinc-300 text-zinc-700 transition-colors cursor-pointer text-center">
+                Today
+              </button>
+              <button 
+                type="button" 
+                @click="applyDatePreset('yesterday')"
+                class="px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-zinc-200 hover:bg-zinc-100 hover:border-zinc-300 text-zinc-700 transition-colors cursor-pointer text-center">
+                Yesterday
+              </button>
+              <button 
+                type="button" 
+                @click="applyDatePreset('last7')"
+                class="px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-zinc-200 hover:bg-zinc-100 hover:border-zinc-300 text-zinc-700 transition-colors cursor-pointer text-center">
+                Last 7 Days
+              </button>
+              <button 
+                type="button" 
+                @click="applyDatePreset('thisMonth')"
+                class="px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-zinc-200 hover:bg-zinc-100 hover:border-zinc-300 text-zinc-700 transition-colors cursor-pointer text-center">
+                This Month
+              </button>
+              <button 
+                type="button" 
+                @click="applyDatePreset('lastMonth')"
+                class="px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-zinc-200 hover:bg-zinc-100 hover:border-zinc-300 text-zinc-700 transition-colors cursor-pointer text-center">
+                Last Month
+              </button>
+              <button 
+                type="button" 
+                @click="applyDatePreset('all')"
+                class="px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-zinc-200 hover:bg-zinc-100 hover:border-zinc-300 text-zinc-700 transition-colors cursor-pointer text-center">
+                All Dates
+              </button>
+            </div>
+          </div>
+
+          <!-- Custom Date Range Form (From & To) -->
+          <div class="border-t border-zinc-200 pt-4 space-y-3">
+            <label class="block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Custom Date Range</label>
+            
+            <div class="grid grid-cols-2 gap-3">
+              <!-- From Date -->
+              <div>
+                <label class="block text-xs font-semibold text-zinc-700 mb-1 flex items-center space-x-1">
+                  <span>From Date</span>
+                  <span class="text-zinc-400 font-normal text-[10px]">(Start)</span>
+                </label>
+                <input 
+                  type="date" 
+                  v-model="minedItemsDateFrom" 
+                  class="w-full bg-zinc-50 border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-800 font-mono focus:outline-none focus:bg-white transition-colors"
+                />
+              </div>
+
+              <!-- To Date -->
+              <div>
+                <label class="block text-xs font-semibold text-zinc-700 mb-1 flex items-center space-x-1">
+                  <span>To Date</span>
+                  <span class="text-zinc-400 font-normal text-[10px]">(End)</span>
+                </label>
+                <input 
+                  type="date" 
+                  v-model="minedItemsDateTo" 
+                  class="w-full bg-zinc-50 border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs text-zinc-800 font-mono focus:outline-none focus:bg-white transition-colors"
+                />
+              </div>
+            </div>
+
+            <p class="text-[11px] text-zinc-400 leading-normal">
+              Select both dates to filter within a window, or leave one empty for open-ended filtering.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="px-5 py-3 border-t border-zinc-200 bg-zinc-50 flex items-center justify-between">
+          <button 
+            type="button" 
+            @click="clearDateRangeFilter"
+            class="px-3.5 py-1.5 rounded-xl text-zinc-600 hover:text-zinc-900 font-medium text-xs hover:bg-zinc-200/50 transition-colors cursor-pointer">
+            Reset All
+          </button>
+          <div class="flex items-center space-x-2">
+            <button 
+              type="button" 
+              @click="closeMinedDateFilterModal"
+              class="px-3.5 py-1.5 rounded-xl text-zinc-600 hover:text-zinc-900 font-medium text-xs hover:bg-zinc-200/50 transition-colors cursor-pointer">
+              Cancel
+            </button>
+            <button 
+              type="button" 
+              @click="applyDateRangeFilter"
+              class="px-4 py-1.5 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center space-x-1">
+              <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              <span>Apply Filter</span>
+            </button>
+          </div>
         </div>
 
       </div>

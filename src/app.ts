@@ -62,7 +62,10 @@ import {
   batchPushPhotosToSupabase,
   deleteSinglePhotoFromSupabase,
   syncSecurityPinToSupabase,
-  fetchSecurityPinFromSupabase
+  fetchSecurityPinFromSupabase,
+  clearCloudDataForProfile,
+  clearAllCloudData,
+  replaceCloudDataWithBackup
 } from './utils/supabase';
 import {
   isWebBluetoothSupported,
@@ -1113,9 +1116,13 @@ const app = createApp({
           .eq('buyer', '__store_meta__')
           .limit(1);
 
+        let cloudWipedAt = 0;
         if (storeMeta && storeMeta.length > 0 && storeMeta[0].notes) {
           try {
             const parsedMeta = JSON.parse(storeMeta[0].notes);
+            if (parsedMeta.wipedAt) {
+              cloudWipedAt = Number(parsedMeta.wipedAt) || 0;
+            }
             if (parsedMeta.codePrefix) {
               const targetProf = profiles.value.find(p => p.id === activeProfileId.value);
               if (targetProf) {
@@ -1211,11 +1218,13 @@ const app = createApp({
             }
           }
 
-          // Retain recent offline items created on this device within the last 5 minutes
+          // Retain recent offline items created on this device after the last wipe
           const nowTs = Date.now();
           for (const [, localMine] of localMap.entries()) {
             if (!deletedMineIds.has(localMine.id)) {
-              const isRecentOffline = (nowTs - (localMine.timestamp || 0)) < 300000;
+              const itemTs = localMine.timestamp || 0;
+              const isAfterWipe = itemTs > cloudWipedAt;
+              const isRecentOffline = isAfterWipe && (nowTs - itemTs) < 300000;
               if (isRecentOffline) {
                 mergedMines.push(localMine);
                 pushSingleMineToSupabase(localMine, activeProfileId.value, sessionDate.value);
@@ -1234,22 +1243,30 @@ const app = createApp({
           .eq('profile_id', activeProfileId.value);
 
         if (remotePayments && !pErr) {
-          const payMap = new Map(allPayments.value.map(p => [p.id, p]));
-          for (const rp of remotePayments) {
-            if (!payMap.has(rp.id)) {
-              payMap.set(rp.id, {
-                id: rp.id,
-                buyer: rp.buyer,
-                amount: Number(rp.amount) || 0,
-                method: rp.method || 'GCash',
-                ref: rp.reference || '',
-                date: '',
-                time: '',
-                timestamp: Number(rp.timestamp) || Date.now()
-              });
-            }
+          const validRemotePays: PaymentRecord[] = remotePayments.map((rp: any) => ({
+            id: rp.id,
+            buyer: rp.buyer,
+            amount: Number(rp.amount) || 0,
+            method: rp.method || 'GCash',
+            ref: rp.reference || '',
+            date: '',
+            time: '',
+            timestamp: Number(rp.timestamp) || Date.now()
+          }));
+
+          const remotePayIds = new Set(validRemotePays.map(p => p.id));
+          const nowTs = Date.now();
+          const recentOfflinePays = allPayments.value.filter(p => 
+            !remotePayIds.has(p.id) && 
+            (p.timestamp || 0) > cloudWipedAt &&
+            (nowTs - (p.timestamp || 0)) < 300000
+          );
+
+          for (const p of recentOfflinePays) {
+            pushSinglePaymentToSupabase(p, activeProfileId.value);
           }
-          allPayments.value = Array.from(payMap.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+
+          allPayments.value = [...validRemotePays, ...recentOfflinePays].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         }
 
         const { data: remoteNotes, error: nErr } = await client
@@ -1258,6 +1275,7 @@ const app = createApp({
           .eq('profile_id', activeProfileId.value);
 
         if (remoteNotes && !nErr) {
+          const syncedNotes: Record<string, string> = {};
           for (const rn of remoteNotes) {
             if (rn.buyer === '__r2_config__') {
               try {
@@ -1274,11 +1292,10 @@ const app = createApp({
                 console.warn('Could not parse remote R2 config sync:', e);
               }
             } else if (rn.buyer && !rn.buyer.startsWith('__')) {
-              if (!customerNotes.value[rn.buyer]) {
-                customerNotes.value[rn.buyer] = rn.notes || '';
-              }
+              syncedNotes[rn.buyer] = rn.notes || '';
             }
           }
+          customerNotes.value = syncedNotes;
         }
 
         saveProfileData(activeProfileId.value);
@@ -3215,8 +3232,179 @@ const app = createApp({
 
     const minedItemsSearchQuery = ref('');
     const minedItemsFilterCategory = ref('All');
-    const minedItemsFilterDate = ref('all'); // 'all', 'today', 'yesterday', 'custom', or specific date string
+    const minedItemsFilterDate = ref('all'); // 'all', 'today', 'yesterday', 'range'
     const minedItemsCustomDate = ref('');
+    const minedItemsDateFrom = ref('');
+    const minedItemsDateTo = ref('');
+    const minedItemsDateFilterModalOpen = ref(false);
+    const minedItemsSortBy = ref<'date' | 'price' | 'control' | 'buyer'>('date');
+    const minedItemsSortOrder = ref<'asc' | 'desc'>('desc');
+
+    // Bulk selection visibility toggle modes (default hidden)
+    const isBulkSelectMinedMode = ref(false);
+    const isBulkSelectCustomerMode = ref(false);
+
+    function toggleBulkSelectMinedMode() {
+      isBulkSelectMinedMode.value = !isBulkSelectMinedMode.value;
+      if (!isBulkSelectMinedMode.value) {
+        clearSelectedMines();
+      }
+    }
+
+    function toggleBulkSelectCustomerMode() {
+      isBulkSelectCustomerMode.value = !isBulkSelectCustomerMode.value;
+      if (!isBulkSelectCustomerMode.value) {
+        clearSelectedCustomers();
+      }
+    }
+
+    function openMinedDateFilterModal() {
+      minedItemsDateFilterModalOpen.value = true;
+    }
+
+    function closeMinedDateFilterModal() {
+      minedItemsDateFilterModalOpen.value = false;
+    }
+
+    function applyDatePreset(preset: 'today' | 'yesterday' | 'last7' | 'thisMonth' | 'all') {
+      const now = new Date();
+      const formatIso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      
+      if (preset === 'all') {
+        minedItemsFilterDate.value = 'all';
+        minedItemsDateFrom.value = '';
+        minedItemsDateTo.value = '';
+        minedItemsCustomDate.value = '';
+        minedItemsDateFilterModalOpen.value = false;
+        return;
+      }
+
+      if (preset === 'today') {
+        const todayStr = formatIso(now);
+        minedItemsDateFrom.value = todayStr;
+        minedItemsDateTo.value = todayStr;
+        minedItemsFilterDate.value = 'today';
+        minedItemsDateFilterModalOpen.value = false;
+        return;
+      }
+
+      if (preset === 'yesterday') {
+        const yest = new Date();
+        yest.setDate(yest.getDate() - 1);
+        const yestStr = formatIso(yest);
+        minedItemsDateFrom.value = yestStr;
+        minedItemsDateTo.value = yestStr;
+        minedItemsFilterDate.value = 'yesterday';
+        minedItemsDateFilterModalOpen.value = false;
+        return;
+      }
+
+      if (preset === 'last7') {
+        const past = new Date();
+        past.setDate(past.getDate() - 6);
+        minedItemsDateFrom.value = formatIso(past);
+        minedItemsDateTo.value = formatIso(now);
+        minedItemsFilterDate.value = 'range';
+        minedItemsDateFilterModalOpen.value = false;
+        return;
+      }
+
+      if (preset === 'thisMonth') {
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+        minedItemsDateFrom.value = formatIso(firstDay);
+        minedItemsDateTo.value = formatIso(now);
+        minedItemsFilterDate.value = 'range';
+        minedItemsDateFilterModalOpen.value = false;
+        return;
+      }
+    }
+
+    function applyDateRangeFilter() {
+      if (minedItemsDateFrom.value && minedItemsDateTo.value && minedItemsDateFrom.value > minedItemsDateTo.value) {
+        // Swap if reversed
+        const temp = minedItemsDateFrom.value;
+        minedItemsDateFrom.value = minedItemsDateTo.value;
+        minedItemsDateTo.value = temp;
+      }
+
+      if (minedItemsDateFrom.value || minedItemsDateTo.value) {
+        minedItemsFilterDate.value = 'range';
+      } else {
+        minedItemsFilterDate.value = 'all';
+      }
+      minedItemsDateFilterModalOpen.value = false;
+    }
+
+    function clearDateRangeFilter() {
+      minedItemsDateFrom.value = '';
+      minedItemsDateTo.value = '';
+      minedItemsCustomDate.value = '';
+      minedItemsFilterDate.value = 'all';
+      minedItemsDateFilterModalOpen.value = false;
+    }
+
+    const dateRangeLabel = computed(() => {
+      if (minedItemsFilterDate.value === 'today') return 'Today';
+      if (minedItemsFilterDate.value === 'yesterday') return 'Yesterday';
+      if (minedItemsFilterDate.value === 'range') {
+        if (minedItemsDateFrom.value && minedItemsDateTo.value) {
+          if (minedItemsDateFrom.value === minedItemsDateTo.value) {
+            return minedItemsDateFrom.value;
+          }
+          return `${minedItemsDateFrom.value} → ${minedItemsDateTo.value}`;
+        }
+        if (minedItemsDateFrom.value) return `From ${minedItemsDateFrom.value}`;
+        if (minedItemsDateTo.value) return `Until ${minedItemsDateTo.value}`;
+      }
+      return '';
+    });
+
+    function toggleMinedSort(field: 'date' | 'price' | 'control' | 'buyer') {
+      if (minedItemsSortBy.value === field) {
+        minedItemsSortOrder.value = minedItemsSortOrder.value === 'asc' ? 'desc' : 'asc';
+      } else {
+        minedItemsSortBy.value = field;
+        if (field === 'price') {
+          minedItemsSortOrder.value = 'desc'; // highest price first by default
+        } else if (field === 'control' || field === 'buyer') {
+          minedItemsSortOrder.value = 'asc'; // ascending control / buyer by default
+        } else {
+          minedItemsSortOrder.value = 'desc'; // newest date first by default
+        }
+      }
+    }
+
+    const minedItemsSortKey = computed({
+      get() {
+        return `${minedItemsSortBy.value}_${minedItemsSortOrder.value}`;
+      },
+      set(val: string) {
+        const [by, order] = (val || '').split('_') as [any, any];
+        if (by && order) {
+          minedItemsSortBy.value = by;
+          minedItemsSortOrder.value = order;
+        }
+      }
+    });
+
+    const isMinedFiltered = computed(() => {
+      return (
+        minedItemsSearchQuery.value.trim() !== '' ||
+        minedItemsFilterCategory.value !== 'All' ||
+        minedItemsFilterDate.value !== 'all' ||
+        minedItemsDateFrom.value !== '' ||
+        minedItemsDateTo.value !== ''
+      );
+    });
+
+    function resetAllMinedFilters() {
+      minedItemsSearchQuery.value = '';
+      minedItemsFilterCategory.value = 'All';
+      minedItemsFilterDate.value = 'all';
+      minedItemsDateFrom.value = '';
+      minedItemsDateTo.value = '';
+      minedItemsCustomDate.value = '';
+    }
 
     function getItemDateNormalized(item: MinedItem): string {
       if (item.timestamp) {
@@ -3254,7 +3442,7 @@ const app = createApp({
     });
 
     const filteredMinedItems = computed(() => {
-      let list = [...allMines.value].reverse();
+      let list = [...allMines.value];
       const q = minedItemsSearchQuery.value.trim().toLowerCase();
       if (q) {
         list = list.filter(item => {
@@ -3288,6 +3476,16 @@ const app = createApp({
             const itemIso = getItemDateNormalized(item);
             return itemIso === yestIso;
           });
+        } else if (minedItemsFilterDate.value === 'range' || minedItemsDateFrom.value || minedItemsDateTo.value) {
+          const from = minedItemsDateFrom.value;
+          const to = minedItemsDateTo.value;
+          list = list.filter(item => {
+            const itemIso = getItemDateNormalized(item);
+            if (!itemIso) return false;
+            if (from && itemIso < from) return false;
+            if (to && itemIso > to) return false;
+            return true;
+          });
         } else if (minedItemsFilterDate.value === 'custom' && minedItemsCustomDate.value) {
           list = list.filter(item => {
             const itemIso = getItemDateNormalized(item);
@@ -3300,8 +3498,226 @@ const app = createApp({
           });
         }
       }
+
+      // Sort according to active sort column & order
+      list.sort((a, b) => {
+        let diff = 0;
+        if (minedItemsSortBy.value === 'price') {
+          diff = (Number(a.price) || 0) - (Number(b.price) || 0);
+        } else if (minedItemsSortBy.value === 'control') {
+          const numA = Number(a.controlNum) || 0;
+          const numB = Number(b.controlNum) || 0;
+          if (numA && numB && numA !== numB) {
+            diff = numA - numB;
+          } else {
+            diff = (a.controlCode || '').localeCompare(b.controlCode || '', undefined, { numeric: true, sensitivity: 'base' });
+          }
+        } else if (minedItemsSortBy.value === 'buyer') {
+          diff = (a.buyer || '').localeCompare(b.buyer || '', undefined, { sensitivity: 'base' });
+        } else {
+          // date / timestamp
+          const tsA = a.timestamp || (a.date ? new Date(a.date).getTime() : 0);
+          const tsB = b.timestamp || (b.date ? new Date(b.date).getTime() : 0);
+          diff = tsA - tsB;
+        }
+
+        return minedItemsSortOrder.value === 'asc' ? diff : -diff;
+      });
+
       return list;
     });
+
+    // =========================================================================
+    // BULK SELECTION & OPERATIONS: MINED ITEMS
+    // =========================================================================
+    const selectedMineIds = ref<string[]>([]);
+
+    const isAllMinesSelected = computed(() => {
+      if (filteredMinedItems.value.length === 0) return false;
+      return filteredMinedItems.value.every(item => selectedMineIds.value.includes(item.id));
+    });
+
+    const selectedMinesCount = computed(() => selectedMineIds.value.length);
+    const selectedMinesTotalAmount = computed(() => {
+      const selectedSet = new Set(selectedMineIds.value);
+      return allMines.value
+        .filter(m => selectedSet.has(m.id))
+        .reduce((sum, m) => sum + (Number(m.price) || 0), 0);
+    });
+
+    function toggleSelectAllMines() {
+      if (isAllMinesSelected.value) {
+        const filteredIds = new Set(filteredMinedItems.value.map(m => m.id));
+        selectedMineIds.value = selectedMineIds.value.filter(id => !filteredIds.has(id));
+      } else {
+        const newSet = new Set(selectedMineIds.value);
+        for (const item of filteredMinedItems.value) {
+          newSet.add(item.id);
+        }
+        selectedMineIds.value = Array.from(newSet);
+      }
+    }
+
+    function toggleSelectMine(id: string) {
+      const idx = selectedMineIds.value.indexOf(id);
+      if (idx >= 0) {
+        selectedMineIds.value.splice(idx, 1);
+      } else {
+        selectedMineIds.value.push(id);
+      }
+    }
+
+    function clearSelectedMines() {
+      selectedMineIds.value = [];
+    }
+
+    async function deleteBulkMines() {
+      const count = selectedMineIds.value.length;
+      if (count === 0) return;
+      const totalFormatted = `${activeProfile.value.currency}${selectedMinesTotalAmount.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (!confirm(`Are you sure you want to void and delete ${count} selected mined items (Total: ${totalFormatted})?\n\nThis will remove them from sales records and synchronize across all devices.`)) {
+        return;
+      }
+
+      const idsToDelete = [...selectedMineIds.value];
+      const idSet = new Set(idsToDelete);
+
+      // 1. Add to local deleted mine tombstones so they are never re-added on sync
+      const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
+      for (const id of idsToDelete) {
+        if (!localDeletedMines.includes(id)) {
+          localDeletedMines.push(id);
+        }
+      }
+      safeSetItem('live_pos_deleted_mine_ids', localDeletedMines);
+
+      // 2. Remove locally and persist
+      allMines.value = allMines.value.filter(m => !idSet.has(m.id));
+      saveAll();
+
+      // 3. Delete from Supabase database
+      for (const id of idsToDelete) {
+        deleteSingleMineFromSupabase(id);
+      }
+
+      // 4. Clear selection and sound/toast
+      selectedMineIds.value = [];
+      refreshActiveInvoiceBuyer();
+      playBeep('undo', settings.value.soundEnabled);
+      showToast(`Voided and deleted ${count} mined items`);
+    }
+
+    async function printBulkStickers() {
+      const count = selectedMineIds.value.length;
+      if (count === 0) return;
+      const selectedItems = allMines.value.filter(m => selectedMineIds.value.includes(m.id));
+      for (const item of selectedItems) {
+        await triggerStickerPrint(item);
+      }
+      showToast(`Printed ${count} thermal stickers`);
+    }
+
+    // =========================================================================
+    // BULK SELECTION & OPERATIONS: CUSTOMER BALANCES
+    // =========================================================================
+    const selectedCustomerHandles = ref<string[]>([]);
+
+    const isAllCustomersSelected = computed(() => {
+      if (filteredBuyerBaskets.value.length === 0) return false;
+      return filteredBuyerBaskets.value.every(b => selectedCustomerHandles.value.includes(b.handle));
+    });
+
+    const selectedCustomersCount = computed(() => selectedCustomerHandles.value.length);
+    const selectedCustomersTotalBalance = computed(() => {
+      const handleSet = new Set(selectedCustomerHandles.value);
+      return buyerBasketsList.value
+        .filter(b => handleSet.has(b.handle))
+        .reduce((sum, b) => sum + b.balance, 0);
+    });
+    const selectedCustomersTotalAmount = computed(() => {
+      const handleSet = new Set(selectedCustomerHandles.value);
+      return buyerBasketsList.value
+        .filter(b => handleSet.has(b.handle))
+        .reduce((sum, b) => sum + b.totalAmount, 0);
+    });
+
+    function toggleSelectAllCustomers() {
+      if (isAllCustomersSelected.value) {
+        const filteredHandles = new Set(filteredBuyerBaskets.value.map(b => b.handle));
+        selectedCustomerHandles.value = selectedCustomerHandles.value.filter(h => !filteredHandles.has(h));
+      } else {
+        const newSet = new Set(selectedCustomerHandles.value);
+        for (const b of filteredBuyerBaskets.value) {
+          newSet.add(b.handle);
+        }
+        selectedCustomerHandles.value = Array.from(newSet);
+      }
+    }
+
+    function toggleSelectCustomer(handle: string) {
+      const idx = selectedCustomerHandles.value.indexOf(handle);
+      if (idx >= 0) {
+        selectedCustomerHandles.value.splice(idx, 1);
+      } else {
+        selectedCustomerHandles.value.push(handle);
+      }
+    }
+
+    function clearSelectedCustomers() {
+      selectedCustomerHandles.value = [];
+    }
+
+    async function deleteBulkCustomers() {
+      const count = selectedCustomerHandles.value.length;
+      if (count === 0) return;
+      const totalAmountFormatted = `${activeProfile.value.currency}${selectedCustomersTotalAmount.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (!confirm(`Are you sure you want to void and delete all mined items and payment records for ${count} selected customers (Total Amount: ${totalAmountFormatted})?\n\nThis will remove all items and payments for these customers across all devices.`)) {
+        return;
+      }
+
+      const handlesToDelete = new Set(selectedCustomerHandles.value);
+
+      // Find all mined items for these customers
+      const minesToDelete = allMines.value.filter(m => handlesToDelete.has(m.buyer) || handlesToDelete.has('@' + m.buyer) || handlesToDelete.has(m.buyer.replace(/^@+/, '')));
+      const mineIdsToDelete = minesToDelete.map(m => m.id);
+
+      // 1. Add to tombstone
+      const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
+      for (const id of mineIdsToDelete) {
+        if (!localDeletedMines.includes(id)) {
+          localDeletedMines.push(id);
+        }
+      }
+      safeSetItem('live_pos_deleted_mine_ids', localDeletedMines);
+
+      // 2. Delete mines locally & in cloud
+      allMines.value = allMines.value.filter(m => !mineIdsToDelete.includes(m.id));
+      for (const id of mineIdsToDelete) {
+        deleteSingleMineFromSupabase(id);
+      }
+
+      // 3. Find and delete payments for these customers
+      const paymentsToDelete = allPayments.value.filter(p => handlesToDelete.has(p.buyer) || handlesToDelete.has('@' + p.buyer) || handlesToDelete.has(p.buyer.replace(/^@+/, '')));
+      const paymentIdsToDelete = paymentsToDelete.map(p => p.id);
+      allPayments.value = allPayments.value.filter(p => !paymentIdsToDelete.includes(p.id));
+      for (const pid of paymentIdsToDelete) {
+        deleteSinglePaymentFromSupabase(pid);
+      }
+
+      // 4. Delete customer notes for these buyers
+      for (const handle of handlesToDelete) {
+        delete customerNotes.value[handle];
+        delete customerNotes.value['@' + handle];
+        delete customerNotes.value[handle.replace(/^@+/, '')];
+        pushCustomerNoteToSupabase(handle, '', activeProfileId.value);
+      }
+
+      saveAll();
+
+      selectedCustomerHandles.value = [];
+      playBeep('undo', settings.value.soundEnabled);
+      showToast(`Voided and deleted records for ${count} customers`);
+    }
 
     function openInvoiceForBuyer(handle: string) {
       const basket = buyerBasketsList.value.find(b => b.handle === handle || b.displayName === handle);
@@ -4419,7 +4835,15 @@ const app = createApp({
     const importNotionSyncSupabase = ref<boolean>(true);
     const importNotionError = ref<string>('');
     const importNotionIsDragging = ref<boolean>(false);
-    const lastImportSnapshot = ref<ImportBackupSnapshot | null>(safeGetItem('pos_last_import_snapshot', null));
+
+    function validateImportSnapshot(val: any): ImportBackupSnapshot | null {
+      if (!val || typeof val !== 'object') return null;
+      if (!val.previousState || typeof val.previousState !== 'object') return null;
+      if (!Array.isArray(val.previousState.allMines) || !Array.isArray(val.previousState.allPayments)) return null;
+      return val as ImportBackupSnapshot;
+    }
+
+    const lastImportSnapshot = ref<ImportBackupSnapshot | null>(validateImportSnapshot(safeGetItem('pos_last_import_snapshot', null)));
 
     const importNotionCombinedData = computed<CombinedNotionImportData | null>(() => {
       if (importNotionFiles.value.length === 0) return null;
@@ -4767,8 +5191,8 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       showToast('Import rollback snapshot cleared');
     }
 
-    function confirmNewSession() {
-      if (!confirm('Start a new Live Selling session? This resets item counter and archives current session.')) {
+    async function confirmNewSession() {
+      if (!confirm('Start a new Live Selling session? This resets item counter, archives current session, and clears session data in Supabase Cloud.')) {
         return;
       }
       const enteredDate = prompt('Enter Session Code (MMDD):', defaultSessionDate) || defaultSessionDate;
@@ -4779,20 +5203,62 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       allMines.value = [];
       allPayments.value = [];
       customerNotes.value = {};
+
+      const wipeTs = Date.now();
+      safeSetItem('live_pos_last_wiped_' + activeProfileId.value, wipeTs);
+      safeSetItem('live_pos_deleted_mine_ids', []);
       saveAll();
+
+      if (supabaseStatus.value !== 'unconfigured' && navigator.onLine) {
+        try {
+          supabaseStatus.value = 'syncing';
+          supabaseSyncMessage.value = 'Resetting session records in cloud...';
+          await clearCloudDataForProfile(activeProfileId.value);
+          await pushProfileToSupabase(activeProfile.value, 1, cleanDate);
+          const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          lastSyncedAt.value = nowTime;
+          localStorage.setItem('live_pos_last_synced', nowTime);
+          supabaseStatus.value = 'connected';
+          supabaseSyncMessage.value = `Session #${cleanDate} active & synced`;
+        } catch (e) {
+          console.warn('New session cloud sync notice:', e);
+        }
+      }
+
       showToast(`Started new session #${cleanDate}`);
     }
 
-    function clearAllData() {
-      if (!confirm('Are you sure you want to clear all data in this browser?')) {
+    async function clearAllData() {
+      if (!confirm('Are you sure you want to clear all data in this browser and Supabase Cloud? This will reset all mined items, payments, and customer balances across all connected devices.')) {
         return;
       }
+
+      const wipeTs = Date.now();
+      safeSetItem('live_pos_last_wiped_' + activeProfileId.value, wipeTs);
+      safeSetItem('live_pos_deleted_mine_ids', []);
+
       allMines.value = [];
       allPayments.value = [];
       customerNotes.value = {};
       sequenceCounter.value = 1;
       saveAll();
-      showToast('All data cleared');
+
+      if (supabaseStatus.value !== 'unconfigured' && navigator.onLine) {
+        try {
+          supabaseStatus.value = 'syncing';
+          supabaseSyncMessage.value = 'Clearing cloud records across all devices...';
+          await clearCloudDataForProfile(activeProfileId.value);
+          const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          lastSyncedAt.value = nowTime;
+          localStorage.setItem('live_pos_last_synced', nowTime);
+          supabaseStatus.value = 'connected';
+          supabaseSyncMessage.value = 'Cloud records cleared';
+        } catch (err: any) {
+          console.warn('Error clearing cloud data on Supabase:', err);
+        }
+      }
+
+      showToast('All data cleared locally and synced across devices');
     }
 
     function loadSampleData() {
@@ -4881,7 +5347,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       const file = target.files && target.files[0];
       if (!file) return;
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target?.result as string);
           if (Array.isArray(data.profiles) && data.profiles.length > 0) {
@@ -4908,10 +5374,39 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
           if (data.settings) {
             settings.value = { ...settings.value, ...data.settings };
           }
+
+          // Clear conflicting tombstones
+          safeSetItem('live_pos_deleted_mine_ids', []);
           saveAll();
-          showToast(`Restored backup with ${allMines.value.length} items!`);
+
+          // Replace and sync cloud data on Supabase so other devices receive this backup and syncing doesn't restore old cloud data
+          if (supabaseStatus.value !== 'unconfigured' && navigator.onLine) {
+            try {
+              supabaseStatus.value = 'syncing';
+              supabaseSyncMessage.value = 'Replacing & syncing cloud records with restored backup...';
+              await replaceCloudDataWithBackup({
+                profileId: activeProfileId.value,
+                mines: allMines.value,
+                payments: allPayments.value,
+                notes: customerNotes.value,
+                sequence: sequenceCounter.value,
+                sessionDate: sessionDate.value
+              });
+              await pushActiveProfileToSupabase(activeProfileId.value);
+              const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              lastSyncedAt.value = nowTime;
+              localStorage.setItem('live_pos_last_synced', nowTime);
+              supabaseStatus.value = 'connected';
+              supabaseSyncMessage.value = `Restored & synced ${allMines.value.length} items & ${allPayments.value.length} payments`;
+            } catch (syncErr) {
+              console.warn('Error syncing restored backup to cloud:', syncErr);
+            }
+          }
+
+          showToast(`Restored backup with ${allMines.value.length} items & synced to Cloud!`);
           settingsModalOpen.value = false;
         } catch (err) {
+          console.error('Backup restore error:', err);
           alert('Invalid backup file. Could not restore.');
         }
       };
@@ -5468,8 +5963,45 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       minedItemsFilterCategory,
       minedItemsFilterDate,
       minedItemsCustomDate,
+      minedItemsDateFrom,
+      minedItemsDateTo,
+      minedItemsDateFilterModalOpen,
+      openMinedDateFilterModal,
+      closeMinedDateFilterModal,
+      applyDatePreset,
+      applyDateRangeFilter,
+      clearDateRangeFilter,
+      dateRangeLabel,
+      minedItemsSortBy,
+      minedItemsSortOrder,
+      minedItemsSortKey,
+      isMinedFiltered,
+      resetAllMinedFilters,
+      toggleMinedSort,
       uniqueMinedDates,
       filteredMinedItems,
+      isBulkSelectMinedMode,
+      isBulkSelectCustomerMode,
+      toggleBulkSelectMinedMode,
+      toggleBulkSelectCustomerMode,
+      selectedMineIds,
+      isAllMinesSelected,
+      selectedMinesCount,
+      selectedMinesTotalAmount,
+      toggleSelectAllMines,
+      toggleSelectMine,
+      clearSelectedMines,
+      deleteBulkMines,
+      printBulkStickers,
+      selectedCustomerHandles,
+      isAllCustomersSelected,
+      selectedCustomersCount,
+      selectedCustomersTotalBalance,
+      selectedCustomersTotalAmount,
+      toggleSelectAllCustomers,
+      toggleSelectCustomer,
+      clearSelectedCustomers,
+      deleteBulkCustomers,
       openInvoiceForBuyer,
       owingBuyersCount,
       settledBuyersCount,
