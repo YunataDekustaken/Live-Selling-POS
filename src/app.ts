@@ -406,6 +406,15 @@ const app = createApp({
 
     const photoInputRef = ref<HTMLInputElement | null>(null);
 
+    // In-flight photo upload tracker to link R2 CDN URLs if user logs mine while upload is still processing
+    const currentUploadJob = ref<{
+      id: string;
+      base64: string;
+      r2Url: string | null;
+      isDone: boolean;
+      assignedMineId: string | null;
+    } | null>(null);
+
     function triggerPhotoCapture() {
       if (photoInputRef.value) {
         photoInputRef.value.click();
@@ -414,6 +423,7 @@ const app = createApp({
 
     function clearFormPhoto() {
       form.photo = '';
+      currentUploadJob.value = null;
       if (photoInputRef.value) {
         photoInputRef.value.value = '';
       }
@@ -452,6 +462,15 @@ const app = createApp({
             showToast('Photo attached! 📸');
             playBeep('success', settings.value.soundEnabled);
 
+            const uploadId = 'upl_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+            currentUploadJob.value = {
+              id: uploadId,
+              base64: compressed,
+              r2Url: null,
+              isDone: false,
+              assignedMineId: null
+            };
+
             // Direct upload to Cloudflare R2 if configured (via .env or in-app settings)
             if (isR2Ready.value) {
               r2Status.value = 'uploading';
@@ -462,9 +481,29 @@ const app = createApp({
               
               uploadToCloudflareR2(fileKey, compressed, r2Form).then((res) => {
                 if (res.success && res.url) {
-                  form.photo = res.url;
                   r2Status.value = 'connected';
                   r2StatusMessage.value = 'Photo uploaded to Cloudflare R2!';
+
+                  if (currentUploadJob.value && currentUploadJob.value.id === uploadId) {
+                    currentUploadJob.value.isDone = true;
+                    currentUploadJob.value.r2Url = res.url;
+
+                    // If form is still holding the thumbnail, upgrade to CDN URL
+                    if (form.photo === compressed) {
+                      form.photo = res.url;
+                    }
+
+                    // If user already clicked "Log Mine" before R2 finished, upgrade the saved mine and sync to Supabase!
+                    if (currentUploadJob.value.assignedMineId) {
+                      const mineId = currentUploadJob.value.assignedMineId;
+                      const targetMine = allMines.value.find(m => m.id === mineId);
+                      if (targetMine) {
+                        targetMine.photo = res.url;
+                        saveAll();
+                        pushSingleMineToSupabase(targetMine, activeProfileId.value, sessionDate.value);
+                      }
+                    }
+                  }
                 } else {
                   console.warn('R2 direct upload notice:', res.error);
                   r2Status.value = 'idle';
@@ -1058,6 +1097,87 @@ const app = createApp({
       syncAllWithSupabase(false);
     }
 
+    let isAutoMigrating = false;
+    async function autoMigrateBase64Photos() {
+      if (isAutoMigrating || !isR2Ready.value) return;
+      const legacyItems = allMines.value.filter(m => m.photo && m.photo.trim().startsWith('data:image'));
+      if (legacyItems.length === 0) return;
+
+      isAutoMigrating = true;
+      for (const item of legacyItems) {
+        try {
+          const cleanSession = (sessionDate.value || 'live').replace(/[^a-zA-Z0-9_-]/g, '');
+          const cleanStore = (activeProfile.value.id || 'store').replace(/[^a-zA-Z0-9_-]/g, '');
+          const fileKey = `${cleanStore}/${cleanSession}/item_${item.id}.jpg`;
+          const res = await uploadToCloudflareR2(fileKey, item.photo!, r2Form);
+          if (res.success && res.url) {
+            item.photo = res.url;
+            saveAll();
+            pushSingleMineToSupabase(item, activeProfileId.value, sessionDate.value);
+          }
+        } catch (e) {
+          console.warn('Auto-migration background error for item', item.id, e);
+        }
+      }
+      isAutoMigrating = false;
+    }
+
+    // PHOTO RETENTION & EXPIRATION CLEANUP LOGIC
+    const photoRetentionDays = computed(() => {
+      const mode = settings.value.photoRetention || '6_months';
+      if (mode === '1_month') return 30;
+      if (mode === '3_months') return 90;
+      if (mode === '6_months') return 180;
+      if (mode === '1_year') return 365;
+      return 0; // 'never'
+    });
+
+    const oldPhotosList = computed(() => {
+      const days = photoRetentionDays.value;
+      if (days <= 0) return [];
+      const cutoffMs = Date.now() - (days * 24 * 60 * 60 * 1000);
+      return allMines.value.filter(m => {
+        if (!m.photo || m.photo.trim() === '') return false;
+        const ts = m.timestamp || 0;
+        return ts > 0 && ts < cutoffMs;
+      });
+    });
+
+    const oldPhotosCount = computed(() => oldPhotosList.value.length);
+
+    async function cleanupOldPhotos(promptConfirm = true) {
+      const targets = oldPhotosList.value;
+      if (targets.length === 0) {
+        if (promptConfirm) {
+          showToast('No photos older than the selected retention period found');
+        }
+        return;
+      }
+
+      const retentionLabel = settings.value.photoRetention === '1_month' ? '1 month (30 days)'
+        : settings.value.photoRetention === '3_months' ? '3 months (90 days)'
+        : settings.value.photoRetention === '6_months' ? '6 months (180 days)'
+        : settings.value.photoRetention === '1_year' ? '1 year (365 days)' : 'retention period';
+
+      if (promptConfirm) {
+        if (!confirm(`Clean up and remove ${targets.length} photo(s) older than ${retentionLabel}? Item records, tags, prices, and buyer balances will remain 100% safe.`)) {
+          return;
+        }
+      }
+
+      let cleaned = 0;
+      for (const item of targets) {
+        item.photo = '';
+        cleaned++;
+        pushSingleMineToSupabase(item, activeProfileId.value, sessionDate.value);
+      }
+
+      saveProfileData(activeProfileId.value);
+      saveAll();
+      showToast(`Cleaned up ${cleaned} photo(s) older than ${retentionLabel}`);
+      playBeep('undo', settings.value.soundEnabled);
+    }
+
     function toggleSound() {
       settings.value.soundEnabled = !settings.value.soundEnabled;
       saveSettings();
@@ -1385,6 +1505,10 @@ const app = createApp({
       const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
       const todayDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 
+      const finalPhotoUrl = (currentUploadJob.value && currentUploadJob.value.r2Url) 
+        ? currentUploadJob.value.r2Url 
+        : (form.photo || '');
+
       const newMine: MinedItem = {
         id: 'mine_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
         controlCode: controlCode,
@@ -1393,17 +1517,40 @@ const app = createApp({
         description: description,
         price: price,
         buyer: buyer,
-        photo: form.photo || '',
+        photo: finalPhotoUrl,
         date: todayDate,
         time: timeStr,
         timestamp: Date.now()
       };
+
+      // Link current in-flight upload to this mine ID so the R2 URL upgrades and syncs upon completion
+      if (currentUploadJob.value && !currentUploadJob.value.isDone) {
+        currentUploadJob.value.assignedMineId = newMine.id;
+      }
 
       allMines.value.push(newMine);
       // Advance counter to next guaranteed unique slot
       sequenceCounter.value = getNextUniqueSequenceNumber(currentControlNum + 1, allMines.value, prefix, dateStr);
       saveAll();
       pushSingleMineToSupabase(newMine, activeProfileId.value, sessionDate.value);
+
+      // If photo was saved as base64 (upload was not finished or offline), queue auto-migration
+      if (newMine.photo && newMine.photo.startsWith('data:image') && isR2Ready.value) {
+        const mineId = newMine.id;
+        const cleanSession = (sessionDate.value || 'live').replace(/[^a-zA-Z0-9_-]/g, '');
+        const cleanStore = (activeProfile.value.id || 'store').replace(/[^a-zA-Z0-9_-]/g, '');
+        const fileKey = `${cleanStore}/${cleanSession}/item_${mineId}.jpg`;
+        uploadToCloudflareR2(fileKey, newMine.photo, r2Form).then(res => {
+          if (res.success && res.url) {
+            const m = allMines.value.find(x => x.id === mineId);
+            if (m) {
+              m.photo = res.url;
+              saveAll();
+              pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
+            }
+          }
+        }).catch(err => console.warn('Background mine photo upload notice:', err));
+      }
 
       playBeep('success', settings.value.soundEnabled);
 
@@ -2456,9 +2603,19 @@ const app = createApp({
           serverR2Bucket.value = status.bucketName || '';
           serverR2PublicDomain.value = status.publicDomain || '';
         }
+        if (isR2Ready.value) {
+          autoMigrateBase64Photos();
+        }
       }).catch(e => {
         console.warn('R2 server status check notice:', e);
       });
+
+      // If auto-clean expired photos is enabled, run retention cleanup silently
+      if (settings.value.autoCleanOldPhotos && settings.value.photoRetention && settings.value.photoRetention !== 'never') {
+        setTimeout(() => {
+          cleanupOldPhotos(false);
+        }, 3000);
+      }
 
       // Realtime subscription: sync immediately when any device undos or logs an item
       try {
@@ -2652,7 +2809,11 @@ const app = createApp({
       legacyBase64PhotosCount,
       saveR2Settings,
       testR2Connection,
-      migrateLegacyPhotosToR2
+      migrateLegacyPhotosToR2,
+      autoMigrateBase64Photos,
+      photoRetentionDays,
+      oldPhotosCount,
+      cleanupOldPhotos
     };
   }
 });

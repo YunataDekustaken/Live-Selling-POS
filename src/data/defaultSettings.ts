@@ -8,5 +8,7 @@ export const defaultSettings: AppSettings = {
   miningFieldsOrder: ['customer', 'description', 'price'],
   syncInterval: '30s',
   printerPaperWidth: '58mm',
-  escPosDirectPrint: true
+  escPosDirectPrint: true,
+  photoRetention: '6_months',
+  autoCleanOldPhotos: false
 };

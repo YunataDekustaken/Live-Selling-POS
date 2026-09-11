@@ -58,6 +58,8 @@ export interface AppSettings {
   syncInterval: string;
   printerPaperWidth?: '58mm' | '80mm';
   escPosDirectPrint?: boolean;
+  photoRetention?: '1_month' | '3_months' | '6_months' | '1_year' | 'never';
+  autoCleanOldPhotos?: boolean;
 }
 
 export interface ActiveStoreForm {

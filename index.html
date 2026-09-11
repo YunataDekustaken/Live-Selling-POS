@@ -2891,6 +2891,62 @@
                   <span class="text-zinc-600">Total Photos in POS:</span>
                   <strong class="text-zinc-900 font-mono">{{ totalPhotosCount }} items</strong>
                 </div>
+
+                <!-- Photo Retention & Image Lifecycle Auto-Cleanup -->
+                <div class="p-3 rounded-lg bg-white border border-orange-200 shadow-2xs space-y-2.5">
+                  <div class="flex items-center justify-between">
+                    <span class="font-bold text-zinc-900 flex items-center space-x-1.5">
+                      <svg class="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      <span>Photo Retention & Auto-Cleanup</span>
+                    </span>
+                    <span v-if="oldPhotosCount > 0" class="text-[10px] bg-amber-100 text-amber-900 font-bold px-1.5 py-0.5 rounded border border-amber-300">
+                      {{ oldPhotosCount }} eligible for cleanup
+                    </span>
+                    <span v-else class="text-[10px] bg-emerald-50 text-emerald-800 font-semibold px-1.5 py-0.5 rounded border border-emerald-200">
+                      Up to date
+                    </span>
+                  </div>
+
+                  <p class="text-[10px] text-zinc-600 leading-relaxed">
+                    Set how long customer mining photos are retained. Expired photos are safely purged to keep device storage clean and fast, while all pricing, buyer records, and receipts remain permanently intact.
+                  </p>
+
+                  <div class="space-y-1">
+                    <label class="font-semibold text-zinc-700 text-[10px]">Photo Retention Period:</label>
+                    <select 
+                      v-model="settings.photoRetention" 
+                      @change="saveSettings(true)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-semibold text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900">
+                      <option value="1_month">1 Month (Auto-cleanup photos older than 30 days)</option>
+                      <option value="3_months">3 Months (Auto-cleanup photos older than 90 days)</option>
+                      <option value="6_months">6 Months (Auto-cleanup photos older than 180 days)</option>
+                      <option value="1_year">1 Year (Auto-cleanup photos older than 365 days)</option>
+                      <option value="never">Keep Forever (Never delete photos automatically)</option>
+                    </select>
+                  </div>
+
+                  <div class="flex items-center justify-between pt-1">
+                    <label class="flex items-center space-x-2 text-[11px] text-zinc-700 font-medium cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        v-model="settings.autoCleanOldPhotos" 
+                        @change="saveSettings(true)"
+                        class="rounded text-orange-600 focus:ring-orange-500 w-3.5 h-3.5" 
+                      />
+                      <span>Auto-clean expired photos on launch</span>
+                    </label>
+
+                    <button 
+                      v-if="settings.photoRetention !== 'never'"
+                      @click="cleanupOldPhotos(true)" 
+                      type="button" 
+                      :disabled="oldPhotosCount === 0"
+                      class="py-1 px-2.5 rounded bg-zinc-100 hover:bg-zinc-200 disabled:opacity-40 text-zinc-800 text-[10px] font-bold flex items-center space-x-1 border border-zinc-300 cursor-pointer transition-colors shadow-2xs">
+                      <svg class="w-3 h-3 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      <span>Clean Up Now ({{ oldPhotosCount }})</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
