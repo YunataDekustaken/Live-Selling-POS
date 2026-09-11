@@ -1,0 +1,140 @@
+import express from 'express';
+import path from 'path';
+import crypto from 'crypto';
+import { createServer as createViteServer } from 'vite';
+
+async function startServer() {
+  const app = express();
+  const PORT = 3000;
+
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+  // API routes FIRST
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok' });
+  });
+
+  // R2 Upload Proxy Endpoint
+  app.post('/api/r2-upload', async (req, res) => {
+    try {
+      const { fileKey, base64DataUrl, config } = req.body;
+      if (!fileKey || !base64DataUrl || !config) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+      }
+
+      const { accountId, accessKeyId, secretAccessKey, bucketName, publicDomain } = config;
+      if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
+        return res.status(400).json({ error: 'Incomplete R2 credentials' });
+      }
+
+      const parts = base64DataUrl.split(',');
+      const mimeType = parts[0].match(/:(.*?);/)?.[1] || 'image/jpeg';
+      const fileBuffer = Buffer.from(parts[1], 'base64');
+      const cleanKey = fileKey.replace(/^\/+/, '');
+
+      const host = `${accountId.trim()}.r2.cloudflarestorage.com`;
+      const uriPath = `/${encodeURIComponent(bucketName.trim())}/${cleanKey.split('/').map(encodeURIComponent).join('/')}`;
+      const endpoint = `https://${host}${uriPath}`;
+
+      const now = new Date();
+      const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+      const dateStamp = amzDate.substring(0, 8);
+      const region = 'auto';
+      const service = 's3';
+
+      const payloadHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+
+      const canonicalHeaders =
+        `content-type:${mimeType}\n` +
+        `host:${host}\n` +
+        `x-amz-content-sha256:${payloadHash}\n` +
+        `x-amz-date:${amzDate}\n`;
+
+      const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
+
+      const canonicalRequest =
+        `PUT\n` +
+        `${uriPath}\n` +
+        `\n` +
+        canonicalHeaders +
+        `\n` +
+        signedHeaders +
+        `\n` +
+        payloadHash;
+
+      const canonicalRequestHash = crypto.createHash('sha256').update(canonicalRequest).digest('hex');
+
+      const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+      const stringToSign =
+        `AWS4-HMAC-SHA256\n` +
+        amzDate +
+        `\n` +
+        credentialScope +
+        `\n` +
+        canonicalRequestHash;
+
+      const kDate = crypto.createHmac('sha256', 'AWS4' + secretAccessKey.trim()).update(dateStamp).digest();
+      const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
+      const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
+      const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+      const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+
+      const authorizationHeader =
+        `AWS4-HMAC-SHA256 Credential=${accessKeyId.trim()}/${credentialScope}, ` +
+        `SignedHeaders=${signedHeaders}, ` +
+        `Signature=${signature}`;
+
+      const uploadRes = await fetch(endpoint, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': mimeType,
+          'x-amz-date': amzDate,
+          'x-amz-content-sha256': payloadHash,
+          Authorization: authorizationHeader,
+        },
+        body: fileBuffer,
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '');
+        return res.status(uploadRes.status).json({
+          error: `R2 returned status ${uploadRes.status}: ${errText || uploadRes.statusText}`,
+        });
+      }
+
+      let publicUrl = '';
+      if (publicDomain) {
+        publicUrl = `${publicDomain.trim().replace(/\/+$/, '')}/${cleanKey}`;
+      } else {
+        publicUrl = `https://${host}${uriPath}`;
+      }
+
+      return res.json({ success: true, url: publicUrl });
+    } catch (err: any) {
+      console.error('Server R2 upload error:', err);
+      return res.status(500).json({ error: err.message || 'Failed to upload to Cloudflare R2' });
+    }
+  });
+
+  // Vite middleware for development
+  if (process.env.NODE_ENV !== 'production') {
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+startServer();

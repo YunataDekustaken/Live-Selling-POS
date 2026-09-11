@@ -90,7 +90,7 @@ async function getSignatureKey(key: string, dateStamp: string, regionName: strin
   return kSigning;
 }
 
-// Upload image binary directly to Cloudflare R2 using AWS SigV4 (Pure Client-Side)
+// Upload image binary to Cloudflare R2 (tries server proxy first, falls back to direct client-side S3 SigV4)
 export async function uploadToCloudflareR2(
   fileKey: string,
   base64DataUrl: string,
@@ -100,16 +100,53 @@ export async function uploadToCloudflareR2(
     return { success: false, url: base64DataUrl, error: 'Cloudflare R2 is not configured.' };
   }
 
+  const cleanKey = fileKey.replace(/^\/+/, '');
+  const accountId = config.accountId.trim();
+  const bucketName = config.bucketName.trim();
+  const accessKeyId = config.accessKeyId.trim();
+  const secretAccessKey = config.secretAccessKey.trim();
+  const publicDomain = config.publicDomain.trim().replace(/\/+$/, '');
+
+  // 1. Try Server-Side API Proxy First (bypasses browser CORS & TLS restrictions)
+  try {
+    const proxyRes = await fetch('/api/r2-upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fileKey: cleanKey,
+        base64DataUrl,
+        config: {
+          accountId,
+          bucketName,
+          accessKeyId,
+          secretAccessKey,
+          publicDomain
+        }
+      })
+    });
+
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data.success && data.url) {
+        return { success: true, url: data.url };
+      }
+    } else {
+      const errData = await proxyRes.json().catch(() => ({}));
+      console.warn('Server proxy upload returned non-200, trying direct client upload:', errData);
+    }
+  } catch (proxyErr) {
+    console.warn('Server proxy unavailable (e.g. offline mode), falling back to direct S3 SigV4:', proxyErr);
+  }
+
+  // 2. Direct Client-Side S3 SigV4 Upload (using correct path-style endpoint)
   try {
     const { data: fileBytes, mimeType } = dataUrlToUint8Array(base64DataUrl);
-    const cleanKey = fileKey.replace(/^\/+/, '');
-    const accountId = config.accountId.trim();
-    const bucketName = config.bucketName.trim();
-    const accessKeyId = config.accessKeyId.trim();
-    const secretAccessKey = config.secretAccessKey.trim();
 
-    const host = `${bucketName}.${accountId}.r2.cloudflarestorage.com`;
-    const endpoint = `https://${host}/${encodeURIComponent(cleanKey)}`;
+    const host = `${accountId}.r2.cloudflarestorage.com`;
+    const uriPath = `/${encodeURIComponent(bucketName)}/${cleanKey.split('/').map(encodeURIComponent).join('/')}`;
+    const endpoint = `https://${host}${uriPath}`;
     const now = new Date();
     const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
     const dateStamp = amzDate.substring(0, 8);
@@ -128,7 +165,7 @@ export async function uploadToCloudflareR2(
 
     const canonicalRequest =
       `PUT\n` +
-      `/${encodeURIComponent(cleanKey)}\n` +
+      `${uriPath}\n` +
       `\n` +
       canonicalHeaders +
       `\n` +
@@ -176,11 +213,10 @@ export async function uploadToCloudflareR2(
 
     // Determine public URL
     let publicUrl = '';
-    if (config.publicDomain) {
-      publicUrl = `${config.publicDomain.replace(/\/+$/, '')}/${cleanKey}`;
+    if (publicDomain) {
+      publicUrl = `${publicDomain}/${cleanKey}`;
     } else {
-      // Fallback: If public domain not specified, link directly to R2 dev public or s3 path
-      publicUrl = `https://${host}/${cleanKey}`;
+      publicUrl = `https://${host}${uriPath}`;
     }
 
     return {
