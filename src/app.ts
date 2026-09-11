@@ -85,9 +85,16 @@ import {
   isR2Configured,
   uploadToCloudflareR2,
   checkServerR2Status,
+  uploadJsonBackupToCloudflare,
+  fetchBackupFromCloudflare,
+  getLastR2Backup,
+  getR2BackupHistory,
+  CloudBackupRecord,
   R2Config
 } from './utils/r2Storage';
 import QRCode from 'qrcode';
+import { playSuccessBeep, playErrorBuzz } from './utils/audioFeedback';
+import { LiveScannerController } from './utils/qrScanner';
 
 const app = createApp({
   setup() {
@@ -296,6 +303,8 @@ const app = createApp({
     function checkAndApplyDailyRollover() {
       const liveToday = getTodaySessionDate();
       if (sessionDate.value !== liveToday) {
+        // Trigger end-of-day auto backup of the closing session
+        triggerAutomaticCloudflareBackup('Daily rollover (session closed)');
         sessionDate.value = liveToday;
         sequenceCounter.value = computeSequenceForDate(liveToday, activeProfile.value, allMines.value, 1);
         safeSetItem('live_pos_session_date_' + activeProfileId.value, liveToday);
@@ -1438,6 +1447,13 @@ const app = createApp({
     const serverR2Configured = ref(false);
     const serverR2Bucket = ref('');
     const serverR2PublicDomain = ref('');
+
+    const lastR2Backup = ref<CloudBackupRecord | null>(getLastR2Backup());
+    const r2BackupHistory = ref<CloudBackupRecord[]>(getR2BackupHistory());
+    const isBackingUpToR2 = ref(false);
+    const r2BackupStatusMessage = ref('');
+    const selectedR2BackupKey = ref('');
+    const showR2RestoreModal = ref(false);
 
     const isR2Ready = computed(() => isR2Configured(r2Form) || serverR2Configured.value);
 
@@ -2827,6 +2843,263 @@ const app = createApp({
       } catch (err: any) {
         showToast(`Print failed: ${err.message || err}`);
       }
+    }
+
+    // =========================================================================
+    // 2-STAGE VERIFICATION & PACKING WORKFLOW STATE & METHODS
+    // =========================================================================
+    const showPackingModal = ref(false);
+    const activePackingBuyer = ref<BuyerBasket | null>(null);
+    const packingActiveTab = ref<'scanner' | 'checklist'>('scanner');
+    const packingScannerActive = ref(false);
+    const packingManualCodeInput = ref('');
+    const isPrintingPackingSlip = ref(false);
+    let packingScannerInstance: LiveScannerController | null = null;
+    let scanCooldownTimer: any = null;
+
+    const lastScannedResult = ref<{
+      text: string;
+      status: 'success' | 'wrong_customer' | 'already_scanned' | 'not_found';
+      message: string;
+      item?: MinedItem;
+      wrongBuyer?: string;
+      timestamp: number;
+    } | null>(null);
+
+    function getBuyerPackedCount(basket?: BuyerBasket | null): number {
+      if (!basket || !basket.items) return 0;
+      return basket.items.filter(it => it.verified || it.packed).length;
+    }
+
+    function isBuyerAllPacked(basket?: BuyerBasket | null): boolean {
+      if (!basket || !basket.items || basket.items.length === 0) return false;
+      return basket.items.every(it => it.verified || it.packed);
+    }
+
+    function openPackingModal(buyer: BuyerBasket, defaultTab: 'scanner' | 'checklist' = 'scanner') {
+      activePackingBuyer.value = buyer;
+      packingActiveTab.value = defaultTab;
+      packingManualCodeInput.value = '';
+      lastScannedResult.value = null;
+      showPackingModal.value = true;
+
+      if (defaultTab === 'scanner') {
+        setTimeout(() => {
+          startPackingScanner();
+        }, 350);
+      }
+    }
+
+    function closePackingModal() {
+      stopPackingScanner();
+      showPackingModal.value = false;
+      activePackingBuyer.value = null;
+    }
+
+    function switchPackingTab(tab: 'scanner' | 'checklist') {
+      packingActiveTab.value = tab;
+      if (tab === 'scanner') {
+        setTimeout(() => {
+          startPackingScanner();
+        }, 200);
+      } else {
+        stopPackingScanner();
+      }
+    }
+
+    async function startPackingScanner() {
+      if (packingScannerActive.value) return;
+      if (!packingScannerInstance) {
+        packingScannerInstance = new LiveScannerController('packing-qr-reader');
+      }
+      packingScannerActive.value = true;
+      const started = await packingScannerInstance.start((decodedText) => {
+        handlePackingScanCode(decodedText);
+      });
+      if (!started) {
+        packingScannerActive.value = false;
+      }
+    }
+
+    async function stopPackingScanner() {
+      if (packingScannerInstance) {
+        await packingScannerInstance.stop();
+      }
+      packingScannerActive.value = false;
+    }
+
+    function handlePackingScanCode(rawCode: string) {
+      if (!rawCode || !activePackingBuyer.value) return;
+      if (scanCooldownTimer) return;
+      scanCooldownTimer = setTimeout(() => { scanCooldownTimer = null; }, 900);
+
+      const cleanCode = rawCode.trim().toUpperCase().replace(/^#+/, '').replace(/^\[\s*|\s*\]$/g, '');
+      const buyerHandle = activePackingBuyer.value.handle;
+      const buyerClean = buyerHandle.replace(/^@+/, '').toLowerCase();
+
+      // Normalize match helper
+      const matchesItem = (it: MinedItem) => {
+        const cCode = (it.controlCode || '').toUpperCase().replace(/^#+/, '').replace(/^\[\s*|\s*\]$/g, '');
+        const cNum = it.controlNum !== undefined ? String(it.controlNum).toUpperCase() : '';
+        const tag = (it.tag || '').toUpperCase().replace(/^#+/, '');
+        return cCode === cleanCode ||
+               cNum === cleanCode ||
+               (cCode && cCode.endsWith(cleanCode)) ||
+               (tag && tag === cleanCode);
+      };
+
+      // 1. Check if the scanned code matches an item belonging to this active packing buyer
+      const currentBuyerItems = allMines.value.filter(m => {
+        const b = (m.buyer || '').replace(/^@+/, '').toLowerCase();
+        return b === buyerClean;
+      });
+
+      const matchedItem = currentBuyerItems.find(matchesItem);
+
+      if (matchedItem) {
+        // Item belongs to this buyer!
+        if (matchedItem.verified || matchedItem.packed) {
+          playSuccessBeep();
+          lastScannedResult.value = {
+            text: rawCode,
+            status: 'already_scanned',
+            message: `Already Verified: ${matchedItem.controlCode || '#' + matchedItem.controlNum}`,
+            item: matchedItem,
+            timestamp: Date.now()
+          };
+          return;
+        }
+
+        // Mark verified and packed
+        const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        matchedItem.verified = true;
+        matchedItem.verifiedAt = nowTime;
+        matchedItem.packed = true;
+        matchedItem.packedAt = nowTime;
+
+        saveAll();
+        pushSingleMineToSupabase(matchedItem, activeProfileId.value, sessionDate.value);
+        playSuccessBeep();
+
+        lastScannedResult.value = {
+          text: rawCode,
+          status: 'success',
+          message: `✓ Verified: ${matchedItem.controlCode || '#' + matchedItem.controlNum} • ${matchedItem.description || matchedItem.tag || 'Item'} (${activeProfile.value.currency}${matchedItem.price})`,
+          item: matchedItem,
+          timestamp: Date.now()
+        };
+
+        // Check if all items are now verified
+        const remaining = currentBuyerItems.filter(m => !m.verified && !m.packed);
+        if (remaining.length === 0) {
+          showToast(`🎉 All ${currentBuyerItems.length} items verified for @${buyerClean}! Ready to seal.`);
+        }
+        return;
+      }
+
+      // 2. Not in this buyer's basket. Check if it belongs to another customer!
+      const wrongItem = allMines.value.find(matchesItem);
+      if (wrongItem) {
+        playErrorBuzz();
+        const wrongBuyerHandle = wrongItem.buyer.startsWith('@') ? wrongItem.buyer : '@' + wrongItem.buyer;
+        lastScannedResult.value = {
+          text: rawCode,
+          status: 'wrong_customer',
+          message: `⚠️ WRONG CUSTOMER! This item belongs to ${wrongBuyerHandle} (${wrongItem.controlCode || '#' + wrongItem.controlNum})!`,
+          item: wrongItem,
+          wrongBuyer: wrongBuyerHandle,
+          timestamp: Date.now()
+        };
+        showToast(`❌ Wrong Customer! Belongs to ${wrongBuyerHandle}`);
+        return;
+      }
+
+      // 3. Not found anywhere
+      playErrorBuzz();
+      lastScannedResult.value = {
+        text: rawCode,
+        status: 'not_found',
+        message: `Code not found in today's mines: "${rawCode}"`,
+        timestamp: Date.now()
+      };
+    }
+
+    function submitManualPackingCode() {
+      if (!packingManualCodeInput.value.trim()) return;
+      handlePackingScanCode(packingManualCodeInput.value.trim());
+      packingManualCodeInput.value = '';
+    }
+
+    function toggleItemVerification(item: MinedItem) {
+      const isNow = !(item.verified || item.packed);
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      item.verified = isNow;
+      item.verifiedAt = isNow ? nowTime : undefined;
+      item.packed = isNow;
+      item.packedAt = isNow ? nowTime : undefined;
+      if (isNow) {
+        playSuccessBeep();
+      }
+      saveAll();
+      pushSingleMineToSupabase(item, activeProfileId.value, sessionDate.value);
+    }
+
+    function verifyAllItemsForBuyer(buyer: BuyerBasket) {
+      if (!buyer) return;
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
+      allMines.value.forEach(m => {
+        if ((m.buyer || '').replace(/^@+/, '').toLowerCase() === buyerClean) {
+          m.verified = true;
+          m.verifiedAt = nowTime;
+          m.packed = true;
+          m.packedAt = nowTime;
+          pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
+        }
+      });
+      saveAll();
+      playSuccessBeep();
+      showToast(`Marked all ${buyer.items.length} items as verified & packed!`);
+    }
+
+    function resetVerificationForBuyer(buyer: BuyerBasket) {
+      if (!buyer) return;
+      if (!confirm(`Reset verification for @${buyer.displayName}?`)) return;
+      const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
+      allMines.value.forEach(m => {
+        if ((m.buyer || '').replace(/^@+/, '').toLowerCase() === buyerClean) {
+          m.verified = false;
+          m.verifiedAt = undefined;
+          m.packed = false;
+          m.packedAt = undefined;
+          pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
+        }
+      });
+      saveAll();
+      showToast(`Verification reset for @${buyer.displayName}`);
+    }
+
+    async function printThermalPackingSlip(buyer: BuyerBasket) {
+      if (!buyer) return;
+      if (!btPrinterConnected.value) {
+        await connectBluetooth();
+        if (!btPrinterConnected.value) return;
+      }
+      try {
+        isPrintingPackingSlip.value = true;
+        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
+        await printDirectPackingSlip(buyer, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+        showToast(`Packing slip printed to ${btPrinterName.value || 'PT-210'}`);
+      } catch (err: any) {
+        showToast(`Print failed: ${err.message || err}`);
+      } finally {
+        isPrintingPackingSlip.value = false;
+      }
+    }
+
+    async function markBuyerAsPackedAndPrint(buyer: BuyerBasket) {
+      verifyAllItemsForBuyer(buyer);
+      await printThermalPackingSlip(buyer);
     }
 
     function logMine() {
@@ -5317,8 +5590,8 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       }
     }
 
-    function downloadJsonBackup() {
-      const backupData = {
+    function buildCompleteBackupPayload() {
+      return {
         appName: 'Live Mining Web POS',
         version: '1.0',
         exportedAt: new Date().toISOString(),
@@ -5332,6 +5605,73 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
         allMines: allMines.value,
         allPayments: allPayments.value
       };
+    }
+
+    async function applyRestoredData(data: any, sourceLabel: string = 'backup') {
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid backup file content.');
+      }
+      if (Array.isArray(data.profiles) && data.profiles.length > 0) {
+        profiles.value = data.profiles;
+      }
+      if (data.activeProfileId) {
+        activeProfileId.value = data.activeProfileId;
+      }
+      if (Array.isArray(data.allMines)) {
+        allMines.value = data.allMines;
+      }
+      if (Array.isArray(data.allPayments)) {
+        allPayments.value = data.allPayments;
+      }
+      if (data.customerNotes && typeof data.customerNotes === 'object') {
+        customerNotes.value = data.customerNotes;
+      }
+      if (data.sessionDate) {
+        sessionDate.value = data.sessionDate;
+      }
+      if (data.sequenceCounter) {
+        sequenceCounter.value = Number(data.sequenceCounter);
+      }
+      if (data.settings) {
+        settings.value = { ...settings.value, ...data.settings };
+      }
+
+      // Clear conflicting tombstones
+      safeSetItem('live_pos_deleted_mine_ids', []);
+      saveAll();
+
+      // Replace and sync cloud data on Supabase so other devices receive this backup and syncing doesn't restore old cloud data
+      if (supabaseStatus.value !== 'unconfigured' && navigator.onLine) {
+        try {
+          supabaseStatus.value = 'syncing';
+          supabaseSyncMessage.value = `Replacing & syncing cloud records with restored ${sourceLabel}...`;
+          await replaceCloudDataWithBackup({
+            profileId: activeProfileId.value,
+            mines: allMines.value,
+            payments: allPayments.value,
+            notes: customerNotes.value,
+            sequence: sequenceCounter.value,
+            sessionDate: sessionDate.value
+          });
+          await pushActiveProfileToSupabase(activeProfileId.value);
+          const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          lastSyncedAt.value = nowTime;
+          localStorage.setItem('live_pos_last_synced', nowTime);
+          supabaseStatus.value = 'connected';
+          supabaseSyncMessage.value = `Restored & synced ${allMines.value.length} items & ${allPayments.value.length} payments`;
+        } catch (syncErr) {
+          console.warn('Error syncing restored backup to cloud:', syncErr);
+        }
+      }
+
+      showToast(`Restored ${sourceLabel} with ${allMines.value.length} items & synced to Cloud!`);
+      playBeep('success', settings.value.soundEnabled);
+      settingsModalOpen.value = false;
+      showR2RestoreModal.value = false;
+    }
+
+    function downloadJsonBackup() {
+      const backupData = buildCompleteBackupPayload();
       const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
       const dlAnchorElem = document.createElement('a');
       dlAnchorElem.setAttribute('href', dataStr);
@@ -5350,61 +5690,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       reader.onload = async (e) => {
         try {
           const data = JSON.parse(e.target?.result as string);
-          if (Array.isArray(data.profiles) && data.profiles.length > 0) {
-            profiles.value = data.profiles;
-          }
-          if (data.activeProfileId) {
-            activeProfileId.value = data.activeProfileId;
-          }
-          if (Array.isArray(data.allMines)) {
-            allMines.value = data.allMines;
-          }
-          if (Array.isArray(data.allPayments)) {
-            allPayments.value = data.allPayments;
-          }
-          if (data.customerNotes && typeof data.customerNotes === 'object') {
-            customerNotes.value = data.customerNotes;
-          }
-          if (data.sessionDate) {
-            sessionDate.value = data.sessionDate;
-          }
-          if (data.sequenceCounter) {
-            sequenceCounter.value = Number(data.sequenceCounter);
-          }
-          if (data.settings) {
-            settings.value = { ...settings.value, ...data.settings };
-          }
-
-          // Clear conflicting tombstones
-          safeSetItem('live_pos_deleted_mine_ids', []);
-          saveAll();
-
-          // Replace and sync cloud data on Supabase so other devices receive this backup and syncing doesn't restore old cloud data
-          if (supabaseStatus.value !== 'unconfigured' && navigator.onLine) {
-            try {
-              supabaseStatus.value = 'syncing';
-              supabaseSyncMessage.value = 'Replacing & syncing cloud records with restored backup...';
-              await replaceCloudDataWithBackup({
-                profileId: activeProfileId.value,
-                mines: allMines.value,
-                payments: allPayments.value,
-                notes: customerNotes.value,
-                sequence: sequenceCounter.value,
-                sessionDate: sessionDate.value
-              });
-              await pushActiveProfileToSupabase(activeProfileId.value);
-              const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              lastSyncedAt.value = nowTime;
-              localStorage.setItem('live_pos_last_synced', nowTime);
-              supabaseStatus.value = 'connected';
-              supabaseSyncMessage.value = `Restored & synced ${allMines.value.length} items & ${allPayments.value.length} payments`;
-            } catch (syncErr) {
-              console.warn('Error syncing restored backup to cloud:', syncErr);
-            }
-          }
-
-          showToast(`Restored backup with ${allMines.value.length} items & synced to Cloud!`);
-          settingsModalOpen.value = false;
+          await applyRestoredData(data, 'JSON backup');
         } catch (err) {
           console.error('Backup restore error:', err);
           alert('Invalid backup file. Could not restore.');
@@ -5412,6 +5698,115 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       };
       reader.readAsText(file);
       target.value = '';
+    }
+
+    // Cloudflare R2 End-of-Day Auto-Backup Runner
+    async function triggerAutomaticCloudflareBackup(reason: string = 'Automatic daily trigger', isManual: boolean = false) {
+      if (!isR2Ready.value) {
+        if (isManual) {
+          showToast('Cloudflare R2 is not configured yet. Configure credentials in Settings.');
+        }
+        return;
+      }
+      if (isBackingUpToR2.value) return;
+
+      // Don't auto-backup an empty database on automatic background triggers
+      if (!isManual && allMines.value.length === 0 && allPayments.value.length === 0) {
+        return;
+      }
+
+      isBackingUpToR2.value = true;
+      r2BackupStatusMessage.value = 'Creating snapshot & uploading to Cloudflare R2...';
+
+      try {
+        const payload = buildCompleteBackupPayload();
+        const res = await uploadJsonBackupToCloudflare(
+          payload,
+          activeProfileId.value,
+          sessionDate.value,
+          r2Form
+        );
+
+        if (res.success && res.record) {
+          lastR2Backup.value = res.record;
+          r2BackupHistory.value = getR2BackupHistory();
+          r2BackupStatusMessage.value = `✓ Saved to Cloudflare: ${res.record.time} (${res.record.itemCount} items)`;
+          if (isManual) {
+            showToast(`✓ Cloudflare End-of-Day backup saved! (${res.record.itemCount} items) ☁️`);
+            playBeep('success', settings.value.soundEnabled);
+          } else {
+            console.log(`[Cloudflare Auto-Backup] Successfully saved (${reason}) at ${res.record.time} - ${res.record.itemCount} items`);
+          }
+        } else {
+          r2BackupStatusMessage.value = 'Backup failed: ' + (res.error || 'Unknown error');
+          if (isManual) {
+            showToast('Cloudflare backup failed: ' + (res.error || 'Check credentials'));
+          }
+        }
+      } catch (err: any) {
+        r2BackupStatusMessage.value = 'Error: ' + (err.message || 'Failed');
+        if (isManual) {
+          showToast('Cloudflare backup error: ' + (err.message || 'Failed'));
+        }
+      } finally {
+        isBackingUpToR2.value = false;
+      }
+    }
+
+    // Evaluates whether an automated daily backup should fire based on time of day, session activity, or session closure
+    function checkAutomaticDailyBackupTrigger() {
+      if (settings.value.autoR2DailyBackup === false) return;
+      if (!isR2Ready.value) return;
+      if (allMines.value.length === 0 && allPayments.value.length === 0) return;
+
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const currentHour = now.getHours(); // 0 - 23
+      const last = lastR2Backup.value;
+
+      // 1. If no backup has ever been made today, and it's late afternoon/evening (>= 17:00 / 5 PM)
+      //    or if items were mined today and last backup was on a previous day:
+      if (!last || last.date !== todayStr) {
+        if (currentHour >= 17 || allMines.value.length >= 1) {
+          triggerAutomaticCloudflareBackup('Scheduled evening daily auto-backup');
+        }
+      } else {
+        // Backup was already made today.
+        // If more than 3 hours have passed AND new items were logged since last backup, refresh it:
+        const hoursSinceLast = (now.getTime() - last.timestamp) / (1000 * 60 * 60);
+        if (hoursSinceLast >= 3 && (allMines.value.length !== last.itemCount || allPayments.value.length !== last.paymentCount)) {
+          triggerAutomaticCloudflareBackup('Routine 3-hour safety refresh');
+        }
+      }
+    }
+
+    async function restoreFromCloudflare(fileKeyOrUrl?: string) {
+      const key = fileKeyOrUrl || selectedR2BackupKey.value || lastR2Backup.value?.key;
+      if (!key) {
+        showToast('No Cloudflare backup selected');
+        return;
+      }
+
+      if (!confirm(`Are you sure you want to restore this Cloudflare backup? Current local data will be replaced by the snapshot.`)) {
+        return;
+      }
+
+      isBackingUpToR2.value = true;
+      r2BackupStatusMessage.value = 'Downloading snapshot from Cloudflare R2...';
+
+      try {
+        const res = await fetchBackupFromCloudflare(key, r2Form);
+        if (!res.success || !res.data) {
+          showToast('Failed to download backup: ' + (res.error || 'Invalid file'));
+          return;
+        }
+
+        await applyRestoredData(res.data, 'Cloudflare R2 backup');
+      } catch (err: any) {
+        showToast('Restore error: ' + (err.message || 'Failed'));
+      } finally {
+        isBackingUpToR2.value = false;
+      }
     }
 
     function saveAll() {
@@ -5454,6 +5849,10 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
     }
 
     function closeTopmostOverlay(): boolean {
+      if (showPackingModal.value) {
+        closePackingModal();
+        return true;
+      }
       if (zoomModalOpen.value) {
         closePhotoZoom();
         return true;
@@ -5531,6 +5930,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
 
     const openOverlayCount = computed(() => {
       let count = 0;
+      if (showPackingModal.value) count++;
       if (zoomModalOpen.value) count++;
       if (editMineModalOpen.value) count++;
       if (renameCustomerModalOpen.value) count++;
@@ -5773,6 +6173,26 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       } catch (e) {
         console.warn('Realtime subscription notice:', e);
       }
+
+      // Automatic Daily Cloudflare R2 End-of-Day Backup triggers
+      setTimeout(() => {
+        checkAutomaticDailyBackupTrigger();
+      }, 10000);
+
+      // Periodically check if backup should fire (every 15 minutes)
+      setInterval(() => {
+        checkAutomaticDailyBackupTrigger();
+      }, 15 * 60 * 1000);
+
+      // Auto-trigger safety backup when user minimizes/switches away or closes window
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          checkAutomaticDailyBackupTrigger();
+        }
+      });
+      window.addEventListener('beforeunload', () => {
+        checkAutomaticDailyBackupTrigger();
+      });
     });
 
     return {
@@ -6129,7 +6549,37 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       onProfileFileInputChange,
       onProfileFileDrop,
       loadCoordinatesFromJsonString,
-      setElementAlign
+      setElementAlign,
+      lastR2Backup,
+      r2BackupHistory,
+      isBackingUpToR2,
+      r2BackupStatusMessage,
+      selectedR2BackupKey,
+      showR2RestoreModal,
+      triggerAutomaticCloudflareBackup,
+      restoreFromCloudflare,
+      buildCompleteBackupPayload,
+      showPackingModal,
+      activePackingBuyer,
+      packingActiveTab,
+      packingScannerActive,
+      packingManualCodeInput,
+      isPrintingPackingSlip,
+      lastScannedResult,
+      getBuyerPackedCount,
+      isBuyerAllPacked,
+      openPackingModal,
+      closePackingModal,
+      switchPackingTab,
+      startPackingScanner,
+      stopPackingScanner,
+      handlePackingScanCode,
+      submitManualPackingCode,
+      toggleItemVerification,
+      verifyAllItemsForBuyer,
+      resetVerificationForBuyer,
+      printThermalPackingSlip,
+      markBuyerAsPackedAndPrint
     };
   }
 });

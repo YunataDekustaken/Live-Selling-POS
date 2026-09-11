@@ -1829,6 +1829,17 @@
                         🖼️
                       </button>
 
+                      <!-- Pack & Verify Workflow Button -->
+                      <button 
+                        @click="openPackingModal(b)" 
+                        :title="'Pack & Verify Items (' + getBuyerPackedCount(b) + '/' + b.items.length + ' verified)'"
+                        class="px-2 py-1 rounded text-[11px] font-bold transition-all flex items-center space-x-1 border cursor-pointer"
+                        :class="isBuyerAllPacked(b) ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' : (getBuyerPackedCount(b) > 0 ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100' : 'bg-zinc-100 text-zinc-700 border-zinc-200 hover:bg-zinc-200')">
+                        <span>📦</span>
+                        <span v-if="isBuyerAllPacked(b)">Packed</span>
+                        <span v-else>{{ getBuyerPackedCount(b) }}/{{ b.items.length }}</span>
+                      </button>
+
                       <!-- Invoice Modal Button -->
                       <button 
                         @click="openInvoiceModal(b)" 
@@ -1883,11 +1894,22 @@
                 </div>
               </div>
 
-              <span 
-                class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold tracking-wide uppercase border"
-                :class="getStatusBadgeClass(b.balance)">
-                {{ b.status }}
-              </span>
+              <div class="flex items-center space-x-1.5">
+                <button 
+                  @click="openPackingModal(b)" 
+                  :title="'Pack & Verify Items (' + getBuyerPackedCount(b) + '/' + b.items.length + ' verified)'"
+                  class="px-2 py-0.5 rounded-full text-[11px] font-bold border transition-colors flex items-center space-x-1 cursor-pointer"
+                  :class="isBuyerAllPacked(b) ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' : (getBuyerPackedCount(b) > 0 ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100' : 'bg-zinc-100 text-zinc-700 border-zinc-200 hover:bg-zinc-200')">
+                  <span>📦</span>
+                  <span v-if="isBuyerAllPacked(b)">Packed</span>
+                  <span v-else>{{ getBuyerPackedCount(b) }}/{{ b.items.length }}</span>
+                </button>
+                <span 
+                  class="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold tracking-wide uppercase border"
+                  :class="getStatusBadgeClass(b.balance)">
+                  {{ b.status }}
+                </span>
+              </div>
             </div>
 
             <!-- Financial Breakdown Row -->
@@ -1924,13 +1946,19 @@
             </div>
 
             <!-- Action buttons -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-zinc-100">
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-zinc-100">
               <button 
                 @click="copyInvoiceLink(b)"
                 type="button"
                 class="py-2 px-2.5 rounded-lg bg-zinc-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center space-x-1 transition-colors">
                 <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
                 <span>Copy Link</span>
+              </button>
+              <button 
+                @click="openPackingModal(b)"
+                type="button"
+                class="py-2 px-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center space-x-1 border border-amber-200 transition-colors cursor-pointer">
+                <span>📦 Pack</span>
               </button>
               <button 
                 @click="generatePhotoCollage(b)"
@@ -1951,6 +1979,7 @@
                 class="py-2 px-2 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-medium text-xs flex items-center justify-center space-x-1 border border-emerald-300 transition-colors">
                 <span>Record Pay</span>
               </button>
+              <div v-else class="hidden sm:block"></div>
             </div>
 
           </div>
@@ -3402,7 +3431,7 @@
     <!-- =============================================================== -->
     <!-- MODAL 0: STAFF LOGIN MODAL (When accessing from Customer View)  -->
     <!-- =============================================================== -->
-    <div v-if="showStaffLoginModal" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-fadeIn">
+    <div v-if="showStaffLoginModal" class="screen-ui fixed inset-0 z-[60] flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-fadeIn">
       <div class="bg-white rounded-2xl border border-zinc-200 shadow-2xl max-w-sm w-full p-5 space-y-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center space-x-2">
@@ -3687,7 +3716,7 @@
     <!-- =============================================================== -->
     <!-- MODAL 1: PAYMENT ENTRY MODAL                                    -->
     <!-- =============================================================== -->
-    <div v-if="paymentModalOpen" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+    <div v-if="paymentModalOpen" class="screen-ui fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
       <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
         
         <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
@@ -3786,7 +3815,7 @@
     <!-- =============================================================== -->
     <!-- MODAL 1B: EDIT MINED ITEM MODAL                                 -->
     <!-- =============================================================== -->
-    <div v-if="editMineModalOpen && editingMineItem" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+    <div v-if="editMineModalOpen && editingMineItem" class="screen-ui fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
       <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
         
         <!-- Header -->
@@ -3968,7 +3997,7 @@
     <!-- =============================================================== -->
     <!-- MODAL 1C: RENAME CUSTOMER / FIX TYPO MODAL                       -->
     <!-- =============================================================== -->
-    <div v-if="renameCustomerModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+    <div v-if="renameCustomerModalOpen" class="screen-ui fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
       <div class="bg-white border border-zinc-200 rounded-2xl max-w-sm w-full shadow-2xl my-auto overflow-hidden">
         
         <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 bg-white">
@@ -4025,7 +4054,7 @@
     <!-- =============================================================== -->
     <!-- MODAL 1D: ADD ITEM / CHARGE DIRECTLY TO INVOICE                 -->
     <!-- =============================================================== -->
-    <div v-if="addInvoiceItemModalOpen" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+    <div v-if="addInvoiceItemModalOpen" class="screen-ui fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
       <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
         
         <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
@@ -4153,7 +4182,7 @@
     <!-- =============================================================== -->
     <!-- MODAL 1E: EDIT PAYMENT RECORD MODAL                             -->
     <!-- =============================================================== -->
-    <div v-if="editPaymentModalOpen && editingPaymentRecord" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+    <div v-if="editPaymentModalOpen && editingPaymentRecord" class="screen-ui fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto">
       <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
         
         <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
@@ -5170,6 +5199,77 @@
               </div>
             </div>
 
+            <!-- Cloudflare R2 End-of-Day Auto-Backup Card -->
+            <div class="p-3.5 rounded-xl border transition-all"
+                 :class="isR2Ready ? 'bg-sky-50/60 border-sky-200' : 'bg-zinc-50 border-zinc-200'">
+              <div class="flex items-center justify-between mb-2">
+                <span class="font-bold text-zinc-900 flex items-center space-x-1.5 text-xs">
+                  <span class="text-sky-600">☁️</span>
+                  <span>Cloudflare R2 End-of-Day Backup</span>
+                </span>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold flex items-center space-x-1"
+                      :class="isR2Ready ? 'bg-emerald-100 text-emerald-800' : 'bg-zinc-200 text-zinc-700'">
+                  <span v-if="isR2Ready" class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>{{ isR2Ready ? 'Auto-Trigger Active' : 'Setup Required' }}</span>
+                </span>
+              </div>
+
+              <p class="text-[11px] text-zinc-600 leading-relaxed mb-2.5">
+                Automatically archives a complete end-of-day JSON snapshot to Cloudflare R2 every evening and on daily session reset to safeguard against accidental data loss.
+              </p>
+
+              <!-- Last Backup Status -->
+              <div v-if="lastR2Backup" class="p-2.5 rounded-lg bg-white border border-sky-100 text-[11px] mb-2.5 space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-zinc-500">Last Cloudflare Snapshot:</span>
+                  <span class="font-semibold text-emerald-700 font-mono">{{ lastR2Backup.date }} • {{ lastR2Backup.time }}</span>
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-zinc-500">
+                  <span>Scope: {{ lastR2Backup.itemCount }} items, {{ lastR2Backup.paymentCount }} payments</span>
+                  <span class="font-mono text-zinc-400 truncate max-w-[140px]" :title="lastR2Backup.key">{{ lastR2Backup.key.split('/').pop() }}</span>
+                </div>
+              </div>
+
+              <div v-else-if="isR2Ready" class="p-2.5 rounded-lg bg-white/70 border border-zinc-200 text-[11px] mb-2.5 text-zinc-500">
+                <span>Auto-triggers every evening (5:00 PM+) or on session rollover. You can also trigger an instant snapshot below.</span>
+              </div>
+
+              <div v-else class="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-[11px] mb-2.5 text-amber-800">
+                <span>Configure your Cloudflare R2 credentials above or via server environment to activate automated cloud backups.</span>
+              </div>
+
+              <!-- Action Controls -->
+              <div class="flex space-x-2">
+                <button 
+                  @click="triggerAutomaticCloudflareBackup('Manual user trigger', true)" 
+                  type="button" 
+                  :disabled="!isR2Ready || isBackingUpToR2"
+                  class="flex-1 py-1.5 px-2.5 rounded-lg bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-[11px] font-semibold flex items-center justify-center space-x-1.5 transition-colors shadow-2xs cursor-pointer">
+                  <svg v-if="isBackingUpToR2" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                  <span>{{ isBackingUpToR2 ? 'Saving to R2...' : 'Backup to Cloudflare Now' }}</span>
+                </button>
+
+                <button 
+                  @click="showR2RestoreModal = true" 
+                  type="button" 
+                  :disabled="!isR2Ready || isBackingUpToR2"
+                  class="py-1.5 px-3 rounded-lg bg-white hover:bg-zinc-100 disabled:opacity-50 text-zinc-800 border border-zinc-300 text-[11px] font-semibold flex items-center justify-center space-x-1 transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  <span>Restore from R2</span>
+                </button>
+              </div>
+
+              <!-- Automated Daily Backup Option Toggle -->
+              <div class="pt-2 mt-2 border-t border-sky-100/80 flex items-center justify-between text-[11px]">
+                <label class="flex items-center space-x-2 cursor-pointer text-zinc-700">
+                  <input type="checkbox" v-model="settings.autoR2DailyBackup" @change="saveSettings" class="rounded text-sky-600 focus:ring-sky-500 w-3.5 h-3.5 cursor-pointer" />
+                  <span>Automatic daily trigger enabled</span>
+                </label>
+                <span class="text-[10px] text-zinc-400 font-mono">End-of-day & rollover</span>
+              </div>
+            </div>
+
             <!-- Undo Notion / CSV Data Import Rollback Section -->
             <div class="p-3.5 rounded-xl border transition-all"
                  :class="(lastImportSnapshot && lastImportSnapshot.previousState) ? 'bg-amber-50/70 border-amber-300' : 'bg-zinc-50 border-zinc-200'">
@@ -5313,7 +5413,7 @@
     </div>
 
     <!-- iOS PWA INSTALLATION HELPER MODAL -->
-    <div v-if="showIOSGuide" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+    <div v-if="showIOSGuide" class="screen-ui fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
       <div class="bg-white border border-zinc-200 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-3">
         <div class="flex items-center justify-between border-b border-zinc-100 pb-2">
           <h3 class="font-bold text-sm text-zinc-900">Install POS on iPhone / iPad</h3>
@@ -5379,7 +5479,7 @@
           </div>
 
           <!-- Customer Info Card -->
-          <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 flex items-center justify-between">
+          <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Billed Customer</div>
               <div class="flex items-center space-x-2 mt-0.5">
@@ -5394,9 +5494,23 @@
                 </button>
               </div>
             </div>
-            <div class="text-right">
-              <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Total Items Mined</div>
-              <div class="font-bold text-base text-zinc-900 font-mono">{{ activeInvoiceBuyer.items.length }} pcs</div>
+            <div class="flex items-center space-x-3 sm:text-right">
+              <div>
+                <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Mined Items</div>
+                <div class="font-bold text-base text-zinc-900 font-mono">{{ activeInvoiceBuyer.items.length }} pcs</div>
+              </div>
+              <div class="border-l border-zinc-200 pl-3">
+                <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Packing QC</div>
+                <button 
+                  @click="openPackingModal(activeInvoiceBuyer)"
+                  type="button"
+                  class="mt-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center space-x-1 border cursor-pointer transition-colors"
+                  :class="isBuyerAllPacked(activeInvoiceBuyer) ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200' : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'">
+                  <span>📦</span>
+                  <span v-if="isBuyerAllPacked(activeInvoiceBuyer)">✓ 100% Packed</span>
+                  <span v-else>{{ getBuyerPackedCount(activeInvoiceBuyer) }}/{{ activeInvoiceBuyer.items.length }} Verified</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -5542,18 +5656,27 @@
         <!-- Invoice Action Footer -->
         <div class="border-t border-zinc-200 p-3 bg-zinc-50 space-y-2">
           
-          <!-- Primary Row: Copy Invoice Link & Generate Photo Collage -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <!-- Primary Row: Copy Invoice Link, Pack & Verify, and Generate Photo Collage -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <!-- 1. Copy Invoice Link (with photos, breakdown, payment template) -->
             <button 
               @click="copyInvoiceLink(activeInvoiceBuyer)"
               type="button"
               class="py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xs cursor-pointer">
               <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
-              <span>Copy Invoice Link</span>
+              <span>Copy Link</span>
             </button>
 
-            <!-- 2. Generate Photo Collage (1-Tap Image) -->
+            <!-- 2. Pack & Verify (Scanner + Checklist) -->
+            <button 
+              @click="openPackingModal(activeInvoiceBuyer)"
+              type="button"
+              class="py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xs cursor-pointer">
+              <span>📦</span>
+              <span>Pack & Verify ({{ getBuyerPackedCount(activeInvoiceBuyer) }}/{{ activeInvoiceBuyer.items.length }})</span>
+            </button>
+
+            <!-- 3. Generate Photo Collage (1-Tap Image) -->
             <button 
               @click="generatePhotoCollage(activeInvoiceBuyer)"
               type="button"
@@ -5564,14 +5687,14 @@
           </div>
 
           <!-- Secondary Row: Secondary Actions -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
             <!-- 3. Preview Customer Checkout View -->
             <button 
               @click="previewCustomerPage(activeInvoiceBuyer)"
               type="button"
               class="py-2 px-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-200 font-medium text-xs flex items-center justify-center space-x-1 transition-colors">
               <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-              <span>Preview Link</span>
+              <span>Preview</span>
             </button>
 
             <!-- 4. Print Thermal Invoice -->
@@ -5580,10 +5703,18 @@
               type="button"
               class="py-2 px-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-200 font-medium text-xs flex items-center justify-center space-x-1 transition-colors">
               <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-              <span>Print</span>
+              <span>Print Invoice</span>
             </button>
 
-            <!-- 5. Record Payment (if owing balance) -->
+            <!-- 5. Print Packing Slip (PT-210) -->
+            <button 
+              @click="printThermalPackingSlip(activeInvoiceBuyer)"
+              type="button"
+              class="py-2 px-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-medium text-xs flex items-center justify-center space-x-1 transition-colors">
+              <span>🖨️ Pack Slip</span>
+            </button>
+
+            <!-- 6. Record Payment (if owing balance) -->
             <button 
               v-if="activeInvoiceBuyer.balance > 0"
               @click="closeInvoiceModal(); openPaymentModal(activeInvoiceBuyer)"
@@ -5593,7 +5724,7 @@
             </button>
             <div v-else class="hidden sm:block"></div>
 
-            <!-- 6. Close Modal -->
+            <!-- 7. Close Modal -->
             <button 
               @click="closeInvoiceModal" 
               type="button" 
@@ -5610,7 +5741,7 @@
     <!-- =============================================================== -->
     <!-- MODAL 4: FULL-RESOLUTION PHOTO ZOOM VIEWER MODAL               -->
     <!-- =============================================================== -->
-    <div v-if="zoomModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-sm animate-fadeIn" @click.self="closePhotoZoom">
+    <div v-if="zoomModalOpen" class="screen-ui fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-sm animate-fadeIn" @click.self="closePhotoZoom">
       <div class="bg-zinc-900 border border-zinc-700 rounded-2xl max-w-xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-white">
         <!-- Top Title Bar -->
         <div class="flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/70">
@@ -5638,7 +5769,7 @@
     <!-- =============================================================== -->
     <!-- MODAL 5: 1-TAP PHOTO COLLAGE PREVIEW & DOWNLOAD MODAL          -->
     <!-- =============================================================== -->
-    <div v-if="collageModalOpen && collageBuyer" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-fadeIn" @click.self="collageModalOpen = false">
+    <div v-if="collageModalOpen && collageBuyer" class="screen-ui fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-fadeIn" @click.self="collageModalOpen = false">
       <div class="bg-white border border-zinc-200 rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         
         <!-- Header -->
@@ -5777,6 +5908,392 @@
             Got it!
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 7: RESTORE FROM CLOUDFLARE R2 MODAL                       -->
+    <!-- =============================================================== -->
+    <div v-if="showR2RestoreModal" class="screen-ui fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-5 bg-black/75 backdrop-blur-xs animate-fadeIn" @click.self="showR2RestoreModal = false">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden text-zinc-900">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 bg-sky-50">
+          <div class="flex items-center space-x-2">
+            <span class="text-base">☁️</span>
+            <div>
+              <span class="font-bold text-sm text-zinc-900 block">Restore from Cloudflare R2</span>
+              <span class="text-[11px] text-zinc-500">Safely recover POS data snapshots stored in your R2 bucket</span>
+            </div>
+          </div>
+          <button @click="showR2RestoreModal = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none cursor-pointer">✕</button>
+        </div>
+
+        <!-- Body -->
+        <div class="p-4 space-y-4 overflow-y-auto flex-1 text-xs">
+          <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 space-y-1">
+            <span class="font-bold flex items-center space-x-1">
+              <span>⚠️</span>
+              <span>Important Note</span>
+            </span>
+            <p class="text-[11px] leading-relaxed">
+              Restoring a snapshot will replace all current mined items, payments, and store profiles with the snapshot data, and sync it across your connected devices.
+            </p>
+          </div>
+
+          <!-- History of Backups -->
+          <div class="space-y-2">
+            <span class="font-bold text-zinc-800 text-xs block">Select Cloudflare Backup Snapshot:</span>
+            
+            <div v-if="r2BackupHistory.length === 0" class="p-4 rounded-xl bg-zinc-50 border border-dashed border-zinc-300 text-center text-zinc-500 text-xs">
+              No saved backup records found in this browser's session history yet.
+            </div>
+
+            <div v-else class="space-y-2 max-h-56 overflow-y-auto pr-1">
+              <div v-for="rec in r2BackupHistory" :key="rec.key"
+                   @click="selectedR2BackupKey = rec.key"
+                   class="p-3 rounded-xl border cursor-pointer transition-all flex items-center justify-between"
+                   :class="selectedR2BackupKey === rec.key ? 'bg-sky-50 border-sky-500 ring-2 ring-sky-200' : 'bg-white hover:bg-zinc-50 border-zinc-200'">
+                <div>
+                  <div class="flex items-center space-x-2">
+                    <span class="font-bold text-zinc-900">{{ rec.date }}</span>
+                    <span class="text-zinc-500 font-mono text-[11px]">{{ rec.time }}</span>
+                    <span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-sky-100 text-sky-800">
+                      {{ rec.itemCount }} items
+                    </span>
+                  </div>
+                  <div class="text-[10px] text-zinc-400 font-mono truncate max-w-xs mt-0.5" :title="rec.key">
+                    {{ rec.key }}
+                  </div>
+                </div>
+                <button 
+                  @click.stop="restoreFromCloudflare(rec.key)"
+                  :disabled="isBackingUpToR2"
+                  type="button"
+                  class="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-700 text-white font-semibold text-[11px] transition-colors shadow-2xs cursor-pointer">
+                  Restore
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Custom File Key input -->
+          <div class="pt-2 border-t border-zinc-100 space-y-1.5">
+            <label class="text-[11px] font-medium text-zinc-700 block">Or restore by Cloudflare File Key / URL:</label>
+            <div class="flex space-x-2">
+              <input 
+                type="text" 
+                v-model="selectedR2BackupKey" 
+                placeholder="backups/store/eod_2026-09-11_20-00.json"
+                class="flex-1 px-3 py-1.5 rounded-lg border border-zinc-300 text-xs font-mono focus:ring-2 focus:ring-sky-500" />
+              <button 
+                @click="restoreFromCloudflare(selectedR2BackupKey)" 
+                type="button"
+                :disabled="!selectedR2BackupKey || isBackingUpToR2"
+                class="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white font-semibold text-xs cursor-pointer">
+                Restore
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-3 bg-zinc-50 border-t border-zinc-200 flex justify-end">
+          <button @click="showR2RestoreModal = false" type="button" class="px-4 py-1.5 rounded-lg bg-white border border-zinc-300 hover:bg-zinc-100 text-zinc-700 text-xs font-semibold cursor-pointer">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 8: 2-STAGE VERIFICATION & PACKING WORKFLOW MODAL          -->
+    <!-- =============================================================== -->
+    <div v-if="showPackingModal && activePackingBuyer" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto" @click.self="closePackingModal">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-xl w-full shadow-2xl max-h-[94vh] flex flex-col my-auto overflow-hidden text-zinc-900">
+        
+        <!-- Pinned Header -->
+        <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 bg-zinc-50 shrink-0">
+          <div class="flex items-center space-x-2.5 min-w-0">
+            <div class="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg shadow-xs shrink-0">
+              📦
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center space-x-2">
+                <span class="font-black text-sm text-zinc-900 font-mono truncate">{{ activePackingBuyer.handle }}</span>
+                <span 
+                  class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0"
+                  :class="isBuyerAllPacked(activePackingBuyer) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
+                  {{ isBuyerAllPacked(activePackingBuyer) ? '✓ Fully Verified' : 'Packing in Progress' }}
+                </span>
+              </div>
+              <div class="text-[11px] text-zinc-500 flex items-center space-x-2 truncate">
+                <span>Session #{{ sessionDate }}</span>
+                <span>•</span>
+                <span class="font-bold text-zinc-700">{{ getBuyerPackedCount(activePackingBuyer) }}/{{ activePackingBuyer.items.length }} Items Verified</span>
+              </div>
+            </div>
+          </div>
+          <button @click="closePackingModal" class="text-zinc-400 hover:text-zinc-700 p-1.5 text-lg leading-none cursor-pointer shrink-0">✕</button>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="w-full bg-zinc-100 h-1.5 shrink-0 overflow-hidden">
+          <div 
+            class="h-full transition-all duration-300 ease-out"
+            :class="isBuyerAllPacked(activePackingBuyer) ? 'bg-emerald-500' : 'bg-amber-500'"
+            :style="{ width: activePackingBuyer.items.length > 0 ? (getBuyerPackedCount(activePackingBuyer) / activePackingBuyer.items.length * 100) + '%' : '0%' }">
+          </div>
+        </div>
+
+        <!-- 2-Stage Mode Tabs -->
+        <div class="flex border-b border-zinc-200 bg-white px-3 pt-2 shrink-0 gap-2">
+          <button 
+            @click="switchPackingTab('scanner')"
+            type="button"
+            class="flex-1 py-2 px-3 text-xs font-bold rounded-t-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer border-b-2"
+            :class="packingActiveTab === 'scanner' ? 'border-amber-600 text-amber-900 bg-amber-50/60' : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'">
+            <span>📷</span>
+            <span>Stage 1: QR / Barcode Scan</span>
+          </button>
+          <button 
+            @click="switchPackingTab('checklist')"
+            type="button"
+            class="flex-1 py-2 px-3 text-xs font-bold rounded-t-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer border-b-2"
+            :class="packingActiveTab === 'checklist' ? 'border-amber-600 text-amber-900 bg-amber-50/60' : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'">
+            <span>📋</span>
+            <span>Stage 2: Checklist & Print</span>
+          </button>
+        </div>
+
+        <!-- Scrollable Body Content -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
+
+          <!-- ================= TAB 1: DIGITAL SCANNER ================= -->
+          <div v-show="packingActiveTab === 'scanner'" class="space-y-4">
+            <!-- Camera Viewfinder Box -->
+            <div class="relative bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-800 shadow-inner flex flex-col items-center justify-center min-h-[250px] p-2">
+              <!-- Live Video Container for Html5Qrcode -->
+              <div id="packing-qr-reader" class="w-full max-w-[320px] overflow-hidden rounded-xl"></div>
+
+              <!-- Camera Controls Overlay -->
+              <div class="absolute top-2.5 right-2.5 flex items-center space-x-1 z-10">
+                <button 
+                  v-if="!packingScannerActive"
+                  @click="startPackingScanner" 
+                  type="button"
+                  class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-sm flex items-center space-x-1 cursor-pointer">
+                  <span>▶</span>
+                  <span>Start Camera</span>
+                </button>
+                <button 
+                  v-else
+                  @click="stopPackingScanner" 
+                  type="button"
+                  class="px-2.5 py-1 rounded-lg bg-zinc-850/80 hover:bg-zinc-700 text-zinc-200 font-semibold text-[10px] shadow-sm flex items-center space-x-1 cursor-pointer">
+                  <span>⏹</span>
+                  <span>Pause Camera</span>
+                </button>
+              </div>
+
+              <!-- Camera Status Indicator -->
+              <div class="absolute bottom-2 inset-x-0 flex justify-center pointer-events-none z-10">
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-mono font-medium backdrop-blur-md"
+                  :class="packingScannerActive ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40' : 'bg-zinc-900/80 text-zinc-400 border border-zinc-700'">
+                  {{ packingScannerActive ? '● Camera Active — Scan sticker QR or Barcode' : 'Camera paused' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Last Scan Result Banner / Audio & Visual Feedback -->
+            <div v-if="lastScannedResult" class="p-3 rounded-xl border transition-all animate-fadeIn"
+              :class="{
+                'bg-emerald-50 border-emerald-300 text-emerald-950': lastScannedResult.status === 'success',
+                'bg-amber-50 border-amber-300 text-amber-950': lastScannedResult.status === 'already_scanned',
+                'bg-red-50 border-red-300 text-red-950': lastScannedResult.status === 'wrong_customer',
+                'bg-zinc-100 border-zinc-300 text-zinc-900': lastScannedResult.status === 'not_found'
+              }">
+              <div class="flex items-start space-x-2.5">
+                <span class="text-xl shrink-0">
+                  <span v-if="lastScannedResult.status === 'success'">🟢</span>
+                  <span v-else-if="lastScannedResult.status === 'already_scanned'">🟡</span>
+                  <span v-else-if="lastScannedResult.status === 'wrong_customer'">🚨</span>
+                  <span v-else>⚠️</span>
+                </span>
+                <div class="min-w-0 flex-1">
+                  <div class="font-bold text-xs">{{ lastScannedResult.message }}</div>
+                  <div v-if="lastScannedResult.status === 'wrong_customer'" class="text-[11px] text-red-800 mt-1 font-semibold">
+                    STOP: Do NOT put this item into this parcel! Keep it for {{ lastScannedResult.wrongBuyer }}.
+                  </div>
+                  <div class="text-[10px] opacity-75 font-mono mt-0.5">Scanned: {{ lastScannedResult.text }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Manual Barcode / Gun Scanner Input -->
+            <form @submit.prevent="submitManualPackingCode" class="flex gap-2">
+              <div class="relative flex-1">
+                <input 
+                  v-model="packingManualCodeInput"
+                  type="text" 
+                  placeholder="Scan or type barcode / control # (e.g. 001, L0911-001)..."
+                  class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 text-xs text-zinc-900 font-mono focus:outline-none focus:border-amber-500 focus:bg-white"
+                />
+              </div>
+              <button 
+                type="submit"
+                class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs transition-colors cursor-pointer shrink-0">
+                Verify
+              </button>
+            </form>
+
+            <!-- Quick Progress Grid of Items for this Buyer -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between text-[11px] text-zinc-500 font-semibold uppercase">
+                <span>Items for this parcel ({{ activePackingBuyer.items.length }})</span>
+                <button 
+                  @click="switchPackingTab('checklist')"
+                  type="button" 
+                  class="text-amber-700 hover:text-amber-900 underline font-bold lowercase cursor-pointer">
+                  open full checklist →
+                </button>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                <div 
+                  v-for="it in activePackingBuyer.items" 
+                  :key="it.id"
+                  @click="toggleItemVerification(it)"
+                  class="p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-colors"
+                  :class="it.verified || it.packed ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950' : 'bg-zinc-50 border-zinc-200 text-zinc-700 hover:bg-zinc-100'">
+                  <div class="flex items-center space-x-2 min-w-0">
+                    <span class="text-sm font-bold">{{ (it.verified || it.packed) ? '✓' : '○' }}</span>
+                    <div class="min-w-0">
+                      <div class="font-bold font-mono text-xs truncate">
+                        {{ it.controlCode || (it.controlNum ? '#' + it.controlNum : '') }}
+                      </div>
+                      <div class="text-[10px] truncate text-zinc-500">
+                        {{ it.description || it.tag || 'Mined item' }}
+                      </div>
+                    </div>
+                  </div>
+                  <span class="font-mono font-bold text-xs shrink-0 pl-2">{{ activeProfile.currency }}{{ it.price }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================= TAB 2: CHECKLIST & MANUAL VERIFICATION ================= -->
+          <div v-show="packingActiveTab === 'checklist'" class="space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="text-xs text-zinc-500">
+                Tap checkbox to verify in-hand, or print thermal slip for pen-checking.
+              </div>
+              <div class="flex items-center space-x-1.5">
+                <button 
+                  @click="verifyAllItemsForBuyer(activePackingBuyer)"
+                  type="button"
+                  class="px-2.5 py-1 rounded bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-[11px] font-bold cursor-pointer transition-colors">
+                  ✓ Mark All
+                </button>
+                <button 
+                  @click="resetVerificationForBuyer(activePackingBuyer)"
+                  type="button"
+                  class="px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-[11px] font-medium cursor-pointer transition-colors">
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            <!-- Itemized Checklist Cards -->
+            <div class="space-y-2">
+              <div 
+                v-for="it in activePackingBuyer.items" 
+                :key="it.id"
+                class="border rounded-xl p-2.5 flex items-center justify-between transition-all"
+                :class="it.verified || it.packed ? 'bg-emerald-50/60 border-emerald-300' : 'bg-white border-zinc-200 hover:border-zinc-300'">
+                
+                <div class="flex items-center space-x-3 min-w-0 flex-1">
+                  <!-- Custom Checkbox -->
+                  <button 
+                    @click="toggleItemVerification(it)"
+                    type="button" 
+                    class="w-6 h-6 rounded-md flex items-center justify-center text-sm font-bold transition-colors cursor-pointer shrink-0 border"
+                    :class="it.verified || it.packed ? 'bg-emerald-600 border-emerald-700 text-white shadow-xs' : 'bg-white border-zinc-300 text-transparent hover:border-zinc-500'">
+                    ✓
+                  </button>
+
+                  <!-- Photo Thumbnail if present -->
+                  <div 
+                    v-if="it.photo" 
+                    @click="openPhotoZoom(it.photo, (it.controlCode || 'Item') + ' - ' + activePackingBuyer.handle)"
+                    class="w-10 h-10 rounded-lg overflow-hidden bg-zinc-100 border border-zinc-200 shrink-0 cursor-zoom-in relative group">
+                    <img :src="it.photo" :alt="it.controlCode" class="w-full h-full object-cover" />
+                    <span class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px]">🔍</span>
+                  </div>
+
+                  <!-- Details -->
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center space-x-2">
+                      <span class="font-black text-xs font-mono text-zinc-900">{{ it.controlCode || (it.controlNum ? '#' + it.controlNum : '') }}</span>
+                      <span v-if="it.verified || it.packed" class="px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-900 text-[9px] font-bold">VERIFIED</span>
+                    </div>
+                    <div class="text-[11px] text-zinc-600 truncate mt-0.5">
+                      {{ (it.description && it.description !== it.controlCode) ? it.description : (it.tag || 'Mined item') }}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Price and Time -->
+                <div class="text-right font-mono shrink-0 pl-2">
+                  <div class="font-bold text-xs text-zinc-900">{{ activeProfile.currency }}{{ it.price.toLocaleString() }}</div>
+                  <div v-if="it.verifiedAt" class="text-[10px] text-zinc-400 font-sans">at {{ it.verifiedAt }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Action Footer (Thermal Packing Slip & Quick Actions) -->
+        <div class="border-t border-zinc-200 p-3 bg-zinc-50 space-y-2 shrink-0">
+          
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <!-- 1. Print PT-210 Packing Slip -->
+            <button 
+              @click="printThermalPackingSlip(activePackingBuyer)"
+              :disabled="isPrintingPackingSlip"
+              type="button"
+              class="py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50">
+              <span v-if="isPrintingPackingSlip">⏳ Printing Slip...</span>
+              <span v-else class="flex items-center space-x-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                <span>🖨️ Print Packing Slip (PT-210)</span>
+              </span>
+            </button>
+
+            <!-- 2. Mark All Verified & Print in 1 Tap -->
+            <button 
+              @click="markBuyerAsPackedAndPrint(activePackingBuyer)"
+              :disabled="isPrintingPackingSlip"
+              type="button"
+              class="py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50">
+              <span>⚡ Mark Verified & Print</span>
+            </button>
+          </div>
+
+          <div class="flex items-center justify-between pt-1">
+            <span class="text-[11px] text-zinc-500">
+              Includes [✓]/[ ] checkboxes and QC signature block on thermal receipt.
+            </span>
+            <button 
+              @click="closePackingModal"
+              type="button"
+              class="px-3 py-1.5 rounded-lg bg-white border border-zinc-300 hover:bg-zinc-100 text-zinc-700 font-semibold text-xs transition-colors cursor-pointer">
+              Done / Close
+            </button>
+          </div>
+
+        </div>
+
       </div>
     </div>
 

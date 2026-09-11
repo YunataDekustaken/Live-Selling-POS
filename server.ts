@@ -139,6 +139,108 @@ async function startServer() {
     }
   });
 
+  // R2 Download / Get Proxy Endpoint (Supports fetching private backups from R2)
+  app.post('/api/r2-get', async (req, res) => {
+    try {
+      let { fileKey, config } = req.body;
+      if (!fileKey) {
+        return res.status(400).json({ error: 'Missing fileKey' });
+      }
+
+      if (typeof fileKey === 'string' && fileKey.startsWith('http')) {
+        try {
+          const urlObj = new URL(fileKey);
+          fileKey = urlObj.pathname.replace(/^\/+/, '');
+        } catch (_) {}
+      }
+
+      const accountId = (config?.accountId || process.env.R2_ACCOUNT_ID || '').trim();
+      const accessKeyId = (config?.accessKeyId || process.env.R2_ACCESS_KEY_ID || '').trim();
+      const secretAccessKey = (config?.secretAccessKey || process.env.R2_SECRET_ACCESS_KEY || '').trim();
+      const bucketName = (config?.bucketName || process.env.R2_BUCKET_NAME || '').trim();
+
+      if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
+        return res.status(400).json({ error: 'Incomplete R2 credentials' });
+      }
+
+      const cleanKey = String(fileKey).replace(/^\/+/, '');
+      const host = `${accountId}.r2.cloudflarestorage.com`;
+      const uriPath = `/${encodeURIComponent(bucketName)}/${cleanKey.split('/').map(encodeURIComponent).join('/')}`;
+      const endpoint = `https://${host}${uriPath}`;
+
+      const now = new Date();
+      const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, '');
+      const dateStamp = amzDate.substring(0, 8);
+      const region = 'auto';
+      const service = 's3';
+
+      const payloadHash = crypto.createHash('sha256').update('').digest('hex');
+
+      const canonicalHeaders =
+        `host:${host}\n` +
+        `x-amz-content-sha256:${payloadHash}\n` +
+        `x-amz-date:${amzDate}\n`;
+
+      const signedHeaders = 'host;x-amz-content-sha256;x-amz-date';
+
+      const canonicalRequest =
+        `GET\n` +
+        `${uriPath}\n` +
+        `\n` +
+        canonicalHeaders +
+        `\n` +
+        signedHeaders +
+        `\n` +
+        payloadHash;
+
+      const canonicalRequestHash = crypto.createHash('sha256').update(canonicalRequest).digest('hex');
+      const credentialScope = `${dateStamp}/${region}/${service}/aws4_request`;
+      const stringToSign =
+        `AWS4-HMAC-SHA256\n` +
+        amzDate +
+        `\n` +
+        credentialScope +
+        `\n` +
+        canonicalRequestHash;
+
+      const kDate = crypto.createHmac('sha256', 'AWS4' + secretAccessKey.trim()).update(dateStamp).digest();
+      const kRegion = crypto.createHmac('sha256', kDate).update(region).digest();
+      const kService = crypto.createHmac('sha256', kRegion).update(service).digest();
+      const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest();
+      const signature = crypto.createHmac('sha256', kSigning).update(stringToSign).digest('hex');
+
+      const authorizationHeader =
+        `AWS4-HMAC-SHA256 Credential=${accessKeyId.trim()}/${credentialScope}, ` +
+        `SignedHeaders=${signedHeaders}, ` +
+        `Signature=${signature}`;
+
+      const getRes = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'x-amz-date': amzDate,
+          'x-amz-content-sha256': payloadHash,
+          Authorization: authorizationHeader,
+        },
+      });
+
+      if (!getRes.ok) {
+        const errText = await getRes.text().catch(() => '');
+        return res.status(getRes.status).json({ error: `R2 returned status ${getRes.status}: ${errText || getRes.statusText}` });
+      }
+
+      const text = await getRes.text();
+      try {
+        const json = JSON.parse(text);
+        return res.json({ success: true, data: json });
+      } catch {
+        return res.json({ success: true, raw: text });
+      }
+    } catch (err: any) {
+      console.error('Server R2 get error:', err);
+      return res.status(500).json({ error: err.message || 'Failed to download from Cloudflare R2' });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

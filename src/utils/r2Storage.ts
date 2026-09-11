@@ -281,3 +281,148 @@ export async function uploadToCloudflareR2(
     };
   }
 }
+
+export interface CloudBackupRecord {
+  key: string;
+  url: string;
+  date: string;
+  time: string;
+  timestamp: number;
+  itemCount: number;
+  paymentCount: number;
+  storeName: string;
+  sessionDate: string;
+}
+
+const R2_BACKUP_HISTORY_KEY = 'live_pos_r2_backup_history';
+const R2_LAST_BACKUP_KEY = 'live_pos_last_r2_eod_backup';
+
+function safeStringToBase64(str: string): string {
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (_, p1) => {
+    return String.fromCharCode(parseInt(p1, 16));
+  }));
+}
+
+export function getR2BackupHistory(): CloudBackupRecord[] {
+  const list = safeGetItem<CloudBackupRecord[]>(R2_BACKUP_HISTORY_KEY);
+  if (Array.isArray(list)) return list;
+  if (typeof list === 'string') {
+    try {
+      const parsed = JSON.parse(list);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+export function getLastR2Backup(): CloudBackupRecord | null {
+  const item = safeGetItem<CloudBackupRecord>(R2_LAST_BACKUP_KEY);
+  if (!item) return null;
+  if (typeof item === 'object') return item as CloudBackupRecord;
+  if (typeof item === 'string') {
+    try {
+      return JSON.parse(item) as CloudBackupRecord;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function saveR2BackupRecord(record: CloudBackupRecord): void {
+  safeSetItem(R2_LAST_BACKUP_KEY, record);
+  const current = getR2BackupHistory();
+  const updated = [record, ...current.filter(r => r.key !== record.key)].slice(0, 30);
+  safeSetItem(R2_BACKUP_HISTORY_KEY, updated);
+}
+
+export async function uploadJsonBackupToCloudflare(
+  backupData: any,
+  storeId: string,
+  sessionDate: string,
+  config = getStoredR2Config()
+): Promise<{ success: boolean; url?: string; key?: string; record?: CloudBackupRecord; error?: string }> {
+  try {
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10);
+    const timeStr = now.toLocaleTimeString([], { hour12: false }).replace(/:/g, '-');
+    const cleanStore = (storeId || 'store').replace(/[^a-zA-Z0-9_-]/g, '');
+    const fileKey = `backups/${cleanStore}/eod_${sessionDate || dateStr}_${timeStr}.json`;
+    const latestKey = `backups/${cleanStore}/latest_eod_backup.json`;
+
+    const jsonStr = JSON.stringify(backupData, null, 2);
+    const base64DataUrl = `data:application/json;base64,${safeStringToBase64(jsonStr)}`;
+
+    const res = await uploadToCloudflareR2(fileKey, base64DataUrl, config);
+    if (!res.success) {
+      return { success: false, error: res.error || 'Cloudflare upload failed' };
+    }
+
+    // Also update latest pointer
+    try {
+      await uploadToCloudflareR2(latestKey, base64DataUrl, config);
+    } catch (_) {}
+
+    const record: CloudBackupRecord = {
+      key: fileKey,
+      url: res.url,
+      date: dateStr,
+      time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: now.getTime(),
+      itemCount: Array.isArray(backupData.allMines) ? backupData.allMines.length : 0,
+      paymentCount: Array.isArray(backupData.allPayments) ? backupData.allPayments.length : 0,
+      storeName: backupData.settings?.storeName || storeId,
+      sessionDate: sessionDate || dateStr
+    };
+
+    saveR2BackupRecord(record);
+    return { success: true, url: res.url, key: fileKey, record };
+  } catch (err: any) {
+    console.error('Error uploading JSON backup to Cloudflare:', err);
+    return { success: false, error: err.message || 'Backup failed' };
+  }
+}
+
+export async function fetchBackupFromCloudflare(
+  fileKeyOrUrl: string,
+  config = getStoredR2Config()
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  // If full url and publicDomain exists, try direct GET
+  if (fileKeyOrUrl.startsWith('http')) {
+    try {
+      const directRes = await fetch(fileKeyOrUrl);
+      if (directRes.ok) {
+        const data = await directRes.json();
+        return { success: true, data };
+      }
+    } catch (_) {}
+  }
+
+  // Use server proxy endpoint /api/r2-get
+  try {
+    const res = await fetch('/api/r2-get', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileKey: fileKeyOrUrl,
+        config: isR2Configured(config) ? config : undefined
+      })
+    });
+
+    if (res.ok) {
+      const resData = await res.json();
+      if (resData.success && resData.data) {
+        return { success: true, data: resData.data };
+      }
+      return { success: false, error: resData.error || 'Failed to download backup' };
+    } else {
+      const errJson = await res.json().catch(() => ({}));
+      return { success: false, error: errJson.error || `Server returned ${res.status}` };
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Network error fetching backup' };
+  }
+}
+

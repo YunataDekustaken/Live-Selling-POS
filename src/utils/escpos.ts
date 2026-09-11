@@ -1186,13 +1186,15 @@ export function buildPackingSlipEscPos(
         setAlign();
         enc.line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
       } else if (sec.id === 'itemsTable') {
-        enc.twoColumns('ITEM / CODE', `AMT (${currencyStr})`);
+        enc.twoColumns('CHECK / ITEM / CODE', `AMT (${currencyStr})`);
         enc.separator('-');
         basket.items.forEach((it, idx) => {
+          const isV = !!((it as any).verified || (it as any).packed);
+          const checkMark = isV ? '[V] ' : '[ ] ';
           const numPart = `${idx + 1}. `;
           const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
           const desc = (it.description && it.description !== it.controlCode && it.description !== 'Decor') ? ` • ${it.description}` : '';
-          enc.twoColumns(`${numPart}${code}${desc}`, `${it.price.toLocaleString()}`);
+          enc.twoColumns(`${checkMark}${numPart}${code}${desc}`, `${it.price.toLocaleString()}`);
         });
       } else if (sec.id === 'totals') {
         enc.bold(true);
@@ -1206,7 +1208,11 @@ export function buildPackingSlipEscPos(
         enc.normal();
       } else if (sec.id === 'qcCheckbox') {
         setAlign();
-        enc.line('QC Verified: [  ] Packed Pass');
+        const vCount = basket.items.filter((it: any) => it.verified || it.packed).length;
+        const tCount = basket.items.length;
+        const allV = tCount > 0 && vCount === tCount;
+        enc.line(`QC / PACKING: [${allV ? 'V' : ' '}] ${vCount}/${tCount} VERIFIED`);
+        enc.line('Packer Signature: ________________');
       } else if (sec.id === 'paymentDetails') {
         if (profile.paymentDetails && profile.paymentDetails.trim()) {
           setAlign();
@@ -1263,14 +1269,16 @@ export function buildPackingSlipEscPos(
     if (cfg.showDividers) enc.separator('-');
 
     // Items Header
-    enc.twoColumns('ITEM / CODE', `AMT (${currencyStr})`);
+    enc.twoColumns('CHECK / ITEM / CODE', `AMT (${currencyStr})`);
     if (cfg.showDividers) enc.separator('-');
 
     basket.items.forEach((it, idx) => {
+      const isV = !!((it as any).verified || (it as any).packed);
+      const checkMark = isV ? '[V] ' : '[ ] ';
       const numPart = cfg.showItemNumber ? `${idx + 1}. ` : '';
       const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
       const desc = (it.description && it.description !== it.controlCode && it.description !== 'Decor') ? ` • ${it.description}` : '';
-      const label = `${numPart}${code}${desc}`;
+      const label = `${checkMark}${numPart}${code}${desc}`;
       enc.twoColumns(label, `${it.price.toLocaleString()}`);
     });
 
@@ -1295,7 +1303,11 @@ export function buildPackingSlipEscPos(
     if (cfg.showDividers) enc.doubleSeparator();
 
     if (cfg.showQcCheckbox) {
-      enc.alignCenter().line('QC Verified: [  ] Packed Pass');
+      const vCount = basket.items.filter((it: any) => it.verified || it.packed).length;
+      const tCount = basket.items.length;
+      const allV = tCount > 0 && vCount === tCount;
+      enc.alignCenter().line(`QC / PACKING: [${allV ? 'V' : ' '}] ${vCount}/${tCount} VERIFIED`);
+      enc.alignCenter().line('Packer Signature: ________________');
     }
 
     if (cfg.customFooterNote && cfg.customFooterNote.trim()) {

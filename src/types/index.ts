@@ -22,6 +22,11 @@ export interface MinedItem {
   date?: string;
   time?: string;
   timestamp?: number;
+  verified?: boolean;
+  verifiedAt?: string;
+  packed?: boolean;
+  packedAt?: string;
+  packedBy?: string;
 }
 
 export interface PaymentRecord {
@@ -165,6 +170,7 @@ export interface AppSettings {
   activeLabelProfileId?: string;
   securityPin?: string;
   requirePasscode?: boolean;
+  autoR2DailyBackup?: boolean;
 }
 
 export interface ActiveStoreForm {
