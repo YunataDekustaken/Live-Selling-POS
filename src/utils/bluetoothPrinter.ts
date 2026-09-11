@@ -253,8 +253,8 @@ export async function printDirectSticker(
 /**
  * Feed to next label gap sensor cutoff (calibrates PT-265 tear-off position)
  */
-export async function feedToNextLabelGap(protocol: 'escpos' | 'tspl' = 'escpos'): Promise<boolean> {
-  const bytes = protocol === 'tspl' ? buildFeedGapTSPL() : buildFeedGapEscPos();
+export async function feedToNextLabelGap(protocol: 'escpos' | 'tspl' = 'tspl', layoutConfig?: LabelLayoutSettings): Promise<boolean> {
+  const bytes = protocol === 'tspl' ? buildFeedGapTSPL(layoutConfig) : buildFeedGapEscPos(layoutConfig);
   return await sendEscPosBytes(bytes);
 }
 

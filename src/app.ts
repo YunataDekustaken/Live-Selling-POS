@@ -1576,7 +1576,7 @@ const app = createApp({
       }
       try {
         const protocol = settings.value.labelLayout?.protocol === 'tspl' ? 'tspl' : 'escpos';
-        await feedToNextLabelGap(protocol);
+        await feedToNextLabelGap(protocol, settings.value.labelLayout);
         showToast('PT-265: Fed precisely to sticker cutoff gap!');
       } catch (e: any) {
         showToast(`Gap feed error: ${e.message || e}`);

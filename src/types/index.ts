@@ -51,8 +51,16 @@ export interface BuyerBasket {
 
 export interface LabelLayoutSettings {
   labelSize: '30x20mm' | '40x30mm' | '50x30mm' | '58mm_roll';
-  protocol: 'escpos_gap' | 'tspl' | 'escpos_standard';
+  protocol: 'tspl' | 'escpos_gap' | 'escpos_standard';
+  renderMode: 'tspl_vector' | 'canvas_bitmap' | 'escpos_compact';
+  paperGuidePosition: 'right' | 'center' | 'left' | 'custom';
+  horizontalOffsetMm: number; // Offset in mm (e.g. 18mm for right-side guide on 58mm printer)
+  verticalOffsetMm: number; // Offset in mm (-2 to +5)
+  gapHeightMm: number; // Gap in mm (typically 2mm or 3mm)
+  printSpeed: number; // 2, 3, 4, 5
+  printDensity: number; // 8 to 15
   showStoreName: boolean;
+  storeNameSize: 'xs' | 'sm';
   showSessionDate: boolean;
   showTime: boolean;
   showControlCode: boolean;
@@ -65,8 +73,8 @@ export interface LabelLayoutSettings {
   buyerSize: 'normal' | 'large';
   showBarcode: boolean;
   customFooterText: string;
-  gapFeedMode: 'gs_ff' | 'form_feed' | 'lines';
-  feedLines: number; // 0, 1, 2, 3
+  gapFeedMode: 'gs_ff' | 'form_feed' | 'none';
+  extraFeedLines: number; // 0, 1, 2
   compactSpacing: boolean;
 }
 

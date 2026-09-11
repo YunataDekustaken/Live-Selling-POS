@@ -3567,6 +3567,7 @@
         <div class="p-4 overflow-y-auto flex-1 overscroll-contain">
           
           <!-- ========================================================= -->
+          <!-- ========================================================= -->
           <!-- TAB 1: PT-265 LABEL STICKER (30mm x 20mm) DESIGNER        -->
           <!-- ========================================================= -->
           <div v-if="activeLayoutTab === 'label'" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -3575,33 +3576,110 @@
             <div class="lg:col-span-7 space-y-4">
               
               <!-- Hardware Specs & Gap Cutoff Advisory Card -->
-              <div class="p-3 rounded-xl bg-indigo-50/70 border border-indigo-200 text-xs space-y-2">
+              <div class="p-3.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-xs space-y-2.5">
                 <div class="flex items-center justify-between">
-                  <span class="font-bold text-indigo-950 flex items-center space-x-1.5">
-                    <span>🎯 PT-265 Exact Gap Cutoff System</span>
+                  <span class="font-bold text-indigo-950 flex items-center space-x-1.5 text-xs">
+                    <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                    <span>🎯 PT-265 Label & Sticker System</span>
                   </span>
-                  <span class="font-mono text-[10px] bg-indigo-200/80 text-indigo-900 px-1.5 py-0.5 rounded font-bold">
-                    30mm × 20mm
+                  <span class="font-mono text-[10px] bg-indigo-200/90 text-indigo-900 px-2 py-0.5 rounded-full font-bold">
+                    30mm × 20mm Die-Cut
                   </span>
                 </div>
                 <p class="text-[11px] text-indigo-900 leading-relaxed">
-                  Your PT-265 sticker roll is <strong>30mm wide by 20mm high</strong>. When the print completes, the app sends a hardware <strong>Gap Feed (GS FF / 0x1D 0x0C)</strong> command so the label advances and stops precisely at the die-cut peel line!
+                  Your PT-265 sticker roll is <strong>30mm wide by 20mm high</strong> with an adjustable guide on the left pushing the roll to the <strong>right side of the 58mm printhead</strong>. Native <strong>TSPL</strong> commands align text precisely over the label and auto-stop at the die-cut gap sensor.
                 </p>
                 <div class="flex flex-wrap gap-2 pt-0.5">
                   <button 
                     type="button" 
-                    @click="calibratePt265Gap"
-                    class="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center space-x-1 shadow-xs transition-colors cursor-pointer">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    <span>Test Cutoff Calibration</span>
+                    @click="testLabelPrint"
+                    class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                    <span>Print Test Sticker</span>
                   </button>
                   <button 
                     type="button" 
-                    @click="testLabelPrint"
-                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-zinc-100 text-indigo-900 border border-indigo-300 font-bold text-[11px] flex items-center space-x-1 shadow-2xs transition-colors cursor-pointer">
-                    <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                    <span>Print Sample Sticker</span>
+                    @click="calibratePt265Gap"
+                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-indigo-50 text-indigo-900 border border-indigo-300 font-bold text-[11px] flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer">
+                    <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                    <span>Feed to Gap Cutoff</span>
                   </button>
+                  <button 
+                    type="button" 
+                    @click="resetLabelLayout"
+                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-300 font-medium text-[11px] transition-colors cursor-pointer ml-auto">
+                    Reset Defaults
+                  </button>
+                </div>
+              </div>
+
+              <!-- Physical Paper Guide Alignment Card -->
+              <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="font-bold text-zinc-900 text-xs flex items-center space-x-1.5">
+                    <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+                    <span>Physical Paper Guide & Head Offset (PT-265)</span>
+                  </div>
+                  <span class="text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">
+                    Current: {{ settings.labelLayout.horizontalOffsetMm || 18 }}mm offset
+                  </span>
+                </div>
+
+                <p class="text-[11px] text-zinc-600">
+                  Because the PT-265 guide is on the left, your 30mm sticker sits toward the right side. Select your roll position or fine-tune the offset in millimeters:
+                </p>
+
+                <!-- Alignment Presets -->
+                <div class="grid grid-cols-3 gap-2">
+                  <button 
+                    type="button"
+                    @click="settings.labelLayout.paperGuidePosition = 'right'; settings.labelLayout.horizontalOffsetMm = 18; saveSettings(false)"
+                    class="p-2.5 rounded-lg border text-left transition-all cursor-pointer"
+                    :class="(settings.labelLayout.paperGuidePosition === 'right' || settings.labelLayout.horizontalOffsetMm === 18) ? 'border-indigo-600 bg-indigo-50/60 ring-2 ring-indigo-200' : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100'">
+                    <div class="text-[11px] font-bold text-zinc-900">👉 Right Guide (PT-265)</div>
+                    <div class="text-[10px] text-zinc-500 mt-0.5">18mm offset (Recommended)</div>
+                  </button>
+
+                  <button 
+                    type="button"
+                    @click="settings.labelLayout.paperGuidePosition = 'center'; settings.labelLayout.horizontalOffsetMm = 9; saveSettings(false)"
+                    class="p-2.5 rounded-lg border text-left transition-all cursor-pointer"
+                    :class="(settings.labelLayout.paperGuidePosition === 'center' && settings.labelLayout.horizontalOffsetMm === 9) ? 'border-indigo-600 bg-indigo-50/60 ring-2 ring-indigo-200' : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100'">
+                    <div class="text-[11px] font-bold text-zinc-900">↔️ Centered Roll</div>
+                    <div class="text-[10px] text-zinc-500 mt-0.5">9mm margin</div>
+                  </button>
+
+                  <button 
+                    type="button"
+                    @click="settings.labelLayout.paperGuidePosition = 'left'; settings.labelLayout.horizontalOffsetMm = 0; saveSettings(false)"
+                    class="p-2.5 rounded-lg border text-left transition-all cursor-pointer"
+                    :class="(settings.labelLayout.paperGuidePosition === 'left' && settings.labelLayout.horizontalOffsetMm === 0) ? 'border-indigo-600 bg-indigo-50/60 ring-2 ring-indigo-200' : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100'">
+                    <div class="text-[11px] font-bold text-zinc-900">👈 Left Guide</div>
+                    <div class="text-[10px] text-zinc-500 mt-0.5">0mm (Edge align)</div>
+                  </button>
+                </div>
+
+                <!-- Custom Millimeter Offset Slider -->
+                <div class="pt-2 border-t border-zinc-100 space-y-1.5">
+                  <div class="flex justify-between items-center text-[11px]">
+                    <span class="font-semibold text-zinc-700">Fine-tune Horizontal Offset (mm):</span>
+                    <span class="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{{ settings.labelLayout.horizontalOffsetMm ?? 18 }} mm</span>
+                  </div>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="28" 
+                    step="1"
+                    v-model.number="settings.labelLayout.horizontalOffsetMm" 
+                    @input="saveSettings(false)"
+                    class="w-full accent-indigo-600 cursor-pointer"
+                  />
+                  <div class="flex justify-between text-[9px] text-zinc-400 font-mono">
+                    <span>0mm (Left edge)</span>
+                    <span>14mm (Mid)</span>
+                    <span>18mm (PT-265 Default)</span>
+                    <span>28mm (Far right)</span>
+                  </div>
                 </div>
               </div>
 
@@ -3609,7 +3687,6 @@
               <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-3">
                 <div class="font-bold text-zinc-900 text-xs flex items-center justify-between">
                   <span>Sticker Roll Dimensions & Driver Protocol</span>
-                  <button @click="resetLabelLayout" class="text-[11px] text-zinc-500 hover:text-zinc-800 underline font-medium cursor-pointer">Reset 30x20 Defaults</button>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
@@ -3625,28 +3702,39 @@
                   <div>
                     <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Printer Protocol</label>
                     <select v-model="settings.labelLayout.protocol" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option value="escpos">ESC/POS with Gap Advance (Recommended)</option>
-                      <option value="tspl">TSPL (Native Label Mode)</option>
+                      <option value="tspl">TSPL (Native PT-265 Label Mode - Recommended)</option>
+                      <option value="escpos">ESC/POS with Margin Shift</option>
                     </select>
                   </div>
                 </div>
 
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs pt-1 border-t border-zinc-100">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs pt-1 border-t border-zinc-100">
                   <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Cutoff / Feed Command</label>
-                    <select v-model="settings.labelLayout.gapFeedCommand" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-mono font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option value="GS_FF">GS FF (0x1D 0x0C) - Feed to Gap Sensor</option>
-                      <option value="FF">FF (0x0C) - Standard Form Feed</option>
-                      <option value="LF_ONLY">LF Only (Manual Feed)</option>
+                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Gap Height</label>
+                    <select v-model.number="settings.labelLayout.gapHeightMm" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
+                      <option :value="2">2 mm (Standard)</option>
+                      <option :value="3">3 mm</option>
+                      <option :value="4">4 mm</option>
                     </select>
                   </div>
 
                   <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Extra Post-Feed Blank Lines</label>
-                    <select v-model.number="settings.labelLayout.extraFeedLines" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option :value="0">0 lines (Exact 20mm sticker height)</option>
-                      <option :value="1">1 line (+3mm margin)</option>
-                      <option :value="2">2 lines (+6mm margin)</option>
+                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Print Density / Dark</label>
+                    <select v-model.number="settings.labelLayout.printDensity" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
+                      <option :value="8">8 (Normal)</option>
+                      <option :value="10">10 (Dark)</option>
+                      <option :value="12">12 (Extra Crisp)</option>
+                      <option :value="15">15 (Max Contrast)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Vertical Offset</label>
+                    <select v-model.number="settings.labelLayout.verticalOffsetMm" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
+                      <option :value="-1">-1 mm (Up)</option>
+                      <option :value="0">0 mm (Normal)</option>
+                      <option :value="1">+1 mm (Down)</option>
+                      <option :value="2">+2 mm</option>
                     </select>
                   </div>
                 </div>
@@ -3762,86 +3850,111 @@
 
             </div>
 
-            <!-- Right 5 Cols: Live Dynamic Sticker Preview -->
+            <!-- Right 5 Cols: Live Dynamic Sticker Preview & Physical Chamber Visualizer -->
             <div class="lg:col-span-5 flex flex-col items-center">
               <div class="sticky top-2 w-full space-y-3">
                 <div class="flex items-center justify-between px-1">
                   <span class="font-bold text-zinc-900 text-xs flex items-center space-x-1.5">
                     <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    <span>Live 30x20mm Sticker Preview</span>
+                    <span>PT-265 Printhead & 30x20mm Preview</span>
                   </span>
                   <span class="text-[10px] font-mono text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">Scale ~2.5x</span>
                 </div>
 
-                <!-- Thermal Label Sticker Visual Box -->
-                <div class="bg-zinc-800 p-4 rounded-2xl flex flex-col items-center justify-center shadow-inner border border-zinc-700">
-                  <div class="w-full max-w-[280px] bg-white rounded-lg p-3 shadow-lg border border-zinc-400 font-mono text-black relative select-none" style="min-height: 185px;">
-                    
-                    <!-- Sticker Top Bar: Store Name / Session Date -->
-                    <div v-if="settings.labelLayout.showStoreName || settings.labelLayout.showSessionDate || settings.labelLayout.showTime" class="flex justify-between items-center text-[10px] border-b border-black pb-0.5 mb-1 font-bold">
-                      <span v-if="settings.labelLayout.showStoreName" class="truncate max-w-[140px] uppercase">{{ activeProfile.name || settings.storeName }}</span>
-                      <span v-else>LIVE POS</span>
-                      <span class="text-[9px]">{{ (settings.labelLayout.showSessionDate ? '#' + sessionDate : '') }} {{ (settings.labelLayout.showTime ? samplePreviewItem.time : '') }}</span>
+                <!-- 58mm Thermal Chamber & Right-Side Guide Diagram -->
+                <div class="bg-zinc-900 p-4 rounded-2xl flex flex-col items-center justify-center shadow-inner border border-zinc-800">
+                  <div class="w-full mb-2 flex items-center justify-between text-[10px] font-mono text-zinc-400 border-b border-zinc-700 pb-1">
+                    <span class="flex items-center space-x-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                      <span>Left Guide: {{ settings.labelLayout.horizontalOffsetMm ?? 18 }}mm</span>
+                    </span>
+                    <span class="text-zinc-500">PT-265 58mm Mechanism</span>
+                    <span class="text-emerald-400 font-bold">30mm Sticker 👉</span>
+                  </div>
+
+                  <!-- Visualizer Container representing the 58mm print line -->
+                  <div class="w-full bg-zinc-800 rounded-xl p-2.5 border border-zinc-700 relative overflow-hidden flex" style="min-height: 200px;">
+                    <!-- Left empty chamber area (pushed by guide) -->
+                    <div 
+                      class="transition-all duration-200 border-r border-dashed border-zinc-600 flex flex-col items-center justify-center text-[9px] font-mono text-zinc-500 select-none bg-zinc-800/60 p-1"
+                      :style="{ width: Math.min(Math.max(((settings.labelLayout.horizontalOffsetMm ?? 18) / 48) * 100, 0), 55) + '%' }">
+                      <span v-if="(settings.labelLayout.horizontalOffsetMm ?? 18) > 8">Guide Adjuster</span>
+                      <span v-if="(settings.labelLayout.horizontalOffsetMm ?? 18) > 8" class="text-[8px] text-zinc-600">({{ settings.labelLayout.horizontalOffsetMm ?? 18 }}mm)</span>
                     </div>
 
-                    <!-- Main Code & Buyer Line -->
-                    <div class="text-center my-1">
-                      <div v-if="settings.labelLayout.showControlCode" 
-                           class="font-black leading-tight tracking-tight"
-                           :class="settings.labelLayout.codeSize === 'xl' ? 'text-2xl' : (settings.labelLayout.codeSize === 'lg' ? 'text-xl' : 'text-base')">
-                        {{ samplePreviewItem.controlCode }}
+                    <!-- The 30x20mm Thermal Sticker Card -->
+                    <div 
+                      class="flex-1 bg-white rounded-md p-2.5 shadow-md border border-zinc-300 font-mono text-black relative select-none transition-all duration-200 flex flex-col justify-between"
+                      style="min-height: 180px;">
+                      
+                      <!-- Sticker Top Bar: Store Name / Session Date -->
+                      <div>
+                        <div v-if="settings.labelLayout.showStoreName || settings.labelLayout.showSessionDate || settings.labelLayout.showTime" class="flex justify-between items-center text-[9px] border-b border-black pb-0.5 mb-1 font-bold">
+                          <span v-if="settings.labelLayout.showStoreName" class="truncate max-w-[110px] uppercase">{{ activeProfile.name || settings.storeName }}</span>
+                          <span v-else>LIVE POS</span>
+                          <span class="text-[8px]">{{ (settings.labelLayout.showSessionDate ? '#' + sessionDate : '') }} {{ (settings.labelLayout.showTime ? samplePreviewItem.time : '') }}</span>
+                        </div>
+
+                        <!-- Main Code & Buyer Line -->
+                        <div class="text-center my-0.5">
+                          <div v-if="settings.labelLayout.showControlCode" 
+                               class="font-black leading-tight tracking-tight"
+                               :class="settings.labelLayout.codeSize === 'xl' ? 'text-xl' : (settings.labelLayout.codeSize === 'lg' ? 'text-lg' : 'text-sm')">
+                            {{ samplePreviewItem.controlCode }}
+                          </div>
+
+                          <div v-if="settings.labelLayout.showBuyer" 
+                               class="font-extrabold uppercase mt-0.5 truncate leading-tight"
+                               :class="settings.labelLayout.buyerSize === 'lg' ? 'text-sm' : 'text-[11px]'">
+                            {{ samplePreviewItem.buyer }}
+                          </div>
+                        </div>
+
+                        <!-- Tag, Description & Price -->
+                        <div v-if="settings.labelLayout.showTag || settings.labelLayout.showPrice" class="flex justify-between items-center border-t border-dashed border-black pt-1 mt-1 text-[10px]">
+                          <div class="truncate max-w-[120px]">
+                            <span v-if="settings.labelLayout.showTag" class="font-bold">{{ samplePreviewItem.tag }}</span>
+                            <span v-if="settings.labelLayout.showDescription && samplePreviewItem.description" class="text-[8px] ml-1">({{ samplePreviewItem.description }})</span>
+                          </div>
+                          <span v-if="settings.labelLayout.showPrice" class="font-black" :class="settings.labelLayout.priceSize === 'lg' ? 'text-xs font-extrabold' : 'text-[10px]'">
+                            {{ activeProfile.currency }}{{ samplePreviewItem.price }}
+                          </span>
+                        </div>
+
+                        <!-- Barcode if enabled -->
+                        <div v-if="settings.labelLayout.showBarcode" class="text-center mt-1 pt-0.5 border-t border-black">
+                          <div class="h-3.5 flex items-center justify-center overflow-hidden">
+                            <svg class="w-full h-3.5" viewBox="0 0 100 15" preserveAspectRatio="none">
+                              <rect x="0" y="0" width="100" height="15" fill="#fff" />
+                              <g fill="#000">
+                                <rect x="4" y="0" width="2" height="15" /><rect x="8" y="0" width="1" height="15" />
+                                <rect x="11" y="0" width="3" height="15" /><rect x="16" y="0" width="2" height="15" />
+                                <rect x="20" y="0" width="4" height="15" /><rect x="26" y="0" width="1" height="15" />
+                                <rect x="30" y="0" width="3" height="15" /><rect x="35" y="0" width="2" height="15" />
+                                <rect x="40" y="0" width="4" height="15" /><rect x="47" y="0" width="1" height="15" />
+                                <rect x="51" y="0" width="3" height="15" /><rect x="56" y="0" width="2" height="15" />
+                                <rect x="61" y="0" width="4" height="15" /><rect x="68" y="0" width="1" height="15" />
+                                <rect x="72" y="0" width="3" height="15" /><rect x="78" y="0" width="2" height="15" />
+                                <rect x="83" y="0" width="3" height="15" /><rect x="89" y="0" width="1" height="15" />
+                                <rect x="93" y="0" width="3" height="15" />
+                              </g>
+                            </svg>
+                          </div>
+                          <div class="text-[7px] font-mono tracking-widest mt-0.5">*{{ samplePreviewItem.controlCode }}*</div>
+                        </div>
+
+                        <!-- Custom Footer -->
+                        <div v-if="settings.labelLayout.footerText" class="text-[8px] text-center uppercase tracking-wider font-semibold border-t border-black mt-1 pt-0.5">
+                          {{ settings.labelLayout.footerText }}
+                        </div>
                       </div>
 
-                      <div v-if="settings.labelLayout.showBuyer" 
-                           class="font-extrabold uppercase mt-0.5 truncate leading-tight"
-                           :class="settings.labelLayout.buyerSize === 'lg' ? 'text-base' : 'text-xs'">
-                        {{ samplePreviewItem.buyer }}
+                      <!-- Cutoff guideline indicator -->
+                      <div class="absolute -bottom-2.5 left-0 right-0 flex items-center justify-center">
+                        <span class="bg-red-500 text-white font-mono text-[8px] px-1.5 py-0.2 rounded-full font-bold shadow-xs">
+                          ✂️ EXACT DIE-CUT GAP SENSOR CUTOFF
+                        </span>
                       </div>
-                    </div>
-
-                    <!-- Tag, Description & Price -->
-                    <div v-if="settings.labelLayout.showTag || settings.labelLayout.showPrice" class="flex justify-between items-center border-t border-dashed border-black pt-1 mt-1 text-[11px]">
-                      <div class="truncate max-w-[150px]">
-                        <span v-if="settings.labelLayout.showTag" class="font-bold">{{ samplePreviewItem.tag }}</span>
-                        <span v-if="settings.labelLayout.showDescription && samplePreviewItem.description" class="text-[9px] ml-1">({{ samplePreviewItem.description }})</span>
-                      </div>
-                      <span v-if="settings.labelLayout.showPrice" class="font-black" :class="settings.labelLayout.priceSize === 'lg' ? 'text-sm' : 'text-xs'">
-                        {{ activeProfile.currency }}{{ samplePreviewItem.price }}
-                      </span>
-                    </div>
-
-                    <!-- Barcode if enabled -->
-                    <div v-if="settings.labelLayout.showBarcode" class="text-center mt-1 pt-0.5 border-t border-black">
-                      <div class="h-4 flex items-center justify-center overflow-hidden">
-                        <svg class="w-full h-4" viewBox="0 0 100 15" preserveAspectRatio="none">
-                          <rect x="0" y="0" width="100" height="15" fill="#fff" />
-                          <g fill="#000">
-                            <rect x="4" y="0" width="2" height="15" /><rect x="8" y="0" width="1" height="15" />
-                            <rect x="11" y="0" width="3" height="15" /><rect x="16" y="0" width="2" height="15" />
-                            <rect x="20" y="0" width="4" height="15" /><rect x="26" y="0" width="1" height="15" />
-                            <rect x="30" y="0" width="3" height="15" /><rect x="35" y="0" width="2" height="15" />
-                            <rect x="40" y="0" width="4" height="15" /><rect x="47" y="0" width="1" height="15" />
-                            <rect x="51" y="0" width="3" height="15" /><rect x="56" y="0" width="2" height="15" />
-                            <rect x="61" y="0" width="4" height="15" /><rect x="68" y="0" width="1" height="15" />
-                            <rect x="72" y="0" width="3" height="15" /><rect x="78" y="0" width="2" height="15" />
-                            <rect x="83" y="0" width="3" height="15" /><rect x="89" y="0" width="1" height="15" />
-                            <rect x="93" y="0" width="3" height="15" />
-                          </g>
-                        </svg>
-                      </div>
-                      <div class="text-[8px] font-mono tracking-widest mt-0.5">*{{ samplePreviewItem.controlCode }}*</div>
-                    </div>
-
-                    <!-- Custom Footer -->
-                    <div v-if="settings.labelLayout.footerText" class="text-[8px] text-center uppercase tracking-wider font-semibold border-t border-black mt-1 pt-0.5">
-                      {{ settings.labelLayout.footerText }}
-                    </div>
-
-                    <!-- Cutoff guideline indicator -->
-                    <div class="absolute -bottom-2 left-0 right-0 flex items-center justify-center">
-                      <span class="bg-red-500 text-white font-mono text-[8px] px-1.5 py-0.2 rounded-full font-bold shadow-xs">
-                        ✂️ EXACT DIE-CUT GAP LINE
-                      </span>
                     </div>
                   </div>
                 </div>

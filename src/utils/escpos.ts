@@ -63,8 +63,33 @@ export class EscPosEncoder {
   }
 
   /**
+   * Set left margin in dots (GS L nL nH)
+   * Essential for narrow paper pushed to right side by printer guide.
+   * e.g. 18mm * 8 dots/mm = 144 dots
+   */
+  public setLeftMargin(dots: number = 0): this {
+    const clamped = Math.max(0, Math.min(576, dots));
+    const nL = clamped % 256;
+    const nH = Math.floor(clamped / 256);
+    this.buffer.push(0x1D, 0x4C, nL, nH);
+    return this;
+  }
+
+  /**
+   * Set printable area width in dots (GS W nL nH)
+   * e.g. 30mm * 8 dots/mm = 240 dots
+   */
+  public setPrintAreaWidth(dots: number = 384): this {
+    const clamped = Math.max(8, Math.min(576, dots));
+    const nL = clamped % 256;
+    const nH = Math.floor(clamped / 256);
+    this.buffer.push(0x1D, 0x57, nL, nH);
+    return this;
+  }
+
+  /**
    * Set line spacing in dots (ESC 3 n)
-   * e.g., 18 or 20 dots for compact sticker printing within 20mm height
+   * e.g., 14 or 16 dots for compact sticker printing within 20mm height
    */
   public setLineSpacing(dots: number = 24): this {
     const clamped = Math.max(0, Math.min(255, dots));
@@ -201,122 +226,96 @@ export function buildStickerEscPos(
     currency?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 24,
+  paperCols: number = 20,
   layoutConfig?: LabelLayoutSettings
 ): Uint8Array {
   const cfg = layoutConfig || defaultLabelLayout;
   const is30x20 = cfg.labelSize === '30x20mm';
   
-  // Set appropriate columns: 30mm is ~20-24 chars in Font B, 58mm is 32 chars
-  const cols = is30x20 ? (paperCols <= 24 ? paperCols : 22) : paperCols;
+  // 30mm width is approx 18-20 characters in compact font
+  const cols = is30x20 ? 20 : paperCols;
   const enc = new EscPosEncoder(cols);
 
   enc.init();
 
-  // For 30x20mm compact sticker, set tight line spacing (18 dots) so content stays within 20mm
-  if (is30x20 || cfg.compactSpacing) {
-    enc.setLineSpacing(18);
+  // Physical right-side or custom horizontal offset (PT-265 has left guide pushing paper to right)
+  const offsetMm = cfg.horizontalOffsetMm !== undefined ? cfg.horizontalOffsetMm : (cfg.paperGuidePosition === 'right' ? 18 : 0);
+  const leftMarginDots = Math.round(offsetMm * 8);
+  if (leftMarginDots > 0) {
+    enc.setLeftMargin(leftMarginDots);
+    enc.setPrintAreaWidth(is30x20 ? 240 : 384);
   }
 
-  // 1. Store Name / Session header (Optional, usually omitted on 30x20mm to save space)
+  // Ultra-compact line spacing so 30x20mm content never exceeds 140 dots (20mm = 160 dots)
+  enc.setLineSpacing(is30x20 ? 14 : 20);
+
+  // 1. Store Name (Only if enabled and space permits)
   if (cfg.showStoreName) {
-    enc.alignCenter()
-      .bold(true)
-      .line(profile.name || 'LIVE POS')
-      .normal();
-    if (is30x20) enc.setLineSpacing(18);
+    const storeStr = (profile.name || 'LIVE POS').substring(0, cols);
+    enc.alignCenter().bold(true).line(storeStr).normal();
+    enc.setLineSpacing(is30x20 ? 14 : 20);
   }
 
-  if (cfg.showSessionDate || cfg.showTime) {
-    const parts: string[] = [];
-    if (cfg.showSessionDate) parts.push(`#${sessionDate || 'LIVE'}`);
-    if (cfg.showTime) parts.push(item.time || '');
-    if (parts.length > 0) {
-      enc.alignCenter().line(parts.join(' '));
-    }
-  }
-
-  // 2. Control Code (e.g. [ #001 ] or [ LL-0910-001 ])
+  // 2. Control Code (e.g. [ #001 ] or [ #0910-01 ])
   if (cfg.showControlCode) {
     const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
     enc.alignCenter().bold(true);
-    if (cfg.codeSize === 'extra_large') {
+    if (cfg.codeSize === 'extra_large' && !is30x20) {
       enc.size(2, 2);
-    } else if (cfg.codeSize === 'large') {
-      enc.size(1, 2);
+    } else if (cfg.codeSize === 'large' || is30x20) {
+      enc.size(1, 1);
     } else {
       enc.size(1, 1);
     }
     enc.line(`[ ${codeStr} ]`).normal();
-    if (is30x20) enc.setLineSpacing(18);
+    enc.setLineSpacing(is30x20 ? 14 : 20);
   }
 
-  // 3. Buyer Tag (Prominent)
+  // 3. Buyer Tag
   if (cfg.showBuyer) {
-    const cleanBuyer = (item.buyer || '').replace(/^@+/, '');
-    enc.alignCenter().bold(true);
-    if (cfg.buyerSize === 'large') {
-      enc.size(1, 2);
-    } else {
-      enc.size(1, 1);
-    }
-    enc.line(`@${cleanBuyer}`).normal();
-    if (is30x20) enc.setLineSpacing(18);
+    const cleanBuyer = (item.buyer || '').replace(/^@+/, '').substring(0, cols - 1);
+    enc.alignCenter().bold(true).line(`@${cleanBuyer}`).normal();
+    enc.setLineSpacing(is30x20 ? 14 : 20);
   }
 
-  // 4. Item Tag / Description
-  if (cfg.showTag || cfg.showDescription) {
-    const tagPart = cfg.showTag ? (item.tag || item.controlCode) : '';
+  // 4. Tag / Description & Price (Combined compactly for 20mm height)
+  if (cfg.showPrice || cfg.showTag || cfg.showDescription) {
+    const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+    const priceStr = cfg.showPrice ? `${currencyStr}${item.price.toLocaleString()}` : '';
+    const tagPart = cfg.showTag ? (item.tag || item.controlCode || '') : '';
     const descPart = (cfg.showDescription && item.description) ? item.description : '';
-    let textOut = '';
-    if (tagPart && descPart) {
-      textOut = `${tagPart}: ${descPart}`;
-    } else {
-      textOut = tagPart || descPart;
+    const itemLabel = tagPart || descPart;
+
+    if (itemLabel && priceStr) {
+      enc.alignCenter().bold(true).line(`${itemLabel.substring(0, 10)}  ${priceStr}`).normal();
+    } else if (priceStr) {
+      enc.alignCenter().bold(true).line(priceStr).normal();
+    } else if (itemLabel) {
+      enc.alignCenter().line(itemLabel.substring(0, cols)).normal();
     }
-    if (textOut) {
-      enc.alignCenter().line(textOut.substring(0, cols));
-    }
+    enc.setLineSpacing(is30x20 ? 14 : 20);
   }
 
-  // 5. Price
-  if (cfg.showPrice) {
-    const currencyStr = (profile.currency || 'PHP').replace(/₱/g, 'PHP');
-    enc.alignCenter().bold(true);
-    if (cfg.priceSize === 'large') {
-      enc.size(1, 2);
-    } else {
-      enc.size(1, 1);
-    }
-    enc.line(`${currencyStr} ${item.price.toLocaleString()}`).normal();
-    if (is30x20) enc.setLineSpacing(18);
-  }
-
-  // 6. Custom Footer Note
+  // 5. Custom Footer Note (optional)
   if (cfg.customFooterText && cfg.customFooterText.trim()) {
     enc.alignCenter().line(cfg.customFooterText.trim().substring(0, cols));
   }
 
-  // 7. Gap Feed & Cutoff Line Command (Crucial for PT-265 sticker alignment)
+  // 6. Cutoff Gap Feed
   if (cfg.gapFeedMode === 'gs_ff') {
-    // Command PT-265 to feed directly to sticker gap / black mark cutoff
     enc.feedToLabelGap();
   } else if (cfg.gapFeedMode === 'form_feed') {
     enc.formFeed();
-  } else {
-    // Plain line feeds
-    const lines = cfg.feedLines !== undefined ? cfg.feedLines : (is30x20 ? 0 : 2);
-    if (lines > 0) {
-      enc.feed(lines);
-    }
+  } else if (cfg.extraFeedLines > 0) {
+    enc.feed(cfg.extraFeedLines);
   }
 
   return enc.encode();
 }
 
 /**
- * Builds Native TSPL Label Byte stream for PT-265 (30mm x 20mm)
- * Uses printer hardware coordinates and gap sensor calibration for exact stopping.
+ * Builds Native TSPL Label Byte stream for PT-265 (30mm x 20mm and custom sizes)
+ * Uses printer hardware coordinates, right-side guide offset, and hardware gap sensor.
  */
 export function buildStickerTSPL(
   item: {
@@ -339,60 +338,87 @@ export function buildStickerTSPL(
   const cfg = layoutConfig || defaultLabelLayout;
   const is30x20 = cfg.labelSize === '30x20mm';
 
-  // Label dimensions in mm (203 DPI = 8 dots/mm)
+  // Physical label dimensions in mm (203 DPI = 8 dots/mm)
   // 30mm = 240 dots, 20mm = 160 dots
   const widthMm = is30x20 ? 30 : (cfg.labelSize === '40x30mm' ? 40 : 50);
   const heightMm = is30x20 ? 20 : (cfg.labelSize === '40x30mm' ? 30 : 30);
+  const gapMm = cfg.gapHeightMm || 2;
+
+  // Calculate right-side physical guide offset in dots
+  // On PT-265 (58mm mechanism), a 30mm roll pushed to the right has ~18mm offset
+  const offsetMm = cfg.horizontalOffsetMm !== undefined ? cfg.horizontalOffsetMm : (cfg.paperGuidePosition === 'right' ? 18 : 0);
+  const xOffsetDots = Math.max(0, Math.round(offsetMm * 8));
+  const yOffsetDots = Math.round((cfg.verticalOffsetMm || 0) * 8);
 
   const cleanBuyer = (item.buyer || '').replace(/^@+/, '').replace(/"/g, '');
   const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
-  const currencyStr = (profile.currency || 'PHP').replace(/₱/g, 'PHP');
-  const priceStr = `${currencyStr} ${item.price.toLocaleString()}`;
+  const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+  const priceStr = `${currencyStr}${item.price.toLocaleString()}`;
 
+  // Build TSPL command stream
   let tspl = `SIZE ${widthMm} mm, ${heightMm} mm\r\n`;
-  tspl += `GAP 2 mm, 0 mm\r\n`;
-  tspl += `SPEED 4\r\n`;
-  tspl += `DENSITY 10\r\n`;
+  tspl += `GAP ${gapMm} mm, 0 mm\r\n`;
+  tspl += `SPEED ${cfg.printSpeed || 3}\r\n`;
+  tspl += `DENSITY ${cfg.printDensity || 10}\r\n`;
   tspl += `DIRECTION 1\r\n`;
-  tspl += `REFERENCE 0,0\r\n`;
+  tspl += `REFERENCE ${xOffsetDots},${yOffsetDots}\r\n`;
   tspl += `CLS\r\n`;
 
-  let yPos = 12;
+  // Center coordinate on 30mm sticker (240 dots wide / 2 = 120 dots)
+  const stickerCenter = Math.round((widthMm * 8) / 2); // 120 for 30mm
+  const stickerRight = Math.round((widthMm * 8) - 10); // 230 for 30mm
+  const stickerLeft = 10;
 
+  let yPos = is30x20 ? 8 : 12;
+
+  // 1. Store Name (Optional on 30x20mm)
   if (cfg.showStoreName) {
-    const storeName = (profile.name || 'LIVE POS').replace(/"/g, '').substring(0, 16);
-    tspl += `TEXT 120,${yPos},"1",0,1,1,2,"${storeName}"\r\n`; // Centered
-    yPos += 22;
+    const storeName = (profile.name || 'LIVE POS').replace(/"/g, '').substring(0, 14);
+    tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${storeName}"\r\n`;
+    yPos += is30x20 ? 18 : 22;
   }
 
+  // 2. Control Code (e.g. [ #001 ])
   if (cfg.showControlCode) {
-    tspl += `TEXT 120,${yPos},"3",0,1,1,2,"[ ${codeStr} ]"\r\n`;
-    yPos += 34;
+    const font = cfg.codeSize === 'extra_large' ? '3' : (cfg.codeSize === 'large' ? '3' : '2');
+    tspl += `TEXT ${stickerCenter},${yPos},"${font}",0,1,1,2,"[ ${codeStr} ]"\r\n`;
+    yPos += is30x20 ? 30 : 34;
   }
 
+  // 3. Buyer Handle (e.g. @janedoe)
   if (cfg.showBuyer) {
-    tspl += `TEXT 120,${yPos},"2",0,1,1,2,"@${cleanBuyer.substring(0, 14)}"\r\n`;
-    yPos += 28;
+    const buyerFont = cfg.buyerSize === 'large' ? '3' : '2';
+    tspl += `TEXT ${stickerCenter},${yPos},"${buyerFont}",0,1,1,2,"@${cleanBuyer.substring(0, 13)}"\r\n`;
+    yPos += is30x20 ? 28 : 32;
   }
 
-  if (cfg.showTag || cfg.showDescription) {
-    const desc = ((cfg.showDescription && item.description) ? item.description : (item.tag || '')).replace(/"/g, '').substring(0, 16);
-    if (desc) {
-      tspl += `TEXT 120,${yPos},"1",0,1,1,2,"${desc}"\r\n`;
-      yPos += 20;
+  // 4. Tag / Description & Price (Smart compact 20mm layout)
+  if (cfg.showPrice || cfg.showTag || cfg.showDescription) {
+    const tagPart = cfg.showTag ? (item.tag || item.controlCode || '') : '';
+    const descPart = (cfg.showDescription && item.description) ? item.description : '';
+    const labelText = (tagPart || descPart).replace(/"/g, '').substring(0, 10);
+
+    if (cfg.showPrice && labelText) {
+      // Print Tag on left, Price on right
+      tspl += `TEXT ${stickerLeft},${yPos},"1",0,1,1,1,"${labelText}"\r\n`;
+      tspl += `TEXT ${stickerRight},${yPos},"2",0,1,1,3,"${priceStr}"\r\n`;
+      yPos += is30x20 ? 22 : 26;
+    } else if (cfg.showPrice) {
+      tspl += `TEXT ${stickerCenter},${yPos},"3",0,1,1,2,"${priceStr}"\r\n`;
+      yPos += is30x20 ? 24 : 28;
+    } else if (labelText) {
+      tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${labelText}"\r\n`;
+      yPos += is30x20 ? 18 : 22;
     }
   }
 
-  if (cfg.showPrice) {
-    tspl += `TEXT 120,${yPos},"3",0,1,1,2,"${priceStr}"\r\n`;
-    yPos += 30;
+  // 5. Custom Footer (if space and configured)
+  if (cfg.customFooterText && cfg.customFooterText.trim() && yPos <= 140) {
+    const footer = cfg.customFooterText.trim().replace(/"/g, '').substring(0, 14);
+    tspl += `TEXT ${stickerCenter},${yPos},"1",0,1,1,2,"${footer}"\r\n`;
   }
 
-  if (cfg.customFooterText && cfg.customFooterText.trim()) {
-    const footer = cfg.customFooterText.trim().replace(/"/g, '').substring(0, 16);
-    tspl += `TEXT 120,${yPos},"1",0,1,1,2,"${footer}"\r\n`;
-  }
-
+  // 6. Print Command: PT-265 will print exactly 1 label and stop precisely at gap
   tspl += `PRINT 1,1\r\n`;
 
   return new TextEncoder().encode(tspl);
@@ -401,15 +427,20 @@ export function buildStickerTSPL(
 /**
  * Builds Gap Feed / Align Calibration command for PT-265
  */
-export function buildFeedGapEscPos(): Uint8Array {
-  const enc = new EscPosEncoder(24);
+export function buildFeedGapEscPos(layoutConfig?: LabelLayoutSettings): Uint8Array {
+  const cfg = layoutConfig || defaultLabelLayout;
+  const enc = new EscPosEncoder(20);
   enc.init();
+  const offsetMm = cfg.horizontalOffsetMm !== undefined ? cfg.horizontalOffsetMm : 18;
+  enc.setLeftMargin(Math.round(offsetMm * 8));
   enc.feedToLabelGap();
   return enc.encode();
 }
 
-export function buildFeedGapTSPL(): Uint8Array {
-  const tspl = `GAP 2 mm, 0 mm\r\nFORMFEED\r\n`;
+export function buildFeedGapTSPL(layoutConfig?: LabelLayoutSettings): Uint8Array {
+  const cfg = layoutConfig || defaultLabelLayout;
+  const gapMm = cfg.gapHeightMm || 2;
+  const tspl = `GAP ${gapMm} mm, 0 mm\r\nFORMFEED\r\n`;
   return new TextEncoder().encode(tspl);
 }
 

@@ -2,8 +2,16 @@ import type { AppSettings, LabelLayoutSettings, ReceiptLayoutSettings } from '..
 
 export const defaultLabelLayout: LabelLayoutSettings = {
   labelSize: '30x20mm',
-  protocol: 'escpos_gap',
-  showStoreName: false, // 30x20mm compact sticker: disable store name by default to maximize item & buyer readability
+  protocol: 'tspl', // TSPL is native for PT-265 with hardware gap sensor
+  renderMode: 'tspl_vector',
+  paperGuidePosition: 'right', // PT-265 guide pushes roll to right side
+  horizontalOffsetMm: 18, // 18mm (~144 dots) right-side offset on 58mm printhead
+  verticalOffsetMm: 0,
+  gapHeightMm: 2, // Standard 2mm gap between stickers
+  printSpeed: 3,
+  printDensity: 10,
+  showStoreName: false, // 30x20mm compact sticker: omit store name so content fits in 20mm
+  storeNameSize: 'xs',
   showSessionDate: false,
   showTime: false,
   showControlCode: true,
@@ -16,8 +24,8 @@ export const defaultLabelLayout: LabelLayoutSettings = {
   buyerSize: 'large',
   showBarcode: false,
   customFooterText: '',
-  gapFeedMode: 'gs_ff',
-  feedLines: 0,
+  gapFeedMode: 'none', // TSPL PRINT 1,1 already stops at gap
+  extraFeedLines: 0,
   compactSpacing: true
 };
 
