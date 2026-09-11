@@ -50,32 +50,33 @@ export interface BuyerBasket {
 }
 
 export interface LabelLayoutSettings {
-  labelSize: '30x20mm' | '40x30mm' | '50x30mm' | '58mm_roll';
-  protocol: 'tspl' | 'escpos_gap' | 'escpos_standard';
-  renderMode: 'tspl_vector' | 'canvas_bitmap' | 'escpos_compact';
-  paperGuidePosition: 'right' | 'center' | 'left' | 'custom';
-  horizontalOffsetMm: number; // Offset in mm (e.g. 18mm for right-side guide on 58mm printer)
-  verticalOffsetMm: number; // Offset in mm (-2 to +5)
-  gapHeightMm: number; // Gap in mm (typically 2mm or 3mm)
-  printSpeed: number; // 2, 3, 4, 5
-  printDensity: number; // 8 to 15
-  showStoreName: boolean;
-  storeNameSize: 'xs' | 'sm';
-  showSessionDate: boolean;
-  showTime: boolean;
-  showControlCode: boolean;
-  codeSize: 'normal' | 'large' | 'extra_large';
-  showTag: boolean;
-  showDescription: boolean;
-  showPrice: boolean;
-  priceSize: 'normal' | 'large';
-  showBuyer: boolean;
-  buyerSize: 'normal' | 'large';
-  showBarcode: boolean;
-  customFooterText: string;
-  gapFeedMode: 'gs_ff' | 'form_feed' | 'none';
-  extraFeedLines: number; // 0, 1, 2
-  compactSpacing: boolean;
+  labelSize: '30x20mm' | '40x30mm' | '50x30mm' | '58mm_roll' | string;
+  protocol: 'escpos' | 'tspl' | string;
+  renderMode?: 'tspl_vector' | 'canvas_bitmap' | 'escpos_compact' | string;
+  paperGuidePosition?: 'right' | 'center' | 'left' | 'custom' | string;
+  horizontalOffsetMm?: number; // Offset in mm (e.g. 18mm for right-side guide on 58mm printer)
+  verticalOffsetMm?: number; // Offset in mm (-2 to +5)
+  gapHeightMm?: number; // Gap in mm (typically 2mm or 3mm)
+  printSpeed?: number; // 2, 3, 4, 5
+  printDensity?: number; // 8 to 15
+  showStoreName?: boolean;
+  storeNameSize?: 'xs' | 'sm' | string;
+  showSessionDate?: boolean;
+  showTime?: boolean;
+  showControlCode?: boolean;
+  codeSize?: 'md' | 'lg' | 'xl' | 'normal' | 'large' | 'extra_large' | string;
+  showTag?: boolean;
+  showDescription?: boolean;
+  showPrice?: boolean;
+  priceSize?: 'md' | 'lg' | 'normal' | 'large' | string;
+  showBuyer?: boolean;
+  buyerSize?: 'md' | 'lg' | 'normal' | 'large' | string;
+  showBarcode?: boolean;
+  customFooterText?: string;
+  footerText?: string;
+  gapFeedMode?: 'gs_ff' | 'form_feed' | 'feed_lines' | 'none' | string;
+  extraFeedLines?: number; // 0, 1, 2, 3
+  compactSpacing?: boolean;
 }
 
 export interface ReceiptLayoutSettings {

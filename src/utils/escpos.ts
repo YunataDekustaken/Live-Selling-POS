@@ -29,6 +29,10 @@ export class EscPosEncoder {
   public init(): this {
     // ESC @ (Initialize printer)
     this.buffer.push(0x1B, 0x40);
+    // FS . (Cancel Chinese/Kanji mode if active to ensure crisp ASCII rendering of '@')
+    this.buffer.push(0x1C, 0x2E);
+    // ESC t 0 (Select Standard Character Code Table - PC437 USA)
+    this.buffer.push(0x1B, 0x74, 0x00);
     return this;
   }
 
@@ -89,7 +93,7 @@ export class EscPosEncoder {
 
   /**
    * Set line spacing in dots (ESC 3 n)
-   * e.g., 14 or 16 dots for compact sticker printing within 20mm height
+   * e.g., 12 or 14 dots for compact sticker printing within 20mm height
    */
   public setLineSpacing(dots: number = 24): this {
     const clamped = Math.max(0, Math.min(255, dots));
@@ -152,6 +156,15 @@ export class EscPosEncoder {
   }
 
   /**
+   * Feed n vertical dots (ESC J n: 0x1B, 0x4A, n)
+   */
+  public feedDots(dots: number = 60): this {
+    const clamped = Math.max(1, Math.min(255, dots));
+    this.buffer.push(0x1B, 0x4A, clamped);
+    return this;
+  }
+
+  /**
    * Feed until label gap / black mark sensor cutoff (GS FF: 0x1D, 0x0C)
    * In label mode, this commands PT-265 to stop precisely at the die-cut sticker gap.
    */
@@ -165,6 +178,32 @@ export class EscPosEncoder {
    */
   public formFeed(): this {
     this.buffer.push(0x0C);
+    return this;
+  }
+
+  /**
+   * Print Code128 / Code39 Barcode (GS k)
+   */
+  public barcode(data: string, heightDots: number = 24): this {
+    if (!data) return this;
+    const clean = data.replace(/[^A-Za-z0-9_-]/g, '');
+    if (!clean) return this;
+    
+    // Set Barcode Height (GS h n)
+    this.buffer.push(0x1D, 0x68, Math.min(255, Math.max(10, heightDots)));
+    // Set Barcode Width (GS w 2)
+    this.buffer.push(0x1D, 0x77, 0x02);
+    // HRI character position: None (GS H 0)
+    this.buffer.push(0x1D, 0x48, 0x00);
+    // Align center
+    this.alignCenter();
+    // Code128 (GS k 73 len data)
+    const codeBytes = new TextEncoder().encode(`{B${clean}`);
+    this.buffer.push(0x1D, 0x6B, 73, codeBytes.length);
+    for (let i = 0; i < codeBytes.length; i++) {
+      this.buffer.push(codeBytes[i]);
+    }
+    this.buffer.push(0x0A);
     return this;
   }
 
@@ -246,67 +285,114 @@ export function buildStickerEscPos(
     enc.setPrintAreaWidth(is30x20 ? 240 : 384);
   }
 
-  // Ultra-compact line spacing so 30x20mm content never exceeds 140 dots (20mm = 160 dots)
-  enc.setLineSpacing(is30x20 ? 14 : 20);
+  // Ultra-compact line spacing so 30x20mm content fits within 140 dots (20mm = 160 dots)
+  enc.setLineSpacing(is30x20 ? 12 : 18);
 
-  // 1. Store Name (Only if enabled and space permits)
-  if (cfg.showStoreName) {
-    const storeStr = (profile.name || 'LIVE POS').substring(0, cols);
-    enc.alignCenter().bold(true).line(storeStr).normal();
-    enc.setLineSpacing(is30x20 ? 14 : 20);
+  // 1. Top Bar: Store Name / Session Date / Time
+  const hasTopBar = Boolean(cfg.showStoreName || cfg.showSessionDate || cfg.showTime);
+  if (hasTopBar) {
+    const leftText = cfg.showStoreName ? (profile.name || 'LIVE POS').substring(0, 10).toUpperCase() : '';
+    const dateText = cfg.showSessionDate ? (sessionDate ? `#${sessionDate}` : '') : '';
+    const timeText = cfg.showTime ? (item.time || '') : '';
+    const rightText = `${dateText} ${timeText}`.trim();
+
+    if (leftText && rightText) {
+      enc.twoColumns(leftText, rightText);
+    } else if (leftText) {
+      enc.alignCenter().bold(true).line(leftText).normal();
+    } else if (rightText) {
+      enc.alignRight().line(rightText).normal();
+    }
+    enc.separator('-');
+    enc.setLineSpacing(is30x20 ? 12 : 18);
   }
 
-  // 2. Control Code (e.g. [ #001 ] or [ #0910-01 ])
-  if (cfg.showControlCode) {
+  // 2. Control Code (e.g. [ #001 ] or [ #2 ])
+  if (cfg.showControlCode !== false) {
     const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
     enc.alignCenter().bold(true);
-    if (cfg.codeSize === 'extra_large' && !is30x20) {
+    
+    if (cfg.codeSize === 'xl' || cfg.codeSize === 'extra_large') {
       enc.size(2, 2);
-    } else if (cfg.codeSize === 'large' || is30x20) {
-      enc.size(1, 1);
+    } else if (cfg.codeSize === 'lg' || cfg.codeSize === 'large') {
+      enc.size(2, 1);
     } else {
       enc.size(1, 1);
     }
     enc.line(`[ ${codeStr} ]`).normal();
-    enc.setLineSpacing(is30x20 ? 14 : 20);
+    enc.setLineSpacing(is30x20 ? 12 : 18);
   }
 
-  // 3. Buyer Tag
-  if (cfg.showBuyer) {
-    const cleanBuyer = (item.buyer || '').replace(/^@+/, '').substring(0, cols - 1);
-    enc.alignCenter().bold(true).line(`@${cleanBuyer}`).normal();
-    enc.setLineSpacing(is30x20 ? 14 : 20);
+  // 3. Buyer Handle (e.g. @Edna T)
+  if (cfg.showBuyer !== false) {
+    const cleanBuyer = (item.buyer || '').replace(/^@+/, '').substring(0, cols - 2);
+    enc.alignCenter().bold(true);
+    if (cfg.buyerSize === 'lg' || cfg.buyerSize === 'large') {
+      enc.size(2, 1);
+    } else {
+      enc.size(1, 1);
+    }
+    enc.line(`@${cleanBuyer}`).normal();
+    enc.setLineSpacing(is30x20 ? 12 : 18);
   }
 
-  // 4. Tag / Description & Price (Combined compactly for 20mm height)
-  if (cfg.showPrice || cfg.showTag || cfg.showDescription) {
+  // 4. Tag / Description & Price (Smart compact 20mm layout)
+  if (cfg.showPrice !== false || cfg.showTag || cfg.showDescription) {
     const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
-    const priceStr = cfg.showPrice ? `${currencyStr}${item.price.toLocaleString()}` : '';
-    const tagPart = cfg.showTag ? (item.tag || item.controlCode || '') : '';
+    const priceStr = (cfg.showPrice !== false) ? `${currencyStr}${item.price.toLocaleString()}` : '';
+    const tagPart = cfg.showTag ? (item.tag || '') : '';
     const descPart = (cfg.showDescription && item.description) ? item.description : '';
-    const itemLabel = tagPart || descPart;
+    const itemLabel = tagPart ? (descPart ? `${tagPart} ${descPart}` : tagPart) : descPart;
+
+    // Dashed divider line above item & price
+    enc.separator('-');
 
     if (itemLabel && priceStr) {
-      enc.alignCenter().bold(true).line(`${itemLabel.substring(0, 10)}  ${priceStr}`).normal();
+      enc.bold(true);
+      if (cfg.priceSize === 'lg' || cfg.priceSize === 'large') {
+        enc.twoColumns(itemLabel.substring(0, 9), priceStr);
+      } else {
+        enc.twoColumns(itemLabel.substring(0, 11), priceStr);
+      }
+      enc.normal();
     } else if (priceStr) {
-      enc.alignCenter().bold(true).line(priceStr).normal();
+      enc.alignCenter().bold(true);
+      if (cfg.priceSize === 'lg' || cfg.priceSize === 'large') {
+        enc.size(2, 1);
+      }
+      enc.line(priceStr).normal();
     } else if (itemLabel) {
       enc.alignCenter().line(itemLabel.substring(0, cols)).normal();
     }
-    enc.setLineSpacing(is30x20 ? 14 : 20);
+    enc.setLineSpacing(is30x20 ? 12 : 18);
   }
 
-  // 5. Custom Footer Note (optional)
-  if (cfg.customFooterText && cfg.customFooterText.trim()) {
-    enc.alignCenter().line(cfg.customFooterText.trim().substring(0, cols));
+  // 5. Barcode (if enabled)
+  if (cfg.showBarcode) {
+    const rawCode = item.controlCode || (item.controlNum ? String(item.controlNum) : '');
+    enc.barcode(rawCode, 20);
+    enc.alignCenter().line(`*${rawCode}*`).normal();
   }
 
-  // 6. Cutoff Gap Feed
-  if (cfg.gapFeedMode === 'gs_ff') {
-    enc.feedToLabelGap();
-  } else if (cfg.gapFeedMode === 'form_feed') {
+  // 6. Custom Footer Note (optional)
+  const footerStr = (cfg.footerText || cfg.customFooterText || '').trim();
+  if (footerStr) {
+    enc.separator('-');
+    enc.alignCenter().line(footerStr.substring(0, cols)).normal();
+  }
+
+  // 7. Cutoff Gap Feed: Command PT-265 to feed and stop precisely at the die-cut gap sensor
+  if (cfg.gapFeedMode === 'form_feed') {
     enc.formFeed();
-  } else if (cfg.extraFeedLines > 0) {
+  } else if (cfg.gapFeedMode === 'feed_lines') {
+    enc.feed(cfg.extraFeedLines || 2);
+  } else {
+    // Default: Send GS FF (Gap sensor advance) + FormFeed safety
+    enc.feedToLabelGap();
+    enc.formFeed();
+  }
+
+  if (cfg.extraFeedLines && cfg.extraFeedLines > 0) {
     enc.feed(cfg.extraFeedLines);
   }
 
@@ -432,8 +518,19 @@ export function buildFeedGapEscPos(layoutConfig?: LabelLayoutSettings): Uint8Arr
   const enc = new EscPosEncoder(20);
   enc.init();
   const offsetMm = cfg.horizontalOffsetMm !== undefined ? cfg.horizontalOffsetMm : 18;
-  enc.setLeftMargin(Math.round(offsetMm * 8));
-  enc.feedToLabelGap();
+  if (offsetMm > 0) {
+    enc.setLeftMargin(Math.round(offsetMm * 8));
+  }
+  
+  if (cfg.gapFeedMode === 'form_feed') {
+    enc.formFeed();
+  } else if (cfg.gapFeedMode === 'feed_lines') {
+    enc.feed(cfg.extraFeedLines || 3);
+  } else {
+    // PT-265 ESC/POS Optical Gap Advance: GS FF (0x1D 0x0C) + FF (0x0C)
+    enc.feedToLabelGap();
+    enc.formFeed();
+  }
   return enc.encode();
 }
 

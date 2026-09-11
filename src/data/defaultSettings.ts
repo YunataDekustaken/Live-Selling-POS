@@ -2,8 +2,8 @@ import type { AppSettings, LabelLayoutSettings, ReceiptLayoutSettings } from '..
 
 export const defaultLabelLayout: LabelLayoutSettings = {
   labelSize: '30x20mm',
-  protocol: 'tspl', // TSPL is native for PT-265 with hardware gap sensor
-  renderMode: 'tspl_vector',
+  protocol: 'escpos', // ESC/POS with gap advance for PT-265 & 58mm label printers
+  renderMode: 'escpos_compact',
   paperGuidePosition: 'right', // PT-265 guide pushes roll to right side
   horizontalOffsetMm: 18, // 18mm (~144 dots) right-side offset on 58mm printhead
   verticalOffsetMm: 0,
@@ -15,16 +15,17 @@ export const defaultLabelLayout: LabelLayoutSettings = {
   showSessionDate: false,
   showTime: false,
   showControlCode: true,
-  codeSize: 'large',
+  codeSize: 'lg',
   showTag: false,
   showDescription: true,
   showPrice: true,
-  priceSize: 'large',
+  priceSize: 'lg',
   showBuyer: true,
-  buyerSize: 'large',
+  buyerSize: 'lg',
   showBarcode: false,
   customFooterText: '',
-  gapFeedMode: 'none', // TSPL PRINT 1,1 already stops at gap
+  footerText: '',
+  gapFeedMode: 'gs_ff', // GS FF (0x1D 0x0C) advances PT-265 to the die-cut gap
   extraFeedLines: 0,
   compactSpacing: true
 };
