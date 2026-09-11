@@ -2709,23 +2709,18 @@ const app = createApp({
     }
 
     async function triggerInvoicePrint(buyer: BuyerBasket) {
-      if (settings.value.escPosDirectPrint && btPrinterConnected.value) {
-        try {
-          const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
-          await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
-          showToast(`Invoice printed to ${btPrinterName.value || 'PT-210'}`);
-          return;
-        } catch (err: any) {
-          console.warn('Bluetooth invoice print notice, falling back to system print:', err);
-        }
+      if (!buyer) return;
+      if (!btPrinterConnected.value) {
+        await connectBluetooth();
+        if (!btPrinterConnected.value) return;
       }
-      activeInvoiceToPrint.value = buyer;
-      activeStickerToPrint.value = null;
-      activePackingSlipToPrint.value = null;
-      document.body.classList.remove('printing-packing-slip');
-      nextTick(() => {
-        window.print();
-      });
+      try {
+        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
+        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+        showToast(`Invoice printed to ${btPrinterName.value || 'PT-210'}`);
+      } catch (err: any) {
+        showToast(`Print failed: ${err.message || err}`);
+      }
     }
 
     function logMine() {
@@ -2848,44 +2843,34 @@ const app = createApp({
     }
 
     async function triggerStickerPrint(mine: MinedItem) {
-      if (settings.value.escPosDirectPrint && btPrinterConnected.value) {
-        try {
-          const is30x20 = settings.value.labelLayout?.labelSize === '30x20mm';
-          const cols = is30x20 ? 16 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
-          await printDirectSticker(mine, activeProfile.value, sessionDate.value, cols, settings.value.labelLayout);
-          showToast(`Sticker printed to ${btPrinterName.value || 'PT-265'}`);
-          return;
-        } catch (err: any) {
-          console.warn('Bluetooth sticker print notice, falling back to system print:', err);
-        }
+      if (!mine) return;
+      if (!btPrinterConnected.value) {
+        await connectBluetooth();
+        if (!btPrinterConnected.value) return;
       }
-      activeStickerToPrint.value = mine;
-      activePackingSlipToPrint.value = null;
-      activeInvoiceToPrint.value = null;
-      document.body.classList.remove('printing-packing-slip');
-      nextTick(() => {
-        window.print();
-      });
+      try {
+        const is30x20 = settings.value.labelLayout?.labelSize === '30x20mm';
+        const cols = is30x20 ? 16 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
+        await printDirectSticker(mine, activeProfile.value, sessionDate.value, cols, settings.value.labelLayout);
+        showToast(`Sticker printed to ${btPrinterName.value || 'PT-265'}`);
+      } catch (err: any) {
+        showToast(`Print failed: ${err.message || err}`);
+      }
     }
 
     async function triggerPackingSlipPrint(basket: BuyerBasket) {
-      if (settings.value.escPosDirectPrint && btPrinterConnected.value) {
-        try {
-          const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
-          await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
-          showToast(`Packing slip printed to ${btPrinterName.value || 'PT-210'}`);
-          return;
-        } catch (err: any) {
-          console.warn('Bluetooth packing slip print notice, falling back to system print:', err);
-        }
+      if (!basket) return;
+      if (!btPrinterConnected.value) {
+        await connectBluetooth();
+        if (!btPrinterConnected.value) return;
       }
-      activePackingSlipToPrint.value = basket;
-      activeStickerToPrint.value = null;
-      activeInvoiceToPrint.value = null;
-      document.body.classList.add('printing-packing-slip');
-      nextTick(() => {
-        window.print();
-      });
+      try {
+        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
+        await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+        showToast(`Packing slip printed to ${btPrinterName.value || 'PT-210'}`);
+      } catch (err: any) {
+        showToast(`Print failed: ${err.message || err}`);
+      }
     }
 
     const buyerSearchQuery = ref('');
