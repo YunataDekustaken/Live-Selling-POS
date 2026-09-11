@@ -151,6 +151,24 @@ export async function pushSingleMineToSupabase(mine: MinedItem, activeProfileId:
     } else {
       await deleteSinglePhotoFromSupabase(mine.id, activeProfileId);
     }
+
+    // Persist verification states (auditVerified, packVerified, verified, packed) to customer_notes table
+    try {
+      await client.from('customer_notes').upsert([{
+        profile_id: activeProfileId,
+        buyer: '__verification_' + mine.id,
+        notes: JSON.stringify({
+          auditVerified: mine.auditVerified,
+          packVerified: mine.packVerified,
+          verified: mine.verified,
+          packed: mine.packed,
+          auditVerifiedAt: mine.auditVerifiedAt,
+          packVerifiedAt: mine.packVerifiedAt
+        })
+      }]);
+    } catch (e) {
+      console.warn('verification sync notice:', e);
+    }
   } catch (e) {
     console.warn('Supabase mine sync notice:', e);
   }
@@ -220,6 +238,44 @@ export async function fetchCloudPhotosForProfile(profileId: string): Promise<Rec
     return photoMap;
   } catch (e) {
     console.warn('fetchCloudPhotosForProfile error:', e);
+    return {};
+  }
+}
+
+export async function fetchCloudVerificationsForProfile(profileId: string): Promise<Record<string, any>> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profileId) return {};
+  try {
+    let query = client
+      .from('customer_notes')
+      .select('buyer, notes')
+      .eq('profile_id', profileId);
+
+    if (typeof query.like === 'function') {
+      query = query.like('buyer', '__verification_%');
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn('fetchCloudVerificationsForProfile notice:', error);
+      return {};
+    }
+
+    const verMap: Record<string, any> = {};
+    if (data && Array.isArray(data)) {
+      for (const row of data) {
+        if (row.buyer && row.buyer.startsWith('__verification_') && row.notes) {
+          const mineId = row.buyer.substring('__verification_'.length);
+          try {
+            verMap[mineId] = JSON.parse(row.notes);
+          } catch {}
+        }
+      }
+    }
+    return verMap;
+  } catch (e) {
+    console.warn('fetchCloudVerificationsForProfile error:', e);
     return {};
   }
 }

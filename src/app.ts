@@ -59,6 +59,7 @@ import {
   fetchLabelProfilesFromSupabase,
   pushSinglePhotoToSupabase,
   fetchCloudPhotosForProfile,
+  fetchCloudVerificationsForProfile,
   batchPushPhotosToSupabase,
   deleteSinglePhotoFromSupabase,
   syncSecurityPinToSupabase,
@@ -1155,8 +1156,9 @@ const app = createApp({
           .select('*')
           .eq('profile_id', activeProfileId.value);
 
-        // Fetch cloud-persisted photos from customer_notes for this profile
+        // Fetch cloud-persisted photos and verifications from customer_notes for this profile
         const cloudPhotos = await fetchCloudPhotosForProfile(activeProfileId.value);
+        const cloudVerifications = await fetchCloudVerificationsForProfile(activeProfileId.value);
 
         if (remoteMines && !mErr) {
           // Immediately purge remote items matching deleted tombstones
@@ -1178,6 +1180,24 @@ const app = createApp({
 
             const cloudPhoto = cloudPhotos[rm.id] || '';
             const localPhoto = local ? (local.photo || '') : '';
+            const cloudVer = cloudVerifications[rm.id] || {};
+
+            let resolvedAuditVerified = local ? local.auditVerified : cloudVer.auditVerified;
+            if (cloudVer.auditVerified || (local && local.auditVerified)) {
+              resolvedAuditVerified = Boolean(cloudVer.auditVerified || local?.auditVerified);
+            }
+            let resolvedPackVerified = local ? local.packVerified : cloudVer.packVerified;
+            if (cloudVer.packVerified || (local && local.packVerified)) {
+              resolvedPackVerified = Boolean(cloudVer.packVerified || local?.packVerified);
+            }
+            let resolvedVerified = local ? local.verified : cloudVer.verified;
+            if (cloudVer.verified || (local && local.verified)) {
+              resolvedVerified = Boolean(cloudVer.verified || local?.verified);
+            }
+            let resolvedPacked = local ? local.packed : cloudVer.packed;
+            if (cloudVer.packed || (local && local.packed)) {
+              resolvedPacked = Boolean(cloudVer.packed || local?.packed);
+            }
 
             // Synchronize photo across devices:
             // Prefer CDN URL or available photo from cloud if local is empty;
@@ -1207,7 +1227,13 @@ const app = createApp({
                 price: Number(rm.price) || local.price,
                 buyer: rm.buyer || local.buyer,
                 photo: resolvedPhoto,
-                date: rm.session_date || local.date || sessionDate.value
+                date: rm.session_date || local.date || sessionDate.value,
+                auditVerified: resolvedAuditVerified,
+                packVerified: resolvedPackVerified,
+                verified: resolvedVerified || resolvedAuditVerified,
+                packed: resolvedPacked || resolvedPackVerified,
+                auditVerifiedAt: local.auditVerifiedAt || cloudVer.auditVerifiedAt,
+                packVerifiedAt: local.packVerifiedAt || cloudVer.packVerifiedAt
               });
               localMap.delete(rm.id);
             } else {
@@ -1222,7 +1248,13 @@ const app = createApp({
                 photo: resolvedPhoto,
                 date: rm.session_date || sessionDate.value,
                 time: '',
-                timestamp: Number(rm.timestamp) || Date.now()
+                timestamp: Number(rm.timestamp) || Date.now(),
+                auditVerified: Boolean(cloudVer.auditVerified),
+                packVerified: Boolean(cloudVer.packVerified),
+                verified: Boolean(cloudVer.verified || cloudVer.auditVerified),
+                packed: Boolean(cloudVer.packed || cloudVer.packVerified),
+                auditVerifiedAt: cloudVer.auditVerifiedAt,
+                packVerifiedAt: cloudVer.packVerifiedAt
               });
             }
           }
@@ -5015,6 +5047,7 @@ const app = createApp({
             .eq('profile_id', targetProf);
 
           const cloudPhotos = await fetchCloudPhotosForProfile(targetProf);
+          const cloudVerifications = await fetchCloudVerificationsForProfile(targetProf);
 
           if (remoteMines && Array.isArray(remoteMines)) {
             const matchingMines: MinedItem[] = [];
@@ -5024,6 +5057,7 @@ const app = createApp({
                 const photo = cloudPhotos[rm.id] || rm.photo || '';
                 const tag = rm.tag || '';
                 const desc = (tag && tag !== rm.control_code && tag !== 'Decor') ? tag : (rm.description || '');
+                const cloudVer = cloudVerifications[rm.id] || {};
                 matchingMines.push({
                   id: rm.id,
                   controlCode: rm.control_code || '',
@@ -5035,7 +5069,13 @@ const app = createApp({
                   photo: photo,
                   date: rm.session_date || sessionDate.value,
                   time: '',
-                  timestamp: Number(rm.timestamp) || Date.now()
+                  timestamp: Number(rm.timestamp) || Date.now(),
+                  auditVerified: Boolean(cloudVer.auditVerified),
+                  packVerified: Boolean(cloudVer.packVerified),
+                  verified: Boolean(cloudVer.verified || cloudVer.auditVerified),
+                  packed: Boolean(cloudVer.packed || cloudVer.packVerified),
+                  auditVerifiedAt: cloudVer.auditVerifiedAt,
+                  packVerifiedAt: cloudVer.packVerifiedAt
                 });
               }
             }

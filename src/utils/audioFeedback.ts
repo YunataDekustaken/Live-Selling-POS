@@ -30,27 +30,27 @@ export function playSuccessBeep() {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       
-      // Crisp high-pitch supermarket scanner beep (2500Hz)
+      // Crisp 2800Hz sine wave beep, 70ms with fast exponential decay
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(2500, now);
+      osc.frequency.setValueAtTime(2800, now);
       
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      gain.gain.setValueAtTime(0.5, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
       
       osc.connect(gain);
       gain.connect(ctx.destination);
       
       osc.start(now);
-      osc.stop(now + 0.09);
+      osc.stop(now + 0.08);
     }
   } catch (e) {
     console.debug('Audio beep unavailable:', e);
   }
 
-  // Mobile vibration (forces vibration even if phone is on silent mode)
-  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+  // Quick 45ms physical vibration trigger click with support check
+  if (typeof navigator !== 'undefined' && 'vibrate' in navigator && typeof navigator.vibrate === 'function') {
     try {
-      navigator.vibrate(80);
+      navigator.vibrate(45);
     } catch {}
   }
 }
