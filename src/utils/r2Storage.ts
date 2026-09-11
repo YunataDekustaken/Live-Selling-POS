@@ -17,34 +17,51 @@ export interface ServerR2Status {
 const R2_CONFIG_KEY = 'live_pos_r2_config';
 
 export async function checkServerR2Status(): Promise<ServerR2Status> {
+  // Check if client-side Vite env vars are available
+  const hasClientViteEnv = Boolean(
+    import.meta.env.VITE_R2_ACCOUNT_ID &&
+    import.meta.env.VITE_R2_ACCESS_KEY_ID &&
+    import.meta.env.VITE_R2_SECRET_ACCESS_KEY &&
+    import.meta.env.VITE_R2_BUCKET_NAME
+  );
+
   try {
     const res = await fetch('/api/r2-status');
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      if (data.hasEnv) {
+        return data;
+      }
     }
   } catch (err) {
     // offline or static mode
   }
+
+  if (hasClientViteEnv) {
+    return {
+      hasEnv: true,
+      bucketName: import.meta.env.VITE_R2_BUCKET_NAME || '',
+      publicDomain: import.meta.env.VITE_R2_PUBLIC_DOMAIN || ''
+    };
+  }
+
   return { hasEnv: false };
 }
 
 export function getStoredR2Config(): R2Config {
   const saved = safeGetItem<any>(R2_CONFIG_KEY);
-  if (saved && typeof saved === 'object') {
-    return {
-      accountId: (saved as any).accountId || '',
-      accessKeyId: (saved as any).accessKeyId || '',
-      secretAccessKey: (saved as any).secretAccessKey || '',
-      bucketName: (saved as any).bucketName || '',
-      publicDomain: (saved as any).publicDomain || ''
-    };
-  }
+  const accountId = (saved?.accountId || import.meta.env.VITE_R2_ACCOUNT_ID || '').trim();
+  const accessKeyId = (saved?.accessKeyId || import.meta.env.VITE_R2_ACCESS_KEY_ID || '').trim();
+  const secretAccessKey = (saved?.secretAccessKey || import.meta.env.VITE_R2_SECRET_ACCESS_KEY || '').trim();
+  const bucketName = (saved?.bucketName || import.meta.env.VITE_R2_BUCKET_NAME || '').trim();
+  const publicDomain = (saved?.publicDomain || import.meta.env.VITE_R2_PUBLIC_DOMAIN || '').trim();
+
   return {
-    accountId: '',
-    accessKeyId: '',
-    secretAccessKey: '',
-    bucketName: '',
-    publicDomain: ''
+    accountId,
+    accessKeyId,
+    secretAccessKey,
+    bucketName,
+    publicDomain
   };
 }
 
