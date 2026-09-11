@@ -10,21 +10,21 @@ export const defaultLabelLayout: LabelLayoutSettings = {
   gapHeightMm: 2, // Standard 2mm gap between stickers
   printSpeed: 3,
   printDensity: 10,
-  showStoreName: false, // 30x20mm compact sticker: omit store name so content fits in 20mm
+  showStoreName: false,
   storeNameSize: 'xs',
   showSessionDate: false,
-  showTime: false,
+  showTime: true, // Display time on top right (e.g. 13:02) as in reference image
   showControlCode: true,
-  codeSize: 'lg',
-  showTag: false,
-  showDescription: true,
-  showPrice: true,
+  codeSize: 'xl', // Bold prominent code on top left (e.g. L0911-002)
+  showTag: true, // Item/Tag on line 2 (e.g. Pumice)
+  showDescription: false,
+  showPrice: true, // Price on line 3 (e.g. P500)
   priceSize: 'lg',
-  showBuyer: true,
+  showBuyer: true, // Buyer name on line 1 (e.g. Screamcheese)
   buyerSize: 'lg',
   showBarcode: false,
   showQrCode: true, // Replace barcode with 2D QR Code on the side
-  qrPosition: 'right', // QR on right side, info (name, price, control #) on the opposite side
+  qrPosition: 'right', // QR on right side, info (name, item, price) on the left side
   qrSize: 'md',
   customFooterText: '',
   footerText: '',

@@ -1497,17 +1497,18 @@ const app = createApp({
       if (allMines.value.length > 0) {
         return allMines.value[allMines.value.length - 1];
       }
-      const prefix = getStorePrefix(activeProfile.value);
+      const prefix = getStorePrefix(activeProfile.value) || 'L';
+      const sDate = sessionDate.value || '0911';
       return {
         id: 'preview_sample_1',
-        controlCode: `${prefix}${sessionDate.value}-001`,
-        controlNum: 1,
-        tag: 'Vintage Denim Jacket',
-        description: 'Size M • Stone Washed',
-        price: 350,
-        buyer: 'sarah_styles',
+        controlCode: `${prefix}${sDate}-002`,
+        controlNum: 2,
+        tag: 'Pumice',
+        description: '',
+        price: 500,
+        buyer: 'Screamcheese',
         date: 'Today',
-        time: '14:30',
+        time: '13:02',
         timestamp: Date.now()
       };
     });
@@ -1525,6 +1526,32 @@ const app = createApp({
       } catch (err) {
         console.warn('QR preview generation error:', err);
       }
+    }
+
+    function applyReferenceLabelPreset() {
+      if (!settings.value.labelLayout) {
+        settings.value.labelLayout = { ...defaultLabelLayout };
+      }
+      settings.value.labelLayout.showControlCode = true;
+      settings.value.labelLayout.codeSize = 'xl';
+      settings.value.labelLayout.showTime = true;
+      settings.value.labelLayout.showBuyer = true;
+      settings.value.labelLayout.buyerSize = 'lg';
+      settings.value.labelLayout.showTag = true;
+      settings.value.labelLayout.showDescription = false;
+      settings.value.labelLayout.showPrice = true;
+      settings.value.labelLayout.priceSize = 'lg';
+      settings.value.labelLayout.showQrCode = true;
+      settings.value.labelLayout.qrPosition = 'right';
+      settings.value.labelLayout.qrSize = 'md';
+      settings.value.labelLayout.showStoreName = false;
+      settings.value.labelLayout.showSessionDate = false;
+      settings.value.labelLayout.showBarcode = false;
+      settings.value.labelLayout.footerText = '';
+      settings.value.labelLayout.renderMode = 'canvas_bitmap';
+      saveSettings(false);
+      updateSamplePreviewQr();
+      showToast('Applied 30x20mm QR Side-by-Side Reference Layout!');
     }
 
     watch(() => [samplePreviewItem.value.controlCode, settings.value.labelLayout?.qrSize, settings.value.labelLayout?.showQrCode], () => {
@@ -3071,7 +3098,8 @@ const app = createApp({
       oldPhotosCount,
       cleanupOldPhotos,
       samplePreviewQrDataUrl,
-      updateSamplePreviewQr
+      updateSamplePreviewQr,
+      applyReferenceLabelPreset
     };
   }
 });

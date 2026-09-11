@@ -297,157 +297,143 @@ export async function buildStickerCanvasRaster(
   ctx.fillStyle = '#000000';
   ctx.strokeStyle = '#000000';
 
-  const useQrLayout = cfg.showQrCode !== false; // Default true: 2D QR Code on the side
+  const useQrLayout = cfg.showQrCode !== false; // Default true: 2D QR Code matching reference design
 
   if (useQrLayout) {
     // -------------------------------------------------------------------------
-    // SIDE-BY-SIDE LAYOUT: QR Code on One Side + Info Column on Opposite Side
+    // EXACT REFERENCE DESIGN:
+    // Top: [ControlCode] (e.g. L0911-002, bold)   [Time] (e.g. 13:02, regular)
+    // Left Column:
+    //   - Buyer Name (e.g. Screamcheese)
+    //   - Item/Tag (e.g. Pumice)
+    //   - Price (e.g. P500)
+    // Right Column:
+    //   - Clean 2D QR Code
     // -------------------------------------------------------------------------
-    const qrText = item.controlCode || (item.controlNum ? `#${item.controlNum}` : '001');
-    const qr = QRCode.create(qrText, { errorCorrectionLevel: 'M' });
-    const moduleCount = qr.modules.size; // e.g. 21
-    const modulePixel = cfg.qrSize === 'lg' ? 4 : (cfg.qrSize === 'sm' ? 3 : 4);
-    const actualQrSize = (moduleCount + 2) * modulePixel; // ~92px
-    
-    const isQrRight = cfg.qrPosition !== 'left'; // Default: QR on right side
+    const padX = 8;
+    const topY = 6;
 
-    let qrX: number;
-    let infoX: number;
-    let infoW: number;
-    let sepX: number;
+    // 1. Top Header Row: Control Code on left, Time on right
+    let codeStr = item.controlCode || (item.controlNum ? `#${item.controlNum}` : 'L0911-002');
+    codeStr = codeStr.replace(/^\[\s*|\s*\]$/g, ''); // Remove brackets
 
-    if (isQrRight) {
-      // Info on Left (Name, Price, Control #), QR on Right
-      infoX = 6;
-      infoW = stickerW - actualQrSize - 20; // ~128px
-      sepX = infoX + infoW + 5;
-      qrX = sepX + 6;
-    } else {
-      // QR on Left, Info on Right
-      qrX = 6;
-      sepX = qrX + actualQrSize + 5;
-      infoX = sepX + 6;
-      infoW = stickerW - infoX - 6;
+    ctx.textBaseline = 'top';
+
+    if (cfg.showControlCode !== false) {
+      ctx.textAlign = 'left';
+      const fontSize = cfg.codeSize === 'sm' ? 19 : (cfg.codeSize === 'md' ? 22 : 24);
+      ctx.font = `900 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      ctx.fillText(codeStr, padX, topY);
     }
 
-    const qrY = Math.max(6, Math.round((stickerH - actualQrSize) / 2) - 6);
+    // Time on top right (e.g. "13:02")
+    if (cfg.showTime !== false) {
+      const timeStr = item.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      ctx.textAlign = 'right';
+      ctx.font = '500 15px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(timeStr, stickerW - padX, topY + 4);
+    } else if (cfg.showSessionDate && sessionDate) {
+      ctx.textAlign = 'right';
+      ctx.font = '500 13px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillText(`#${sessionDate}`, stickerW - padX, topY + 4);
+    }
 
-    // 1. Draw QR Code
+    // 2. 2D QR Code Setup
+    const isQrRight = cfg.qrPosition !== 'left';
+    const qrText = item.controlCode || (item.controlNum ? `#${item.controlNum}` : '001');
+    const qr = QRCode.create(qrText, { errorCorrectionLevel: 'M' });
+    const moduleCount = qr.modules.size; // 21 modules
+    const marginModules = 1;
+    const totalModules = moduleCount + (marginModules * 2);
+
+    // Target ~88-92px width
+    const modPixel = cfg.qrSize === 'lg' ? 4 : (cfg.qrSize === 'sm' ? 3 : 4);
+    const actualQrW = totalModules * modPixel;
+
+    let finalQrX: number;
+    let infoX: number;
+    let infoW: number;
+
+    if (isQrRight) {
+      finalQrX = stickerW - padX - actualQrW;
+      infoX = padX;
+      infoW = finalQrX - infoX - 8;
+    } else {
+      finalQrX = padX;
+      infoX = finalQrX + actualQrW + 8;
+      infoW = stickerW - padX - infoX;
+    }
+
+    const headerBottom = topY + 32;
+    const remainingH = stickerH - headerBottom;
+    const finalQrY = headerBottom + Math.max(0, Math.floor((remainingH - actualQrW) / 2));
+
+    // Draw QR code
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(qrX, qrY, actualQrSize, actualQrSize);
+    ctx.fillRect(finalQrX, finalQrY, actualQrW, actualQrW);
     ctx.fillStyle = '#000000';
     for (let r = 0; r < moduleCount; r++) {
       for (let c = 0; c < moduleCount; c++) {
         if (qr.modules.get(r, c)) {
           ctx.fillRect(
-            qrX + ((c + 1) * modulePixel),
-            qrY + ((r + 1) * modulePixel),
-            modulePixel,
-            modulePixel
+            finalQrX + ((c + marginModules) * modPixel),
+            finalQrY + ((r + marginModules) * modPixel),
+            modPixel,
+            modPixel
           );
         }
       }
     }
 
-    // Label under QR Code
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.font = '900 10px monospace';
-    ctx.fillText(qrText, qrX + (actualQrSize / 2), qrY + actualQrSize + 4);
-
-    // 2. Vertical Divider Line between Info and QR
-    ctx.beginPath();
-    ctx.lineWidth = 1;
-    ctx.setLineDash([4, 2]);
-    ctx.moveTo(sepX, 8);
-    ctx.lineTo(sepX, stickerH - 8);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // 3. Info Column: Name, Control #, Price, Tag
-    let infoY = 5;
+    // 3. Left Info Column: Clean, left-aligned, spacious text
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
 
-    // Store Name / Session Date (Top of info column)
-    if (cfg.showStoreName || cfg.showSessionDate) {
-      if (cfg.showStoreName) {
-        ctx.textAlign = 'left';
-        ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-        const storeStr = (profile.name || 'LIVE POS').substring(0, 10).toUpperCase();
-        ctx.fillText(storeStr, infoX, infoY);
-      }
-      if (cfg.showSessionDate && sessionDate) {
-        ctx.textAlign = 'right';
-        ctx.font = 'bold 9px monospace';
-        ctx.fillText(`#${sessionDate}`, infoX + infoW, infoY);
-      }
-      infoY += 13;
-      ctx.beginPath();
-      ctx.lineWidth = 1;
-      ctx.moveTo(infoX, infoY);
-      ctx.lineTo(infoX + infoW, infoY);
-      ctx.stroke();
-      infoY += 4;
-    }
-
-    // Control Code: [ #001 ]
-    if (cfg.showControlCode !== false) {
-      const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
-      ctx.textAlign = 'center';
-      const fontSize = cfg.codeSize === 'xl' ? 22 : (cfg.codeSize === 'lg' ? 19 : 16);
-      ctx.font = `900 ${fontSize}px monospace`;
-      ctx.fillText(`[ ${codeStr} ]`, infoX + (infoW / 2), infoY);
-      infoY += fontSize + 3;
-    }
-
-    // Buyer Handle: @username
-    if (cfg.showBuyer !== false) {
-      const cleanBuyer = (item.buyer || '').replace(/^@+/, '');
-      ctx.textAlign = 'center';
-      const buyerFontSize = cfg.buyerSize === 'lg' ? 14 : 12;
-      ctx.font = `bold ${buyerFontSize}px system-ui, -apple-system, sans-serif`;
-      ctx.fillText(`@${cleanBuyer.substring(0, 13)}`, infoX + (infoW / 2), infoY);
-      infoY += buyerFontSize + 4;
-    }
-
-    // Horizontal dashed divider
-    ctx.beginPath();
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 2]);
-    ctx.moveTo(infoX, infoY);
-    ctx.lineTo(infoX + infoW, infoY);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    infoY += 4;
-
-    // Item Tag / Description
+    const cleanBuyer = (item.buyer || '').replace(/^@+/, '') || 'Buyer';
     const tagPart = cfg.showTag ? (item.tag || '') : '';
     const descPart = (cfg.showDescription && item.description) ? item.description : '';
-    const itemLabel = tagPart ? (descPart ? `${tagPart} ${descPart}` : tagPart) : descPart;
-    if (itemLabel) {
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
-      ctx.fillText(itemLabel.substring(0, 13), infoX + (infoW / 2), infoY);
-      infoY += 13;
-    }
+    const itemLabel = tagPart ? (descPart ? `${tagPart} ${descPart}` : tagPart) : (descPart || item.tag || 'Item');
+    const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+    const priceStr = `${currencyStr}${item.price.toLocaleString()}`;
 
-    // Price
+    const infoRows: { text: string; font: string }[] = [];
+    if (cfg.showBuyer !== false) {
+      infoRows.push({
+        text: cleanBuyer,
+        font: 'bold 15px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      });
+    }
+    if (cfg.showTag !== false || cfg.showDescription) {
+      infoRows.push({
+        text: itemLabel,
+        font: 'bold 15px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      });
+    }
     if (cfg.showPrice !== false) {
-      const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
-      const priceStr = `${currencyStr}${item.price.toLocaleString()}`;
-      ctx.textAlign = 'center';
-      const priceFontSize = cfg.priceSize === 'lg' ? 17 : 14;
-      ctx.font = `900 ${priceFontSize}px system-ui, -apple-system, sans-serif`;
-      ctx.fillText(priceStr, infoX + (infoW / 2), infoY);
-      infoY += priceFontSize + 2;
+      infoRows.push({
+        text: priceStr,
+        font: '900 17px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+      });
     }
 
-    // Custom Footer (if space allows)
+    // Distribute the rows evenly across available vertical space
+    const availH = stickerH - headerBottom - 6;
+    const rowStep = infoRows.length > 1 ? Math.floor(availH / infoRows.length) : 34;
+
+    infoRows.forEach((row, idx) => {
+      ctx.font = row.font;
+      let displayText = row.text;
+      while (ctx.measureText(displayText).width > infoW && displayText.length > 3) {
+        displayText = displayText.substring(0, displayText.length - 1);
+      }
+      ctx.fillText(displayText, infoX, headerBottom + 6 + (idx * rowStep));
+    });
+
+    // Custom Footer (if explicitly set by user)
     const footerStr = (cfg.footerText || cfg.customFooterText || '').trim();
-    if (footerStr && infoY <= stickerH - 12) {
-      ctx.textAlign = 'center';
-      ctx.font = 'bold 8px system-ui, -apple-system, sans-serif';
-      ctx.fillText(footerStr.substring(0, 13).toUpperCase(), infoX + (infoW / 2), infoY);
+    if (footerStr) {
+      ctx.font = 'bold 7px system-ui, -apple-system, sans-serif';
+      ctx.fillText(footerStr.substring(0, 16), infoX, stickerH - 9);
     }
 
   } else {
