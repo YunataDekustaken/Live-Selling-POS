@@ -186,3 +186,25 @@ export interface LiveMiningForm {
   buyer: string;
   photo: string;
 }
+
+export interface ImportBackupSnapshot {
+  id: string;
+  timestamp: number;
+  dateStr: string;
+  source: 'notion_csv' | 'raw_csv' | 'sample_data' | string;
+  fileNames: string[];
+  importedCount: {
+    minedItems: number;
+    payments: number;
+    customerNotes: number;
+    mode: 'merge' | 'replace' | string;
+    totalFiles: number;
+  };
+  previousState: {
+    allMines: MinedItem[];
+    allPayments: PaymentRecord[];
+    customerNotes: Record<string, string>;
+    sequenceCounter: number;
+    sessionDate: string;
+  };
+}

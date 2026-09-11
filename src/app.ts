@@ -10,7 +10,8 @@ import type {
   LabelLayoutSettings,
   ReceiptLayoutSettings,
   SavedLabelProfile,
-  VisualLabelElement
+  VisualLabelElement,
+  ImportBackupSnapshot
 } from './types';
 import { defaultProfiles } from './data/defaultProfiles';
 import { defaultSettings, defaultLabelLayout, defaultReceiptLayout, defaultLabelElements, defaultReceiptSections } from './data/defaultSettings';
@@ -29,6 +30,13 @@ import {
   exportNotionMinedItemsCsv as exportNotionMinesUtil,
   exportRawMinesCsv as exportRawMinesUtil
 } from './utils/export';
+import {
+  analyzeNotionCsv,
+  combineImportedFiles,
+  type ParsedCsvResult,
+  type ImportedFileRecord,
+  type CombinedNotionImportData
+} from './utils/notionImport';
 import { createPhotoCollageCanvas } from './utils/collage';
 import {
   getSupabaseClient,
@@ -41,6 +49,7 @@ import {
   deleteSingleMineFromSupabase,
   fetchCloudDeletedMines,
   pushSinglePaymentToSupabase,
+  deleteSinglePaymentFromSupabase,
   pushCustomerNoteToSupabase,
   syncR2ConfigToSupabase,
   fetchR2ConfigFromSupabase,
@@ -2918,8 +2927,177 @@ const app = createApp({
       // 3. Delete from Supabase database and update cloud tombstone
       deleteSingleMineFromSupabase(mine.id);
 
+      refreshActiveInvoiceBuyer();
       playBeep('undo', settings.value.soundEnabled);
       showToast(`Removed ${itemLabel}`);
+    }
+
+    // =========================================================================
+    // MINED ITEM EDITING MODAL & CONTROLS
+    // =========================================================================
+    const editMineModalOpen = ref(false);
+    const editingMineItem = ref<MinedItem | null>(null);
+    const editingMinePhotoInputRef = ref<HTMLInputElement | null>(null);
+    const editingMineSuggestionsOpen = ref(false);
+
+    const editingMineForm = reactive({
+      id: '',
+      controlCode: '',
+      tag: '',
+      description: '',
+      price: '' as string | number,
+      buyer: '',
+      date: '',
+      time: '',
+      photo: ''
+    });
+
+    const filteredEditBuyerSuggestions = computed(() => {
+      const raw = editingMineForm.buyer.trim().toLowerCase().replace(/^@+/, '');
+      if (!raw) return existingBuyers.value.slice(0, 6);
+      return existingBuyers.value
+        .filter(b => b.handle.toLowerCase().replace(/^@+/, '').includes(raw))
+        .slice(0, 6);
+    });
+
+    function openEditMineModal(mine: MinedItem) {
+      if (!mine) return;
+      editingMineItem.value = mine;
+      editingMineForm.id = mine.id;
+      editingMineForm.controlCode = mine.controlCode || (mine.controlNum ? `#${mine.controlNum}` : '');
+      editingMineForm.tag = mine.tag || mine.controlCode || '';
+      editingMineForm.description = mine.description || '';
+      editingMineForm.price = mine.price;
+      editingMineForm.buyer = (mine.buyer || '').replace(/^@+/, '');
+      editingMineForm.date = mine.date || sessionDate.value || '';
+      editingMineForm.time = mine.time || '';
+      editingMineForm.photo = mine.photo || '';
+      editingMineSuggestionsOpen.value = false;
+      editMineModalOpen.value = true;
+    }
+
+    function closeEditMineModal() {
+      editMineModalOpen.value = false;
+      editingMineItem.value = null;
+      editingMineSuggestionsOpen.value = false;
+    }
+
+    function selectEditBuyer(handle: string) {
+      editingMineForm.buyer = (handle || '').replace(/^@+/, '');
+      editingMineSuggestionsOpen.value = false;
+    }
+
+    function handleEditMinePhotoChange(e: Event) {
+      const target = e.target as HTMLInputElement;
+      const file = target?.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const rawUrl = event.target?.result as string;
+        if (!rawUrl) return;
+
+        editingMineForm.photo = rawUrl;
+
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 600;
+          let w = img.width;
+          let h = img.height;
+          if (w > h && w > maxDim) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else if (h > maxDim) {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.65);
+            editingMineForm.photo = compressedBase64;
+
+            if (isR2Ready.value) {
+              const cleanSession = (sessionDate.value || 'live').replace(/[^a-zA-Z0-9_-]/g, '');
+              const cleanStore = (activeProfile.value.id || 'store').replace(/[^a-zA-Z0-9_-]/g, '');
+              const fileKey = `${cleanStore}/${cleanSession}/item_${editingMineForm.id || Date.now()}.jpg`;
+              uploadToCloudflareR2(fileKey, compressedBase64, r2Form).then(res => {
+                if (res.success && res.url) {
+                  editingMineForm.photo = res.url;
+                }
+              }).catch(err => {
+                console.warn('R2 direct upload error on edit:', err);
+              });
+            }
+          }
+        };
+        img.src = rawUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeEditMinePhoto() {
+      editingMineForm.photo = '';
+      if (editingMinePhotoInputRef.value) {
+        editingMinePhotoInputRef.value.value = '';
+      }
+    }
+
+    function saveEditedMine() {
+      if (!editingMineItem.value) return;
+
+      const price = parseFloat(String(editingMineForm.price));
+      if (isNaN(price) || price <= 0) {
+        showToast(`Please enter a valid Price (${activeProfile.value.currency})`);
+        return;
+      }
+
+      const buyer = editingMineForm.buyer.trim().replace(/^@+/, '');
+      if (!buyer) {
+        showToast('Please enter Customer Name');
+        return;
+      }
+
+      const cleanCode = (editingMineForm.controlCode || '').trim() || editingMineItem.value.controlCode;
+      const cleanDesc = (editingMineForm.description || '').trim();
+      const cleanTag = (editingMineForm.tag || '').trim() || cleanCode;
+
+      // Find item in allMines array
+      const targetIndex = allMines.value.findIndex(m => m.id === editingMineItem.value!.id);
+      if (targetIndex !== -1) {
+        const updated: MinedItem = {
+          ...allMines.value[targetIndex],
+          controlCode: cleanCode,
+          tag: cleanTag,
+          description: cleanDesc,
+          price: price,
+          buyer: buyer,
+          date: editingMineForm.date || allMines.value[targetIndex].date,
+          time: editingMineForm.time || allMines.value[targetIndex].time,
+          photo: editingMineForm.photo
+        };
+
+        allMines.value[targetIndex] = updated;
+        saveAll();
+        pushSingleMineToSupabase(updated, activeProfileId.value, sessionDate.value);
+
+        // Update active invoice buyer view if open
+        refreshActiveInvoiceBuyer();
+
+        playBeep('success', settings.value.soundEnabled);
+        showToast(`Updated ${cleanCode} for ${buyer} (${activeProfile.value.currency}${price.toLocaleString()})`);
+        closeEditMineModal();
+      }
+    }
+
+    function deleteEditedMine() {
+      if (!editingMineItem.value) return;
+      const target = editingMineItem.value;
+      closeEditMineModal();
+      undoMine(target);
     }
 
     async function triggerStickerPrint(mine: MinedItem) {
@@ -3009,6 +3187,15 @@ const app = createApp({
 
       return list.sort((a, b) => b.balance - a.balance || b.items.length - a.items.length);
     });
+
+    function refreshActiveInvoiceBuyer() {
+      if (!activeInvoiceBuyer.value) return;
+      const currentHandle = activeInvoiceBuyer.value.handle;
+      const fresh = buyerBasketsList.value.find(b => b.handle === currentHandle || b.displayName === currentHandle.replace(/^@+/, ''));
+      if (fresh) {
+        activeInvoiceBuyer.value = fresh;
+      }
+    }
 
     const filteredBuyerBaskets = computed(() => {
       let list = buyerBasketsList.value;
@@ -3476,9 +3663,310 @@ const app = createApp({
       allPayments.value.push(newPayment);
       saveAll();
       pushSinglePaymentToSupabase(newPayment, activeProfileId.value);
+      refreshActiveInvoiceBuyer();
       playBeep('payment', settings.value.soundEnabled);
       showToast(`Recorded ₱${amt.toLocaleString()} (${paymentForm.method}) for ${activePaymentBuyer.value.handle}`);
       closePaymentModal();
+    }
+
+    // =========================================================================
+    // EDIT & DELETE PAYMENT RECORDS (INVOICE EDITING)
+    // =========================================================================
+    const editPaymentModalOpen = ref(false);
+    const editingPaymentRecord = ref<PaymentRecord | null>(null);
+    const editingPaymentForm = reactive({
+      id: '',
+      buyer: '',
+      amount: '' as string | number,
+      method: 'GCash',
+      ref: '',
+      date: '',
+      time: ''
+    });
+
+    function openEditPaymentModal(pay: PaymentRecord) {
+      if (!pay) return;
+      editingPaymentRecord.value = pay;
+      editingPaymentForm.id = pay.id;
+      editingPaymentForm.buyer = pay.buyer;
+      editingPaymentForm.amount = pay.amount;
+      editingPaymentForm.method = pay.method || 'GCash';
+      editingPaymentForm.ref = pay.ref || '';
+      editingPaymentForm.date = pay.date || '';
+      editingPaymentForm.time = pay.time || '';
+      editPaymentModalOpen.value = true;
+    }
+
+    function closeEditPaymentModal() {
+      editPaymentModalOpen.value = false;
+      editingPaymentRecord.value = null;
+    }
+
+    function saveEditedPayment() {
+      if (!editingPaymentRecord.value) return;
+      const amt = parseFloat(String(editingPaymentForm.amount));
+      if (isNaN(amt) || amt <= 0) {
+        showToast('Please enter a valid payment amount');
+        return;
+      }
+
+      const idx = allPayments.value.findIndex(p => p.id === editingPaymentRecord.value!.id);
+      if (idx !== -1) {
+        const updated: PaymentRecord = {
+          ...allPayments.value[idx],
+          amount: amt,
+          method: editingPaymentForm.method,
+          ref: (editingPaymentForm.ref || '').trim(),
+          date: editingPaymentForm.date || allPayments.value[idx].date,
+          time: editingPaymentForm.time || allPayments.value[idx].time
+        };
+
+        allPayments.value[idx] = updated;
+        saveAll();
+        pushSinglePaymentToSupabase(updated, activeProfileId.value);
+        refreshActiveInvoiceBuyer();
+        playBeep('success', settings.value.soundEnabled);
+        showToast(`Updated payment of ${activeProfile.value.currency}${amt.toLocaleString()} (${updated.method})`);
+        closeEditPaymentModal();
+      }
+    }
+
+    function deletePayment(pay: PaymentRecord) {
+      if (!pay) return;
+      if (!confirm(`Delete payment of ${activeProfile.value.currency}${pay.amount.toLocaleString()} (${pay.method}${pay.ref ? ' - ' + pay.ref : ''})?`)) {
+        return;
+      }
+
+      allPayments.value = allPayments.value.filter(p => p.id !== pay.id);
+      saveAll();
+      deleteSinglePaymentFromSupabase(pay.id);
+      refreshActiveInvoiceBuyer();
+      playBeep('undo', settings.value.soundEnabled);
+      showToast(`Deleted payment of ${activeProfile.value.currency}${pay.amount.toLocaleString()}`);
+    }
+
+    // =========================================================================
+    // RENAME CUSTOMER / FIX TYPO (CROSS-INVOICE EDITING)
+    // =========================================================================
+    const renameCustomerModalOpen = ref(false);
+    const renameCustomerOldHandle = ref('');
+    const renameCustomerNewHandle = ref('');
+
+    function openRenameCustomerModal(handle: string) {
+      renameCustomerOldHandle.value = handle;
+      renameCustomerNewHandle.value = handle.replace(/^@+/, '');
+      renameCustomerModalOpen.value = true;
+    }
+
+    function closeRenameCustomerModal() {
+      renameCustomerModalOpen.value = false;
+      renameCustomerOldHandle.value = '';
+      renameCustomerNewHandle.value = '';
+    }
+
+    function executeRenameCustomer() {
+      const oldH = renameCustomerOldHandle.value.trim();
+      const newRaw = renameCustomerNewHandle.value.trim().replace(/^@+/, '');
+      if (!newRaw) {
+        showToast('Please enter the new customer handle');
+        return;
+      }
+      const newH = '@' + newRaw;
+      if (oldH === newH || oldH === newRaw) {
+        closeRenameCustomerModal();
+        return;
+      }
+
+      let updatedMinesCount = 0;
+      let updatedPaymentsCount = 0;
+
+      // Update in allMines
+      allMines.value = allMines.value.map(m => {
+        if (m.buyer === oldH || m.buyer === oldH.replace(/^@+/, '') || ('@' + m.buyer) === oldH) {
+          updatedMinesCount++;
+          const updated = { ...m, buyer: newH };
+          pushSingleMineToSupabase(updated, activeProfileId.value, sessionDate.value);
+          return updated;
+        }
+        return m;
+      });
+
+      // Update in allPayments
+      allPayments.value = allPayments.value.map(p => {
+        if (p.buyer === oldH || p.buyer === oldH.replace(/^@+/, '') || ('@' + p.buyer) === oldH) {
+          updatedPaymentsCount++;
+          const updated = { ...p, buyer: newH };
+          pushSinglePaymentToSupabase(updated, activeProfileId.value);
+          return updated;
+        }
+        return p;
+      });
+
+      // Update customerNotes
+      if (customerNotes.value[oldH]) {
+        customerNotes.value[newH] = customerNotes.value[oldH];
+        delete customerNotes.value[oldH];
+        updateCustomerNote(newH, customerNotes.value[newH]);
+      }
+
+      saveAll();
+
+      // If viewing the invoice for this customer, update activeInvoiceBuyer
+      if (activeInvoiceBuyer.value && (activeInvoiceBuyer.value.handle === oldH || activeInvoiceBuyer.value.displayName === oldH.replace(/^@+/, ''))) {
+        const fresh = buyerBasketsList.value.find(b => b.handle === newH || b.displayName === newRaw);
+        if (fresh) {
+          activeInvoiceBuyer.value = fresh;
+        }
+      }
+
+      playBeep('success', settings.value.soundEnabled);
+      showToast(`Renamed ${oldH} to ${newH} (${updatedMinesCount} items, ${updatedPaymentsCount} payments updated)`);
+      closeRenameCustomerModal();
+    }
+
+    // =========================================================================
+    // ADD ITEM / CHARGE TO INVOICE
+    // =========================================================================
+    const addInvoiceItemModalOpen = ref(false);
+    const addInvoiceItemPhotoInputRef = ref<HTMLInputElement | null>(null);
+    const addInvoiceItemBuyerHandle = ref('');
+    const addInvoiceItemForm = reactive({
+      description: '',
+      price: '' as string | number,
+      customCode: '',
+      photo: ''
+    });
+
+    function openAddInvoiceItemModal(buyerHandle?: string) {
+      const handle = buyerHandle || (activeInvoiceBuyer.value ? activeInvoiceBuyer.value.handle : '');
+      if (!handle) {
+        showToast('Please select a customer first');
+        return;
+      }
+      addInvoiceItemBuyerHandle.value = handle;
+      addInvoiceItemForm.description = '';
+      addInvoiceItemForm.price = '';
+      addInvoiceItemForm.customCode = '';
+      addInvoiceItemForm.photo = '';
+      addInvoiceItemModalOpen.value = true;
+    }
+
+    function closeAddInvoiceItemModal() {
+      addInvoiceItemModalOpen.value = false;
+      addInvoiceItemBuyerHandle.value = '';
+    }
+
+    function handleAddInvoiceItemPhotoChange(e: Event) {
+      const target = e.target as HTMLInputElement;
+      const file = target?.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const rawUrl = event.target?.result as string;
+        if (!rawUrl) return;
+        addInvoiceItemForm.photo = rawUrl;
+
+        const img = new Image();
+        img.onload = async () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 600;
+          let w = img.width;
+          let h = img.height;
+          if (w > h && w > maxDim) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else if (h > maxDim) {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            const compressedBase64 = canvas.toDataURL('image/jpeg', 0.65);
+            addInvoiceItemForm.photo = compressedBase64;
+
+            if (isR2Ready.value) {
+              const cleanSession = (sessionDate.value || 'live').replace(/[^a-zA-Z0-9_-]/g, '');
+              const cleanStore = (activeProfile.value.id || 'store').replace(/[^a-zA-Z0-9_-]/g, '');
+              const fileKey = `${cleanStore}/${cleanSession}/item_${Date.now()}.jpg`;
+              uploadToCloudflareR2(fileKey, compressedBase64, r2Form).then(res => {
+                if (res.success && res.url) {
+                  addInvoiceItemForm.photo = res.url;
+                }
+              }).catch(err => {
+                console.warn('R2 direct upload error on add invoice item:', err);
+              });
+            }
+          }
+        };
+        img.src = rawUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeAddInvoiceItemPhoto() {
+      addInvoiceItemForm.photo = '';
+      if (addInvoiceItemPhotoInputRef.value) {
+        addInvoiceItemPhotoInputRef.value.value = '';
+      }
+    }
+
+    function saveAddInvoiceItem() {
+      const price = parseFloat(String(addInvoiceItemForm.price));
+      if (isNaN(price) || price <= 0) {
+        showToast(`Please enter a valid Price (${activeProfile.value.currency})`);
+        return;
+      }
+
+      const buyer = addInvoiceItemBuyerHandle.value.trim();
+      if (!buyer) {
+        showToast('No customer specified');
+        return;
+      }
+
+      const desc = addInvoiceItemForm.description.trim() || 'Item / Charge';
+      const cleanBuyer = buyer.startsWith('@') ? buyer : '@' + buyer;
+
+      // Assign code
+      let code = addInvoiceItemForm.customCode.trim();
+      let num = sequenceCounter.value;
+      if (!code) {
+        const storePref = getStorePrefix(activeProfile.value);
+        const mmdd = getFormattedSessionDate(sessionDate.value);
+        code = formatControlCode(storePref, mmdd, num);
+        sequenceCounter.value++;
+        safeSetItem('live_pos_sequence_counter_' + activeProfileId.value, String(sequenceCounter.value));
+        pushProfileToSupabase(activeProfile.value, sequenceCounter.value, sessionDate.value);
+      }
+
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const todayDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+      const newMine: MinedItem = {
+        id: 'mine_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        controlCode: code,
+        controlNum: num,
+        tag: code,
+        description: desc,
+        price: price,
+        buyer: cleanBuyer,
+        date: todayDate,
+        time: timeStr,
+        timestamp: Date.now(),
+        photo: addInvoiceItemForm.photo || undefined
+      };
+
+      allMines.value.push(newMine);
+      saveAll();
+      pushSingleMineToSupabase(newMine, activeProfileId.value, sessionDate.value);
+
+      refreshActiveInvoiceBuyer();
+      playBeep('mine', settings.value.soundEnabled);
+      showToast(`Added ${code} (${desc} - ${activeProfile.value.currency}${price.toLocaleString()}) to ${cleanBuyer}`);
+      closeAddInvoiceItemModal();
     }
 
     function copyMessengerReceipt(buyer: BuyerBasket) {
@@ -3919,6 +4407,366 @@ const app = createApp({
       showToast('Mined Items CSV exported for Notion');
     }
 
+    // =========================================================================
+    // NOTION CSV IMPORT (Multi-File: Balances, Invoices & Mined Items)
+    // =========================================================================
+    const importNotionModalOpen = ref<boolean>(false);
+    const importNotionTab = ref<'file' | 'paste' | 'sample'>('file');
+    const importNotionFiles = ref<ImportedFileRecord[]>([]);
+    const importNotionRawText = ref<string>('');
+    const importNotionPreviewTab = ref<'invoices' | 'balances'>('invoices');
+    const importNotionMode = ref<'merge' | 'replace'>('merge');
+    const importNotionSyncSupabase = ref<boolean>(true);
+    const importNotionError = ref<string>('');
+    const importNotionIsDragging = ref<boolean>(false);
+    const lastImportSnapshot = ref<ImportBackupSnapshot | null>(safeGetItem('pos_last_import_snapshot', null));
+
+    const importNotionCombinedData = computed<CombinedNotionImportData | null>(() => {
+      if (importNotionFiles.value.length === 0) return null;
+      return combineImportedFiles(importNotionFiles.value);
+    });
+
+    // Auto-adjust preview tab when files change
+    watch(importNotionCombinedData, (combined) => {
+      if (!combined) return;
+      if (combined.hasInvoices && !combined.hasBalances) {
+        importNotionPreviewTab.value = 'invoices';
+      } else if (combined.hasBalances && !combined.hasInvoices) {
+        importNotionPreviewTab.value = 'balances';
+      }
+    });
+
+    function openImportNotionModal() {
+      importNotionModalOpen.value = true;
+      importNotionError.value = '';
+    }
+
+    function closeImportNotionModal() {
+      importNotionModalOpen.value = false;
+      importNotionError.value = '';
+    }
+
+    function clearImportPreview() {
+      importNotionFiles.value = [];
+      importNotionRawText.value = '';
+      importNotionError.value = '';
+    }
+
+    function removeImportedFile(fileId: string) {
+      importNotionFiles.value = importNotionFiles.value.filter(f => f.id !== fileId);
+      if (importNotionFiles.value.length === 0) {
+        importNotionError.value = '';
+      }
+    }
+
+    function addParsedCsvFile(name: string, content: string, size?: number): boolean {
+      if (!content || !content.trim()) {
+        importNotionError.value = `File "${name}" is empty.`;
+        return false;
+      }
+      try {
+        const prefix = getStorePrefix(activeProfile.value);
+        const seed = Math.random().toString(36).substring(2, 6);
+        const parsed = analyzeNotionCsv(content, prefix, sessionDate.value, seed);
+        if (parsed.validRowCount === 0) {
+          importNotionError.value = `No valid rows found in "${name}". Please check the CSV columns.`;
+          return false;
+        }
+        const newFile: ImportedFileRecord = {
+          id: `file_${Date.now()}_${seed}`,
+          name: name,
+          size: size || content.length,
+          text: content,
+          parsed: parsed
+        };
+        // Avoid exact duplicate file names
+        const existingIdx = importNotionFiles.value.findIndex(f => f.name === name);
+        if (existingIdx !== -1) {
+          const updated = [...importNotionFiles.value];
+          updated[existingIdx] = newFile;
+          importNotionFiles.value = updated;
+        } else {
+          importNotionFiles.value = [...importNotionFiles.value, newFile];
+        }
+        importNotionError.value = '';
+        return true;
+      } catch (err: any) {
+        console.error('Error parsing file:', name, err);
+        importNotionError.value = `Error parsing "${name}": ` + (err.message || String(err));
+        return false;
+      }
+    }
+
+    async function handleNotionCsvFileInput(event: Event) {
+      const input = event.target as HTMLInputElement;
+      if (!input.files || input.files.length === 0) return;
+      const files = Array.from(input.files);
+      
+      for (const file of files) {
+        try {
+          const text = await readFileAsText(file);
+          addParsedCsvFile(file.name, text, file.size);
+        } catch (e: any) {
+          importNotionError.value = `Failed reading ${file.name}: ${e.message || String(e)}`;
+        }
+      }
+      // Reset input so same files can be re-selected if desired
+      input.value = '';
+    }
+
+    async function handleNotionCsvDrop(event: DragEvent) {
+      event.preventDefault();
+      importNotionIsDragging.value = false;
+      if (!event.dataTransfer?.files || event.dataTransfer.files.length === 0) return;
+      const files = Array.from(event.dataTransfer.files);
+      
+      for (const file of files) {
+        try {
+          const text = await readFileAsText(file);
+          addParsedCsvFile(file.name, text, file.size);
+        } catch (e: any) {
+          importNotionError.value = `Failed reading ${file.name}: ${e.message || String(e)}`;
+        }
+      }
+    }
+
+    function readFileAsText(file: File): Promise<string> {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve((e.target?.result as string) || '');
+        reader.onerror = (e) => reject(e);
+        reader.readAsText(file);
+      });
+    }
+
+    function parsePastedNotionCsv() {
+      if (!importNotionRawText.value.trim()) return;
+      const count = importNotionFiles.value.length + 1;
+      const name = `Pasted_CSV_${count}.csv`;
+      const success = addParsedCsvFile(name, importNotionRawText.value);
+      if (success) {
+        importNotionRawText.value = '';
+      }
+    }
+
+    function loadSampleNotionCsv(type: 'both' | 'balances' | 'invoices') {
+      const sampleBalances = `CUSTOMER,Comment,DATE ISSUED,OVERDUE,Outstanding,PAYMENT DATE,PAYMENTS MADE,STATUS,TOTAL AMOUNT,Tags
+Edna T,,"August 4, 2026",,,"August 6, 2026",₱785.00,🟢 Paid,₱785.00,
+Sundae,,"August 4, 2026",,,"August 6, 2026",₱930.00,🟢 Paid,₱930.00,
+Meeho,Dep 500,"August 5, 2026",,,"August 6, 2026",₱520.00,🟢 Paid,₱520.00,
+Elma,Dep 500,"August 11, 2026",31 Days,₱350.00,,,🔴 Due,₱350.00,
+Cbubby,Dep 500,"August 7, 2026",,,"August 10, 2026","₱1,120.00",🟢 Paid,"₱1,120.00",
+Thor,,"September 5, 2026",6 Days,₱160.00,,,🔴 Due,₱160.00,
+Jenn,Excess330,"September 5, 2026",,,"September 6, 2026",₱850.00,🟢 Paid,₱850.00,
+RM Rheans Shop,,"September 5, 2026",6 Days,₱160.00,,,🔴 Due,₱160.00,
+Jhems,,"September 5, 2026",,,"September 5, 2026","₱1,250.00",🟢 Paid,"₱1,250.00",
+Michelle,Dep 300,"September 1, 2026",,,"September 1, 2026",₱540.00,🟢 Paid,₱540.00,`;
+
+      const sampleInvoices = `CUSTOMER NAME,AMOUNT,CONTROL #,DATE,DESCRIPTION,PICTURE,Tags
+Sundae,₱450.00,1,"August 4, 2026",Pothos set,,
+Edna T,₱100.00,2,"August 4, 2026",Oxy yellow,,
+Edna T,₱95.00,3,"August 4, 2026",Njoy,,
+Sundae,₱175.00,4,"August 4, 2026",Ficus with planter,,
+Sundae,₱115.00,5,"August 4, 2026",Bonsai pot set,,
+Meeho,₱520.00,6,"August 5, 2026",Ceramic pots,,
+Elma,₱350.00,7,"August 11, 2026",Calathea roseopicta,,
+Cbubby,"₱1,120.00",8,"August 7, 2026",Monstera deliciosa large,,
+Thor,₱160.00,9,"September 5, 2026",Money tree,,
+Jenn,₱850.00,10,"September 5, 2026",Philodendron birkin,,
+RM Rheans Shop,₱160.00,11,"September 5, 2026",Money tree,,
+Jhems,"₱1,250.00",12,"September 5, 2026",Snail pot large,,
+Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
+
+      if (type === 'both') {
+        importNotionFiles.value = [];
+        addParsedCsvFile('Notion_Customer_Balances_Sample.csv', sampleBalances);
+        addParsedCsvFile('Notion_Invoices_Mined_Items_Sample.csv', sampleInvoices);
+      } else if (type === 'balances') {
+        addParsedCsvFile('Notion_Customer_Balances_Sample.csv', sampleBalances);
+      } else if (type === 'invoices') {
+        addParsedCsvFile('Notion_Invoices_Mined_Items_Sample.csv', sampleInvoices);
+      }
+    }
+
+    async function executeNotionImport() {
+      const combined = importNotionCombinedData.value;
+      if (!combined || combined.totalValidRows === 0) {
+        showToast('No valid records to import');
+        return;
+      }
+
+      // 0. Take a safety snapshot BEFORE applying changes so user can Undo at any time
+      try {
+        const snapshot: ImportBackupSnapshot = {
+          id: `snap_${Date.now()}`,
+          timestamp: Date.now(),
+          dateStr: new Date().toLocaleString([], {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          source: 'notion_csv',
+          fileNames: importNotionFiles.value.map(f => f.name),
+          importedCount: {
+            minedItems: combined.minedItems.length,
+            payments: combined.payments.length,
+            customerNotes: Object.keys(combined.customerNotes).length,
+            mode: importNotionMode.value,
+            totalFiles: combined.totalFiles,
+          },
+          previousState: {
+            allMines: JSON.parse(JSON.stringify(allMines.value)),
+            allPayments: JSON.parse(JSON.stringify(allPayments.value)),
+            customerNotes: JSON.parse(JSON.stringify(customerNotes.value)),
+            sequenceCounter: sequenceCounter.value,
+            sessionDate: sessionDate.value
+          }
+        };
+        lastImportSnapshot.value = snapshot;
+        safeSetItem('pos_last_import_snapshot', snapshot);
+      } catch (snapErr) {
+        console.warn('Could not create import snapshot:', snapErr);
+      }
+
+      // 1. Process Mined Items if present in any of the files
+      if (combined.minedItems.length > 0) {
+        if (importNotionMode.value === 'replace') {
+          allMines.value = [...combined.minedItems];
+        } else {
+          allMines.value = [...allMines.value, ...combined.minedItems];
+        }
+        if (combined.maxControlNum > 0) {
+          sequenceCounter.value = Math.max(sequenceCounter.value, combined.maxControlNum + 1);
+        }
+      }
+
+      // 2. Process Customer Balances, Notes & Payments
+      if (Object.keys(combined.customerNotes).length > 0 || combined.payments.length > 0) {
+        customerNotes.value = { ...customerNotes.value, ...combined.customerNotes };
+        if (combined.payments.length > 0) {
+          if (importNotionMode.value === 'replace') {
+            allPayments.value = [...combined.payments];
+          } else {
+            allPayments.value = [...allPayments.value, ...combined.payments];
+          }
+        }
+      }
+
+      // 3. Save all state locally
+      saveAll();
+
+      // 4. Sync to Supabase cloud if requested and available
+      if (importNotionSyncSupabase.value && supabaseStatus.value !== 'unconfigured') {
+        try {
+          await syncAllWithSupabase(true);
+        } catch (e) {
+          console.warn('Sync after Notion import error:', e);
+        }
+      }
+
+      playBeep('success', settings.value.soundEnabled);
+      const itemsCount = combined.minedItems.length;
+      const paysCount = combined.payments.length;
+      const buyersCount = combined.uniqueCustomers.length;
+      const fileCount = combined.totalFiles;
+
+      let summaryText = `Imported from ${fileCount} file${fileCount > 1 ? 's' : ''}: `;
+      if (itemsCount > 0 && paysCount > 0) {
+        summaryText += `${itemsCount} mined items & ${paysCount} payments (${buyersCount} buyers)`;
+      } else if (itemsCount > 0) {
+        summaryText += `${itemsCount} mined items (${buyersCount} buyers)`;
+      } else {
+        summaryText += `${combined.totalValidRows} customer balances (${buyersCount} buyers)`;
+      }
+      showToast(summaryText);
+
+      importNotionModalOpen.value = false;
+
+      // Navigate to the appropriate workspace view
+      if (combined.hasInvoices) {
+        currentTab.value = 'mined_items';
+      } else {
+        currentTab.value = 'balances';
+      }
+    }
+
+    /**
+     * Reverts the most recent Notion/CSV import by restoring the snapshot taken before the import.
+     */
+    async function undoLastImport() {
+      const snap = lastImportSnapshot.value;
+      if (!snap || !snap.previousState) {
+        showToast('No import snapshot available to undo');
+        return;
+      }
+
+      const prevItems = snap.previousState.allMines ? snap.previousState.allMines.length : 0;
+      const prevPays = snap.previousState.allPayments ? snap.previousState.allPayments.length : 0;
+      const prevNotes = snap.previousState.customerNotes ? Object.keys(snap.previousState.customerNotes).length : 0;
+      const prevCounter = snap.previousState.sequenceCounter || 1;
+      const fileNamesList = snap.fileNames && snap.fileNames.length > 0 ? snap.fileNames.join(', ') : 'Notion CSV files';
+
+      const confirmMsg = `Are you sure you want to undo the import from ${snap.dateStr}?\n\n` +
+        `Files imported: ${fileNamesList}\n\n` +
+        `This will ROLLBACK your POS state to right before that import occurred:\n` +
+        `• Mined Items: ${prevItems} records\n` +
+        `• Payments: ${prevPays} records\n` +
+        `• Customer Notes: ${prevNotes} buyers\n` +
+        `• Item Sequence Counter: #${prevCounter}\n\n` +
+        `Proceed with rollback?`;
+
+      if (!confirm(confirmMsg)) {
+        return;
+      }
+
+      // Restore the state from snapshot
+      allMines.value = Array.isArray(snap.previousState.allMines) ? [...snap.previousState.allMines] : [];
+      allPayments.value = Array.isArray(snap.previousState.allPayments) ? [...snap.previousState.allPayments] : [];
+      customerNotes.value = snap.previousState.customerNotes ? { ...snap.previousState.customerNotes } : {};
+      sequenceCounter.value = snap.previousState.sequenceCounter || 1;
+      if (snap.previousState.sessionDate) {
+        sessionDate.value = snap.previousState.sessionDate;
+      }
+
+      // Persist to local storage
+      saveAll();
+
+      // Synchronize with Supabase if active
+      if (supabaseStatus.value !== 'unconfigured') {
+        try {
+          await syncAllWithSupabase(true);
+        } catch (e) {
+          console.warn('Sync after undo import error:', e);
+        }
+      }
+
+      playBeep('undo', settings.value.soundEnabled);
+      showToast(`↩️ Import undone! Restored previous state (${prevItems} items, ${prevPays} payments)`);
+
+      // Clear the snapshot
+      lastImportSnapshot.value = null;
+      try {
+        localStorage.removeItem('pos_last_import_snapshot');
+      } catch (e) {}
+
+      if (importNotionModalOpen.value) {
+        importNotionModalOpen.value = false;
+      }
+    }
+
+    function clearImportSnapshot() {
+      if (!confirm('Clear the import rollback snapshot? You will no longer be able to undo the last import.')) {
+        return;
+      }
+      lastImportSnapshot.value = null;
+      try {
+        localStorage.removeItem('pos_last_import_snapshot');
+      } catch (e) {}
+      showToast('Import rollback snapshot cleared');
+    }
+
     function confirmNewSession() {
       if (!confirm('Start a new Live Selling session? This resets item counter and archives current session.')) {
         return;
@@ -4115,6 +4963,22 @@ const app = createApp({
         closePhotoZoom();
         return true;
       }
+      if (editMineModalOpen.value) {
+        closeEditMineModal();
+        return true;
+      }
+      if (renameCustomerModalOpen.value) {
+        closeRenameCustomerModal();
+        return true;
+      }
+      if (addInvoiceItemModalOpen.value) {
+        closeAddInvoiceItemModal();
+        return true;
+      }
+      if (editPaymentModalOpen.value) {
+        closeEditPaymentModal();
+        return true;
+      }
       if (showSaveProfileModal.value) {
         showSaveProfileModal.value = false;
         return true;
@@ -4173,6 +5037,10 @@ const app = createApp({
     const openOverlayCount = computed(() => {
       let count = 0;
       if (zoomModalOpen.value) count++;
+      if (editMineModalOpen.value) count++;
+      if (renameCustomerModalOpen.value) count++;
+      if (addInvoiceItemModalOpen.value) count++;
+      if (editPaymentModalOpen.value) count++;
       if (showSaveProfileModal.value) count++;
       if (showPasteCoordinatesModal.value) count++;
       if (showIOSGuide.value) count++;
@@ -4555,7 +5423,43 @@ const app = createApp({
       activeInvoiceBuyer,
       openInvoiceModal,
       closeInvoiceModal,
+      refreshActiveInvoiceBuyer,
       triggerInvoicePrint,
+      editMineModalOpen,
+      editingMineItem,
+      editingMinePhotoInputRef,
+      editingMineSuggestionsOpen,
+      editingMineForm,
+      filteredEditBuyerSuggestions,
+      openEditMineModal,
+      closeEditMineModal,
+      selectEditBuyer,
+      handleEditMinePhotoChange,
+      removeEditMinePhoto,
+      saveEditedMine,
+      deleteEditedMine,
+      renameCustomerModalOpen,
+      renameCustomerOldHandle,
+      renameCustomerNewHandle,
+      openRenameCustomerModal,
+      closeRenameCustomerModal,
+      executeRenameCustomer,
+      addInvoiceItemModalOpen,
+      addInvoiceItemPhotoInputRef,
+      addInvoiceItemBuyerHandle,
+      addInvoiceItemForm,
+      openAddInvoiceItemModal,
+      closeAddInvoiceItemModal,
+      handleAddInvoiceItemPhotoChange,
+      removeAddInvoiceItemPhoto,
+      saveAddInvoiceItem,
+      editPaymentModalOpen,
+      editingPaymentRecord,
+      editingPaymentForm,
+      openEditPaymentModal,
+      closeEditPaymentModal,
+      saveEditedPayment,
+      deletePayment,
       buyerSearchQuery,
       buyerFilterStatus,
       buyerBasketsList,
@@ -4588,6 +5492,28 @@ const app = createApp({
       exportToCsv,
       exportNotionCustomerBalancesCsv,
       exportNotionMinedItemsCsv,
+      importNotionModalOpen,
+      importNotionTab,
+      importNotionFiles,
+      importNotionRawText,
+      importNotionPreviewTab,
+      importNotionCombinedData,
+      importNotionMode,
+      importNotionSyncSupabase,
+      importNotionError,
+      importNotionIsDragging,
+      openImportNotionModal,
+      closeImportNotionModal,
+      clearImportPreview,
+      removeImportedFile,
+      handleNotionCsvFileInput,
+      handleNotionCsvDrop,
+      parsePastedNotionCsv,
+      loadSampleNotionCsv,
+      executeNotionImport,
+      lastImportSnapshot,
+      undoLastImport,
+      clearImportSnapshot,
       confirmNewSession,
       clearAllData,
       loadSampleData,

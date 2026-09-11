@@ -403,6 +403,16 @@ export async function pushSinglePaymentToSupabase(payment: PaymentRecord, active
   }
 }
 
+export async function deleteSinglePaymentFromSupabase(paymentId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !paymentId) return;
+  try {
+    await client.from('customer_payments').delete().eq('id', paymentId);
+  } catch (e) {
+    console.warn('Supabase delete payment notice:', e);
+  }
+}
+
 export async function pushCustomerNoteToSupabase(buyer: string, notes: string, activeProfileId: string) {
   const client = getSupabaseClient();
   if (!client || !navigator.onLine) return;

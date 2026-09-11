@@ -257,10 +257,33 @@
               </div>
             </div>
 
-            <!-- Section 3: Data Export -->
+            <!-- Section 3: Data Imports & Exports -->
             <div>
-              <div class="text-[10px] uppercase font-mono tracking-wider font-semibold text-zinc-400 mb-1 px-1">Exports & Backups</div>
+              <div class="text-[10px] uppercase font-mono tracking-wider font-semibold text-zinc-400 mb-1 px-1">Imports & Exports</div>
               <div class="space-y-1">
+                <!-- Highlighted Notion CSV Import Button -->
+                <button 
+                  @click="openImportNotionModal(); appMenuOpen = false"
+                  class="w-full flex items-center justify-between p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 border border-emerald-300 text-left transition-colors cursor-pointer shadow-2xs">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-3.5 h-3.5 text-emerald-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                    <span class="font-bold text-xs">Import Notion CSV</span>
+                  </div>
+                  <span class="text-[9px] font-mono font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded border border-emerald-200">Balances &amp; Invoices</span>
+                </button>
+
+                <!-- Undo Last Import button (Shown when rollback snapshot is available) -->
+                <button 
+                  v-if="lastImportSnapshot"
+                  @click="undoLastImport(); appMenuOpen = false"
+                  class="w-full flex items-center justify-between p-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 text-left transition-colors cursor-pointer shadow-2xs animate-fadeIn">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-3.5 h-3.5 text-amber-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                    <span class="font-bold text-xs text-amber-950">Undo Last Import</span>
+                  </div>
+                  <span class="text-[9px] font-mono font-bold uppercase tracking-wider text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded border border-amber-300">Rollback</span>
+                </button>
+
                 <button 
                   @click="exportNotionCustomerBalancesCsv(); appMenuOpen = false"
                   class="w-full flex items-center justify-between p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 text-zinc-800 text-left transition-colors cursor-pointer">
@@ -1491,8 +1514,17 @@
                 </div>
               </div>
 
-              <!-- Actions: Reprint & Undo/Cancel -->
-              <div class="flex items-center space-x-1.5 flex-shrink-0">
+              <!-- Actions: Edit, Reprint & Undo/Cancel -->
+              <div class="flex items-center space-x-1 flex-shrink-0">
+                <!-- Edit Mined Item Button -->
+                <button 
+                  @click="openEditMineModal(mine)" 
+                  type="button" 
+                  title="Edit Item (Price, Tag, Customer, Photo)"
+                  class="p-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 text-zinc-700 border border-zinc-200 text-xs transition-colors flex items-center">
+                  <svg class="w-3.5 h-3.5 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                </button>
+
                 <!-- Preview / Reprint Sticker -->
                 <button 
                   @click="triggerStickerPrint(mine)" 
@@ -1661,8 +1693,17 @@
                       <div class="w-6 h-6 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center font-bold text-[10px] text-zinc-700">
                         {{ b.displayName.charAt(0).toUpperCase() }}
                       </div>
-                      <div>
-                        <span class="font-bold">{{ b.displayName }}</span>
+                      <div class="min-w-0">
+                        <div class="flex items-center space-x-1">
+                          <span class="font-bold">{{ b.displayName }}</span>
+                          <button 
+                            @click.stop="openRenameCustomerModal(b.handle)" 
+                            type="button" 
+                            title="Rename Customer / Fix Typo" 
+                            class="text-zinc-400 hover:text-zinc-800 p-0.5 rounded hover:bg-zinc-100 transition-colors">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                          </button>
+                        </div>
                         <span class="text-[10px] text-zinc-400 block font-mono">{{ b.items.length }} {{ b.items.length === 1 ? 'item' : 'items' }}</span>
                       </div>
                     </div>
@@ -2042,6 +2083,14 @@
                   <!-- 6. Actions -->
                   <td class="py-2.5 px-3 whitespace-nowrap text-center font-sans">
                     <div class="flex items-center justify-center space-x-1">
+                      <!-- Edit Mined Item Details -->
+                      <button 
+                        @click="openEditMineModal(item)" 
+                        title="Edit Item (Price, Tag, Customer, Photo)"
+                        class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200 text-xs">
+                        <svg class="w-3.5 h-3.5 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                      </button>
+
                       <!-- Reprint Thermal Sticker -->
                       <button 
                         @click="triggerStickerPrint(item)" 
@@ -3570,6 +3619,482 @@
     </div>
 
     <!-- =============================================================== -->
+    <!-- MODAL 1B: EDIT MINED ITEM MODAL                                 -->
+    <!-- =============================================================== -->
+    <div v-if="editMineModalOpen && editingMineItem" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
+          <div class="flex items-center space-x-2">
+            <span class="font-bold text-sm text-zinc-900">Edit Mined Item</span>
+            <span class="font-mono text-xs px-2 py-0.5 rounded bg-zinc-100 text-zinc-800 font-bold">
+              {{ editingMineItem.controlCode }}
+            </span>
+          </div>
+          <button @click="closeEditMineModal" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+        </div>
+
+        <!-- Form -->
+        <div class="p-4 space-y-3.5 overflow-y-auto flex-1 text-xs overscroll-contain">
+          
+          <!-- Buyer Handle with Suggestions -->
+          <div class="relative">
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">
+              Customer / Buyer Handle *
+            </label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-zinc-400 text-sm">@</span>
+              <input 
+                v-model="editingMineForm.buyer"
+                @focus="editingMineSuggestionsOpen = true"
+                type="text" 
+                placeholder="customer_handle"
+                class="w-full bg-zinc-50 border border-zinc-300 focus:border-zinc-900 rounded-xl pl-7 pr-3 py-2 text-xs font-bold text-zinc-900 focus:bg-white focus:outline-none"
+              />
+            </div>
+            
+            <!-- Autocomplete Dropdown -->
+            <div 
+              v-if="editingMineSuggestionsOpen && filteredEditBuyerSuggestions.length > 0"
+              class="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-zinc-200 rounded-xl shadow-lg max-h-36 overflow-y-auto divide-y divide-zinc-100">
+              <div 
+                v-for="cand in filteredEditBuyerSuggestions" 
+                :key="cand"
+                @click="selectEditBuyer(cand)"
+                class="p-2 hover:bg-zinc-100 cursor-pointer font-bold text-zinc-800 flex items-center justify-between">
+                <span>{{ cand }}</span>
+                <span class="text-[10px] text-zinc-400 font-normal">Select</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Price & Quick Adjustments -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">
+              Price ({{ activeProfile.currency }}) *
+            </label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-zinc-400 text-base font-mono">{{ activeProfile.currency }}</span>
+              <input 
+                v-model="editingMineForm.price"
+                type="number" 
+                placeholder="0"
+                class="w-full bg-zinc-50 border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-8 pr-3 py-2 text-lg font-bold font-mono text-zinc-900 focus:bg-white focus:outline-none"
+              />
+            </div>
+            <div class="grid grid-cols-4 gap-1.5 mt-1.5">
+              <button type="button" @click="editingMineForm.price = Math.max(0, Number(editingMineForm.price || 0) - 50)" class="py-1 rounded bg-zinc-100 text-[11px] font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">-50</button>
+              <button type="button" @click="editingMineForm.price = Number(editingMineForm.price || 0) + 50" class="py-1 rounded bg-zinc-100 text-[11px] font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+50</button>
+              <button type="button" @click="editingMineForm.price = Number(editingMineForm.price || 0) + 100" class="py-1 rounded bg-zinc-100 text-[11px] font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+100</button>
+              <button type="button" @click="editingMineForm.price = Number(editingMineForm.price || 0) + 200" class="py-1 rounded bg-zinc-100 text-[11px] font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+200</button>
+            </div>
+          </div>
+
+          <!-- Description / Tag -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">
+              Item Tag / Description
+            </label>
+            <input 
+              v-model="editingMineForm.description"
+              type="text" 
+              placeholder="e.g. Vintage Denim, Rare Philodendron, Mined Item"
+              class="w-full bg-zinc-50 border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs font-medium text-zinc-900 focus:bg-white focus:outline-none"
+            />
+            
+            <!-- Category Chips -->
+            <div v-if="activeProfile.defaultCategories && activeProfile.defaultCategories.length > 0" class="flex flex-wrap gap-1 mt-1.5">
+              <button 
+                v-for="cat in activeProfile.defaultCategories" 
+                :key="cat"
+                type="button"
+                @click="editingMineForm.description = cat; editingMineForm.tag = cat"
+                class="px-2 py-0.5 rounded-md bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[10px] font-medium border border-zinc-200">
+                {{ cat }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Date & Time Override -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">Date</label>
+              <input 
+                v-model="editingMineForm.date"
+                type="text" 
+                placeholder="e.g. August 6, 2026"
+                class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 font-mono focus:bg-white focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">Time</label>
+              <input 
+                v-model="editingMineForm.time"
+                type="text" 
+                placeholder="e.g. 14:32"
+                class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 font-mono focus:bg-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <!-- Photo Attachment -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">Item Photo</label>
+            <div class="flex items-center space-x-3">
+              <div v-if="editingMineForm.photo" class="relative w-14 h-14 rounded-xl overflow-hidden border border-zinc-300 shrink-0 bg-zinc-100">
+                <img :src="editingMineForm.photo" alt="Item Preview" class="w-full h-full object-cover" />
+                <button 
+                  type="button" 
+                  @click="removeEditMinePhoto" 
+                  class="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] leading-none">
+                  ✕
+                </button>
+              </div>
+              
+              <div class="flex-1">
+                <input 
+                  ref="editingMinePhotoInputRef"
+                  type="file" 
+                  accept="image/*" 
+                  @change="handleEditMinePhotoChange" 
+                  class="hidden" 
+                />
+                <button 
+                  type="button" 
+                  @click="editingMinePhotoInputRef && editingMinePhotoInputRef.click()"
+                  class="w-full py-2 px-3 rounded-xl border border-zinc-300 hover:bg-zinc-50 text-zinc-700 font-medium text-xs flex items-center justify-center space-x-1.5">
+                  <span>📸</span>
+                  <span>{{ editingMineForm.photo ? 'Change Photo' : 'Attach Photo' }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="p-3 border-t border-zinc-100 bg-zinc-50 flex items-center justify-between gap-2 shrink-0">
+          <button 
+            type="button" 
+            @click="deleteEditedMine"
+            class="px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors">
+            Void / Delete
+          </button>
+          <div class="flex items-center space-x-2">
+            <button 
+              type="button" 
+              @click="closeEditMineModal"
+              class="px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold">
+              Cancel
+            </button>
+            <button 
+              type="button" 
+              @click="saveEditedMine"
+              class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs">
+              Save Changes
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 1C: RENAME CUSTOMER / FIX TYPO MODAL                       -->
+    <!-- =============================================================== -->
+    <div v-if="renameCustomerModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-sm w-full shadow-2xl my-auto overflow-hidden">
+        
+        <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 bg-white">
+          <h3 class="font-bold text-sm text-zinc-900">Rename Customer</h3>
+          <button @click="closeRenameCustomerModal" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+        </div>
+
+        <div class="p-4 space-y-3.5 text-xs">
+          <div class="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200 text-blue-900 text-[11px] space-y-1">
+            <div class="font-bold">✨ Global Customer Rename</div>
+            <p class="leading-relaxed">This will automatically update all mined items, payment records, invoices, and notes associated with this buyer.</p>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-zinc-500 uppercase tracking-wider text-[10px] mb-1">Current Handle</label>
+            <div class="p-2 rounded-lg bg-zinc-100 font-mono font-bold text-zinc-600 text-xs">
+              {{ renameCustomerOldHandle }}
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">New Customer Handle *</label>
+            <div class="relative">
+              <span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-zinc-400 text-sm">@</span>
+              <input 
+                v-model="renameCustomerNewHandle"
+                type="text" 
+                placeholder="corrected_handle"
+                @keyup.enter="executeRenameCustomer"
+                class="w-full bg-zinc-50 border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-7 pr-3 py-2 text-xs font-bold text-zinc-900 focus:bg-white focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 border-t border-zinc-100 bg-zinc-50 flex items-center justify-end space-x-2">
+          <button 
+            type="button" 
+            @click="closeRenameCustomerModal"
+            class="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold">
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            @click="executeRenameCustomer"
+            class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs">
+            Save & Rename All
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 1D: ADD ITEM / CHARGE DIRECTLY TO INVOICE                 -->
+    <!-- =============================================================== -->
+    <div v-if="addInvoiceItemModalOpen" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
+        
+        <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
+          <div>
+            <h3 class="font-bold text-sm text-zinc-900">Add Item / Charge to Invoice</h3>
+            <p class="text-xs text-zinc-500 font-mono font-medium">{{ addInvoiceItemBuyerHandle }}</p>
+          </div>
+          <button @click="closeAddInvoiceItemModal" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+        </div>
+
+        <div class="p-4 space-y-3.5 overflow-y-auto flex-1 text-xs overscroll-contain">
+          
+          <!-- Price -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">
+              Item Price ({{ activeProfile.currency }}) *
+            </label>
+            <div class="relative">
+              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
+              <input 
+                v-model="addInvoiceItemForm.price"
+                type="number"
+                placeholder="0"
+                class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-8 pr-4 py-2 text-lg font-bold font-mono text-zinc-900 focus:outline-none"
+              />
+            </div>
+            <div class="grid grid-cols-4 gap-1.5 mt-1.5">
+              <button type="button" @click="addInvoiceItemForm.price = Number(addInvoiceItemForm.price || 0) + 50" class="py-1 rounded bg-zinc-100 text-[11px] font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}50</button>
+              <button type="button" @click="addInvoiceItemForm.price = Number(addInvoiceItemForm.price || 0) + 100" class="py-1 rounded bg-zinc-100 text-[11px] font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}100</button>
+              <button type="button" @click="addInvoiceItemForm.price = Number(addInvoiceItemForm.price || 0) + 200" class="py-1 rounded bg-zinc-100 text-[11px] font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}200</button>
+              <button type="button" @click="addInvoiceItemForm.price = Number(addInvoiceItemForm.price || 0) + 500" class="py-1 rounded bg-zinc-100 text-[11px] font-mono text-zinc-700 hover:bg-zinc-200 border border-zinc-200">+{{ activeProfile.currency }}500</button>
+            </div>
+          </div>
+
+          <!-- Description / Tag -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">
+              Description / Item Name
+            </label>
+            <input 
+              v-model="addInvoiceItemForm.description"
+              type="text" 
+              placeholder="e.g. Shipping Fee, Extra Plant, Accessories..."
+              class="w-full bg-zinc-50 border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs font-medium text-zinc-900 focus:bg-white focus:outline-none"
+            />
+            
+            <div v-if="activeProfile.defaultCategories && activeProfile.defaultCategories.length > 0" class="flex flex-wrap gap-1 mt-1.5">
+              <button 
+                v-for="cat in activeProfile.defaultCategories" 
+                :key="cat"
+                type="button"
+                @click="addInvoiceItemForm.description = cat"
+                class="px-2 py-0.5 rounded-md bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-[10px] font-medium border border-zinc-200">
+                {{ cat }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Optional Custom Control Code -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">
+              Custom Control Code (Optional)
+            </label>
+            <input 
+              v-model="addInvoiceItemForm.customCode"
+              type="text" 
+              placeholder="Auto-generated if left blank"
+              class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-800 focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          <!-- Optional Photo -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">Photo (Optional)</label>
+            <div class="flex items-center space-x-3">
+              <div v-if="addInvoiceItemForm.photo" class="relative w-14 h-14 rounded-xl overflow-hidden border border-zinc-300 shrink-0 bg-zinc-100">
+                <img :src="addInvoiceItemForm.photo" alt="Item Preview" class="w-full h-full object-cover" />
+                <button 
+                  type="button" 
+                  @click="removeAddInvoiceItemPhoto" 
+                  class="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] leading-none">
+                  ✕
+                </button>
+              </div>
+              
+              <div class="flex-1">
+                <input 
+                  ref="addInvoiceItemPhotoInputRef"
+                  type="file" 
+                  accept="image/*" 
+                  @change="handleAddInvoiceItemPhotoChange" 
+                  class="hidden" 
+                />
+                <button 
+                  type="button" 
+                  @click="addInvoiceItemPhotoInputRef && addInvoiceItemPhotoInputRef.click()"
+                  class="w-full py-2 px-3 rounded-xl border border-zinc-300 hover:bg-zinc-50 text-zinc-700 font-medium text-xs flex items-center justify-center space-x-1.5">
+                  <span>📸</span>
+                  <span>{{ addInvoiceItemForm.photo ? 'Change Photo' : 'Attach Photo' }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="p-3 border-t border-zinc-100 bg-zinc-50 flex items-center justify-end space-x-2 shrink-0">
+          <button 
+            type="button" 
+            @click="closeAddInvoiceItemModal"
+            class="px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold">
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            @click="saveAddInvoiceItem"
+            class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs">
+            Add to Invoice
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 1E: EDIT PAYMENT RECORD MODAL                             -->
+    <!-- =============================================================== -->
+    <div v-if="editPaymentModalOpen && editingPaymentRecord" class="screen-ui fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-xs animate-fadeIn overflow-y-auto">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col my-auto overflow-hidden">
+        
+        <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
+          <div>
+            <h3 class="font-bold text-sm text-zinc-900">Edit Payment Record</h3>
+            <p class="text-xs text-zinc-500 font-mono font-medium">{{ editingPaymentRecord.buyer }}</p>
+          </div>
+          <button @click="closeEditPaymentModal" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+        </div>
+
+        <div class="p-4 space-y-3.5 overflow-y-auto flex-1 text-xs overscroll-contain">
+          
+          <!-- Amount -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">
+              Payment Amount ({{ activeProfile.currency }}) *
+            </label>
+            <div class="relative">
+              <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-zinc-400 font-mono">{{ activeProfile.currency }}</span>
+              <input 
+                v-model="editingPaymentForm.amount"
+                type="number"
+                placeholder="0"
+                class="w-full bg-white border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-8 pr-4 py-2.5 text-xl font-bold font-mono text-zinc-900 focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <!-- Payment Method -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1.5">Payment Method *</label>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button 
+                v-for="m in ['GCash', 'Maya', 'Cash', 'Bank']" 
+                :key="m"
+                type="button"
+                @click="editingPaymentForm.method = m"
+                class="py-2 px-2 rounded-lg text-xs font-semibold transition-all border text-center"
+                :class="editingPaymentForm.method === m ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-zinc-50 text-zinc-700 border-zinc-200 hover:bg-zinc-100'">
+                {{ m }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Ref / Note -->
+          <div>
+            <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">Ref # / Note (Optional)</label>
+            <input 
+              v-model="editingPaymentForm.ref"
+              type="text"
+              placeholder="e.g. GCash Ref 10023485"
+              class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
+            />
+          </div>
+
+          <!-- Date & Time Override -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">Payment Date</label>
+              <input 
+                v-model="editingPaymentForm.date"
+                type="text" 
+                placeholder="e.g. August 6, 2026"
+                class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 font-mono focus:bg-white focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">Time</label>
+              <input 
+                v-model="editingPaymentForm.time"
+                type="text" 
+                placeholder="e.g. 15:45"
+                class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs text-zinc-800 font-mono focus:bg-white focus:outline-none"
+              />
+            </div>
+          </div>
+
+        </div>
+
+        <div class="p-3 border-t border-zinc-100 bg-zinc-50 flex items-center justify-between gap-2 shrink-0">
+          <button 
+            type="button" 
+            @click="deletePayment(editingPaymentRecord); closeEditPaymentModal();"
+            class="px-3 py-2 rounded-xl text-red-600 hover:bg-red-50 text-xs font-semibold transition-colors">
+            Delete Payment
+          </button>
+          <div class="flex items-center space-x-2">
+            <button 
+              type="button" 
+              @click="closeEditPaymentModal"
+              class="px-3.5 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-xs font-semibold">
+              Cancel
+            </button>
+            <button 
+              type="button" 
+              @click="saveEditedPayment"
+              class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold shadow-xs">
+              Save Payment
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
     <!-- =============================================================== -->
     <!-- MODAL 2: SESSION SETTINGS & CONFIG MODAL (Store & Overall)        -->
     <!-- =============================================================== -->
@@ -4480,6 +5005,70 @@
               </div>
             </div>
 
+            <!-- Undo Notion / CSV Data Import Rollback Section -->
+            <div class="p-3.5 rounded-xl border transition-all"
+                 :class="lastImportSnapshot ? 'bg-amber-50/70 border-amber-300' : 'bg-zinc-50 border-zinc-200'">
+              <div class="flex items-center justify-between mb-1.5">
+                <div class="flex items-center space-x-2">
+                  <div class="w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs"
+                       :class="lastImportSnapshot ? 'bg-amber-100 text-amber-800' : 'bg-zinc-200 text-zinc-600'">
+                    ↩️
+                  </div>
+                  <div>
+                    <div class="font-bold text-zinc-900 text-xs">Undo Notion / CSV Import</div>
+                    <div class="text-[10px] text-zinc-500">Rollback to state before last import</div>
+                  </div>
+                </div>
+                <span v-if="lastImportSnapshot" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-200/80 text-amber-900 border border-amber-300">
+                  Rollback Ready
+                </span>
+                <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-100 text-zinc-500 border border-zinc-200">
+                  No Active Import
+                </span>
+              </div>
+
+              <div v-if="lastImportSnapshot" class="space-y-2 mt-2 pt-2 border-t border-amber-200/80 text-xs">
+                <div class="bg-white/90 p-2.5 rounded-lg border border-amber-200 text-[11px] space-y-1">
+                  <div class="flex justify-between">
+                    <span class="text-zinc-500 font-medium">Import Timestamp:</span>
+                    <strong class="text-zinc-900 font-mono">{{ lastImportSnapshot.dateStr }}</strong>
+                  </div>
+                  <div v-if="lastImportSnapshot.fileNames && lastImportSnapshot.fileNames.length > 0" class="flex justify-between">
+                    <span class="text-zinc-500 font-medium">Imported Source:</span>
+                    <span class="text-zinc-800 font-bold truncate max-w-[190px]" :title="lastImportSnapshot.fileNames.join(', ')">
+                      {{ lastImportSnapshot.fileNames.join(', ') }}
+                    </span>
+                  </div>
+                  <div class="flex justify-between text-amber-900 font-medium">
+                    <span>Restoration Target:</span>
+                    <span>{{ lastImportSnapshot.previousState.allMines ? lastImportSnapshot.previousState.allMines.length : 0 }} items, {{ lastImportSnapshot.previousState.allPayments ? lastImportSnapshot.previousState.allPayments.length : 0 }} payments</span>
+                  </div>
+                </div>
+
+                <div class="flex items-center space-x-2 pt-0.5">
+                  <button 
+                    type="button" 
+                    @click="undoLastImport(); settingsModalOpen = false"
+                    class="flex-1 py-2 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                    <span>↩️ Rollback / Undo Last Import</span>
+                  </button>
+
+                  <button 
+                    type="button" 
+                    @click="clearImportSnapshot"
+                    class="py-2 px-2.5 rounded-lg bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-300 text-xs font-medium transition-colors cursor-pointer"
+                    title="Dismiss rollback snapshot">
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <div v-else class="text-[11px] text-zinc-500 mt-1 leading-relaxed">
+                When you import Notion CSV files (invoices, balances, notes), a snapshot of your session is automatically saved here so you can 1-click revert anytime.
+              </div>
+            </div>
+
             <!-- Install App to Device (PWA) -->
             <div v-if="(!isInstalled && isInstallable) || (isIOS && !isInstalled)" class="p-3 rounded-xl bg-zinc-900 text-white text-xs space-y-2">
               <div class="flex items-center justify-between">
@@ -4628,7 +5217,17 @@
           <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 flex items-center justify-between">
             <div>
               <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Billed Customer</div>
-              <div class="font-bold text-base text-zinc-900 font-mono mt-0.5">{{ activeInvoiceBuyer.handle }}</div>
+              <div class="flex items-center space-x-2 mt-0.5">
+                <span class="font-bold text-base text-zinc-900 font-mono">{{ activeInvoiceBuyer.handle }}</span>
+                <button 
+                  @click="openRenameCustomerModal(activeInvoiceBuyer.handle)" 
+                  type="button" 
+                  title="Rename Customer / Fix Typo" 
+                  class="px-2 py-0.5 rounded bg-zinc-200 hover:bg-zinc-300 text-zinc-800 text-[10px] font-bold flex items-center space-x-1 transition-colors">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  <span>Rename</span>
+                </button>
+              </div>
             </div>
             <div class="text-right">
               <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Total Items Mined</div>
@@ -4639,7 +5238,15 @@
           <!-- Section: What Did They Mine (Itemized Table) -->
           <div class="space-y-1.5">
             <div class="flex items-center justify-between font-semibold text-zinc-700 uppercase text-[11px] px-0.5">
-              <span>What They Mined ({{ activeInvoiceBuyer.items.length }} Items)</span>
+              <div class="flex items-center space-x-2">
+                <span>What They Mined ({{ activeInvoiceBuyer.items.length }} Items)</span>
+                <button 
+                  @click="openAddInvoiceItemModal(activeInvoiceBuyer.handle)" 
+                  type="button" 
+                  class="px-2 py-0.5 rounded bg-zinc-900 hover:bg-black text-white text-[10px] font-bold transition-colors flex items-center space-x-1">
+                  <span>➕ Add Item / Charge</span>
+                </button>
+              </div>
               <span>Price ({{ activeProfile.currency }})</span>
             </div>
 
@@ -4679,7 +5286,14 @@
                 </div>
                 <div class="flex items-center space-x-2 font-mono shrink-0 pl-2">
                   <span class="font-bold text-sm text-zinc-900">{{ activeProfile.currency }}{{ item.price.toLocaleString() }}</span>
-                  <button @click="undoMine(item)" title="Void item" class="text-zinc-300 hover:text-red-600 p-0.5 text-xs">✕</button>
+                  <!-- Edit Item Button -->
+                  <button 
+                    @click="openEditMineModal(item)" 
+                    title="Edit Item Details" 
+                    class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 text-xs">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  </button>
+                  <button @click="undoMine(item)" title="Void item" class="text-zinc-300 hover:text-red-600 p-1 text-xs">✕</button>
                 </div>
               </div>
             </div>
@@ -4703,13 +5317,53 @@
 
           <!-- Payment History (if any payments logged) -->
           <div v-if="activeInvoiceBuyer.payments && activeInvoiceBuyer.payments.length > 0" class="space-y-1">
-            <div class="font-semibold text-zinc-700 uppercase text-[11px] px-0.5">Recorded Payments</div>
-            <div class="border border-zinc-200 rounded-lg p-2.5 bg-white space-y-1 font-mono text-[11px]">
-              <div v-for="p in activeInvoiceBuyer.payments" :key="p.id" class="flex items-center justify-between text-emerald-800">
-                <span>{{ p.method }} <span v-if="p.ref">({{ p.ref }})</span> - {{ p.time }}</span>
-                <span class="font-bold">+{{ activeProfile.currency }}{{ p.amount.toLocaleString() }}</span>
+            <div class="flex items-center justify-between font-semibold text-zinc-700 uppercase text-[11px] px-0.5">
+              <span>Recorded Payments</span>
+              <button 
+                @click="openPaymentModal(activeInvoiceBuyer)" 
+                type="button" 
+                class="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold">
+                ➕ Add Payment
+              </button>
+            </div>
+            <div class="border border-zinc-200 rounded-lg p-2.5 bg-white space-y-2 font-mono text-[11px]">
+              <div v-for="p in activeInvoiceBuyer.payments" :key="p.id" class="flex items-center justify-between text-emerald-800 border-b border-zinc-100 last:border-0 pb-1 last:pb-0">
+                <div class="min-w-0 pr-2">
+                  <span class="font-semibold">{{ p.method }}</span>
+                  <span v-if="p.ref" class="text-zinc-500"> ({{ p.ref }})</span>
+                  <span class="text-zinc-400 text-[10px] block">{{ p.date || sessionDate }} {{ p.time }}</span>
+                </div>
+                <div class="flex items-center space-x-2 shrink-0">
+                  <span class="font-bold text-emerald-700">+{{ activeProfile.currency }}{{ p.amount.toLocaleString() }}</span>
+                  <button 
+                    @click="openEditPaymentModal(p)" 
+                    type="button" 
+                    title="Edit Payment" 
+                    class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  </button>
+                  <button 
+                    @click="deletePayment(p)" 
+                    type="button" 
+                    title="Delete Payment" 
+                    class="p-1 rounded bg-zinc-100 hover:bg-red-50 text-zinc-400 hover:text-red-700">
+                    ✕
+                  </button>
+                </div>
               </div>
             </div>
+          </div>
+
+          <!-- Customer Comments / Remarks -->
+          <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-1">
+            <label class="block text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Customer Comment / Remarks</label>
+            <input 
+              :value="customerNotes[activeInvoiceBuyer.handle] || ''"
+              @input="updateCustomerNote(activeInvoiceBuyer.handle, $event.target.value)"
+              type="text" 
+              placeholder="e.g. Paid via GCash on 08/06, Hold for shipping..." 
+              class="w-full bg-white border border-zinc-300 rounded px-2.5 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
+            />
           </div>
 
           <!-- Payment Details / Store Accounts -->
@@ -6097,6 +6751,420 @@
             class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors cursor-pointer shadow-xs flex items-center space-x-1.5">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
             <span>Done &amp; Save</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- NOTION CSV IMPORT MODAL (Multi-File: Balances & Invoices)       -->
+    <!-- =============================================================== -->
+    <div v-if="importNotionModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+      <div class="bg-white border border-zinc-200 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col max-h-[94vh] overflow-hidden">
+        
+        <!-- Modal Header -->
+        <div class="px-5 py-3.5 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/70 shrink-0">
+          <div class="flex items-center space-x-2.5 min-w-0">
+            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold shrink-0">
+              📊
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm font-bold text-zinc-900 truncate">Import Notion CSVs</h3>
+              <p class="text-[11px] text-zinc-500 truncate">Multi-file support: Invoices &amp; Mined Items + Customer Balances &amp; Payments</p>
+            </div>
+          </div>
+          <button 
+            @click="closeImportNotionModal()" 
+            class="p-1.5 text-zinc-400 hover:text-zinc-700 rounded-lg hover:bg-zinc-200/60 transition-colors text-xs cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- Tab Switcher -->
+        <div class="flex border-b border-zinc-200 bg-zinc-50/50 px-4 pt-2 shrink-0">
+          <button 
+            @click="importNotionTab = 'file'" 
+            class="px-3.5 py-1.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 cursor-pointer flex items-center space-x-1.5"
+            :class="importNotionTab === 'file' ? 'border-zinc-900 text-zinc-900 bg-white shadow-2xs font-bold' : 'border-transparent text-zinc-500 hover:text-zinc-800'">
+            <span>📁 Upload Files</span>
+            <span v-if="importNotionFiles.length > 0" class="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-mono font-bold">{{ importNotionFiles.length }}</span>
+          </button>
+          <button 
+            @click="importNotionTab = 'paste'" 
+            class="px-3.5 py-1.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 cursor-pointer"
+            :class="importNotionTab === 'paste' ? 'border-zinc-900 text-zinc-900 bg-white shadow-2xs font-bold' : 'border-transparent text-zinc-500 hover:text-zinc-800'">
+            📋 Paste Raw CSV
+          </button>
+          <button 
+            @click="importNotionTab = 'sample'" 
+            class="px-3.5 py-1.5 text-xs font-semibold rounded-t-lg transition-colors border-b-2 cursor-pointer"
+            :class="importNotionTab === 'sample' ? 'border-zinc-900 text-zinc-900 bg-white shadow-2xs font-bold' : 'border-transparent text-zinc-500 hover:text-zinc-800'">
+            ✨ 1-Click Samples
+          </button>
+        </div>
+
+        <!-- Modal Body (Scrollable) -->
+        <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+
+          <!-- UNDO / ROLLBACK PREVIOUS IMPORT BANNER -->
+          <div v-if="lastImportSnapshot" class="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between text-xs animate-fadeIn">
+            <div class="flex items-center space-x-2.5 min-w-0 pr-2">
+              <span class="text-base shrink-0">↩️</span>
+              <div class="min-w-0">
+                <div class="font-bold text-amber-950 truncate">Previous Import Snapshot Ready ({{ lastImportSnapshot.dateStr }})</div>
+                <div class="text-[10px] text-amber-800 truncate">
+                  Source: {{ lastImportSnapshot.fileNames.join(', ') || 'Notion CSV' }} • Click to revert to pre-import state.
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center space-x-1.5 shrink-0">
+              <button 
+                type="button" 
+                @click="undoLastImport(); closeImportNotionModal()" 
+                class="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs flex items-center space-x-1">
+                <span>↩️ Undo Previous Import</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 1: MULTI-FILE UPLOAD & DRAG/DROP -->
+          <div v-if="importNotionTab === 'file'" class="space-y-3">
+            <div 
+              @dragover.prevent="importNotionIsDragging = true"
+              @dragleave.prevent="importNotionIsDragging = false"
+              @drop="handleNotionCsvDrop"
+              class="border-2 border-dashed rounded-2xl p-5 sm:p-7 text-center transition-all cursor-pointer flex flex-col items-center justify-center space-y-2"
+              :class="importNotionIsDragging ? 'border-emerald-500 bg-emerald-50/60' : 'border-zinc-300 hover:border-zinc-400 bg-zinc-50/60'">
+              
+              <div class="w-11 h-11 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-xl mb-0.5">
+                📥
+              </div>
+              <div class="font-bold text-zinc-900 text-sm">
+                Drop one or more Notion CSV files here
+              </div>
+              <p class="text-zinc-500 text-[11px] max-w-md">
+                Upload your separate Notion exports together: <strong>Invoices CSV</strong> (control #, item, price) &amp; <strong>Customer Balances CSV</strong> (payments, status, notes).
+              </p>
+
+              <input 
+                type="file" 
+                ref="notionFileInputRef"
+                id="notion-csv-file-input"
+                multiple
+                accept=".csv,text/csv,text/plain,.txt" 
+                @change="handleNotionCsvFileInput" 
+                class="hidden" />
+
+              <div class="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button 
+                  type="button"
+                  @click="$refs.notionFileInputRef && $refs.notionFileInputRef.click()"
+                  class="px-4 py-2 bg-zinc-900 hover:bg-black text-white rounded-xl font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                  <span>Select CSV Files (Multiple)...</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: PASTE RAW CSV TEXT -->
+          <div v-if="importNotionTab === 'paste'" class="space-y-2">
+            <label class="block font-semibold text-zinc-700 text-[11px]">
+              Paste exported Notion CSV content below (you can paste multiple times to add multiple files):
+            </label>
+            <textarea 
+              v-model="importNotionRawText" 
+              placeholder="CUSTOMER,Comment,DATE ISSUED,OVERDUE,Outstanding,PAYMENT DATE,PAYMENTS MADE,STATUS,TOTAL AMOUNT,Tags&#10;Edna T,,'August 4, 2026',,,'August 6, 2026',₱785.00,🟢 Paid,₱785.00,"
+              rows="5"
+              class="w-full p-3 font-mono text-[11px] bg-zinc-50 border border-zinc-300 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-800 transition-all resize-y">
+            </textarea>
+            <div class="flex justify-end space-x-2">
+              <button 
+                type="button"
+                @click="parsePastedNotionCsv"
+                :disabled="!importNotionRawText.trim()"
+                class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black disabled:opacity-40 text-white font-bold text-xs transition-colors cursor-pointer flex items-center space-x-1.5 shadow-xs">
+                <span>➕ Add as File to Queue</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- TAB 3: 1-CLICK SAMPLES -->
+          <div v-if="importNotionTab === 'sample'" class="space-y-3">
+            <div class="p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-zinc-600 space-y-1">
+              <div class="font-bold text-zinc-900 text-xs">Test with Notion Export Samples</div>
+              <p class="text-[11px]">Choose whether to load both separate files simultaneously or test individual balance and invoice datasets.</p>
+            </div>
+
+            <!-- Featured: Load Both Separate Files -->
+            <div class="p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-xl space-y-2 shadow-2xs">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                  <span class="w-6 h-6 rounded-lg bg-emerald-200 text-emerald-900 flex items-center justify-center font-bold text-xs">✨</span>
+                  <div class="font-bold text-emerald-950 text-xs">Load Both Files Together (Invoices + Balances)</div>
+                </div>
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-200 text-emerald-900">Recommended</span>
+              </div>
+              <p class="text-[11px] text-emerald-800">
+                Simultaneously loads <strong>Notion_Invoices_Mined_Items_Sample.csv</strong> (13 items) and <strong>Notion_Customer_Balances_Sample.csv</strong> (10 buyers with GCash payments and notes) into the multi-file queue.
+              </p>
+              <button 
+                type="button"
+                @click="loadSampleNotionCsv('both')"
+                class="w-full py-2 px-3 bg-emerald-800 hover:bg-emerald-900 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer flex items-center justify-center space-x-1.5 shadow-xs">
+                <span>🚀 Load Both Sample CSV Files (2 Files)</span>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Sample 1: Customer Balances Only -->
+              <div class="p-3 bg-white border border-emerald-200 rounded-xl space-y-1.5 shadow-2xs hover:border-emerald-400 transition-colors">
+                <div class="flex items-center space-x-2">
+                  <span class="w-5 h-5 rounded bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-[10px]">💳</span>
+                  <div class="font-bold text-zinc-900 text-xs">Balances Only</div>
+                </div>
+                <p class="text-[11px] text-zinc-500">10 buyers with statuses (🟢 Paid, 🔴 Due), payments, and deposit notes.</p>
+                <button 
+                  type="button"
+                  @click="loadSampleNotionCsv('balances')"
+                  class="w-full py-1.5 px-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer">
+                  + Add Balances Sample
+                </button>
+              </div>
+
+              <!-- Sample 2: Invoices / Mined Items Only -->
+              <div class="p-3 bg-white border border-blue-200 rounded-xl space-y-1.5 shadow-2xs hover:border-blue-400 transition-colors">
+                <div class="flex items-center space-x-2">
+                  <span class="w-5 h-5 rounded bg-blue-100 text-blue-800 flex items-center justify-center font-bold text-[10px]">🏷️</span>
+                  <div class="font-bold text-zinc-900 text-xs">Invoices Only</div>
+                </div>
+                <p class="text-[11px] text-zinc-500">13 itemized live mine records (Pothos, Oxy yellow, Njoy, etc.) with control #s.</p>
+                <button 
+                  type="button"
+                  @click="loadSampleNotionCsv('invoices')"
+                  class="w-full py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer">
+                  + Add Invoices Sample
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- LOADED FILES LIST (CHIPS/CARDS) -->
+          <div v-if="importNotionFiles.length > 0" class="space-y-2">
+            <div class="flex items-center justify-between">
+              <div class="font-bold text-zinc-900 text-xs flex items-center space-x-1.5">
+                <span>Loaded CSV Files</span>
+                <span class="px-1.5 py-0.2 rounded-full bg-zinc-200 text-zinc-800 font-mono text-[10px] font-bold">{{ importNotionFiles.length }}</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <button 
+                  type="button"
+                  @click="$refs.notionFileInputRef && $refs.notionFileInputRef.click()"
+                  class="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold cursor-pointer flex items-center space-x-1">
+                  <span>➕ Add Another CSV File</span>
+                </button>
+                <button 
+                  type="button"
+                  @click="clearImportPreview"
+                  class="text-[11px] text-rose-600 hover:text-rose-800 font-medium cursor-pointer">
+                  Clear All
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div 
+                v-for="file in importNotionFiles" 
+                :key="file.id"
+                class="flex items-center justify-between p-2.5 bg-white border border-zinc-200 rounded-xl shadow-2xs hover:border-zinc-300 transition-colors">
+                <div class="flex items-center space-x-2 min-w-0 pr-2">
+                  <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0 font-bold"
+                       :class="file.parsed.type === 'notion_invoices' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'">
+                    {{ file.parsed.type === 'notion_invoices' ? '🏷️' : '💳' }}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="font-bold text-zinc-900 text-[11px] truncate" :title="file.name">
+                      {{ file.name }}
+                    </div>
+                    <div class="text-[10px] text-zinc-500 flex items-center space-x-1.5">
+                      <span class="font-semibold" :class="file.parsed.type === 'notion_invoices' ? 'text-blue-700' : 'text-emerald-700'">
+                        {{ file.parsed.typeName }}
+                      </span>
+                      <span>•</span>
+                      <span>{{ file.parsed.validRowCount }} rows</span>
+                    </div>
+                  </div>
+                </div>
+                <button 
+                  type="button"
+                  @click="removeImportedFile(file.id)"
+                  class="p-1 text-zinc-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer shrink-0"
+                  title="Remove this file">
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- PARSED COMBINED DATA PREVIEW BOX -->
+          <div v-if="importNotionCombinedData && importNotionCombinedData.totalValidRows > 0" class="border border-zinc-200 rounded-2xl p-4 bg-zinc-50/70 space-y-3 animate-fadeIn">
+            
+            <!-- Combined Stats Bar -->
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div class="p-2.5 bg-white rounded-xl border border-zinc-200">
+                <div class="text-[10px] font-medium text-zinc-500 uppercase font-mono">Files</div>
+                <div class="font-bold text-zinc-900 text-sm">{{ importNotionCombinedData.totalFiles }}</div>
+              </div>
+              <div class="p-2.5 bg-white rounded-xl border border-zinc-200">
+                <div class="text-[10px] font-medium text-zinc-500 uppercase font-mono">Buyers</div>
+                <div class="font-bold text-zinc-900 text-sm">{{ importNotionCombinedData.uniqueCustomers.length }}</div>
+              </div>
+              <div class="p-2.5 bg-white rounded-xl border border-zinc-200">
+                <div class="text-[10px] font-medium text-zinc-500 uppercase font-mono">Total Sales</div>
+                <div class="font-bold text-zinc-900 text-sm">₱{{ importNotionCombinedData.totalSales.toLocaleString() }}</div>
+              </div>
+              <div class="p-2.5 bg-white rounded-xl border border-zinc-200">
+                <div class="text-[10px] font-medium text-zinc-500 uppercase font-mono">Total Paid</div>
+                <div class="font-bold text-emerald-700 text-sm">₱{{ importNotionCombinedData.totalPayments.toLocaleString() }}</div>
+              </div>
+              <div class="p-2.5 bg-white rounded-xl border border-zinc-200 col-span-2 sm:col-span-1">
+                <div class="text-[10px] font-medium text-zinc-500 uppercase font-mono">Outstanding</div>
+                <div class="font-bold text-amber-700 text-sm">₱{{ importNotionCombinedData.totalOutstanding.toLocaleString() }}</div>
+              </div>
+            </div>
+
+            <!-- Preview Type Selector (If multi-type datasets are loaded) -->
+            <div class="flex items-center justify-between border-b border-zinc-200 pb-1.5">
+              <div class="flex items-center space-x-2">
+                <button 
+                  v-if="importNotionCombinedData.hasInvoices"
+                  type="button"
+                  @click="importNotionPreviewTab = 'invoices'"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  :class="importNotionPreviewTab === 'invoices' ? 'bg-blue-600 text-white shadow-2xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 border border-zinc-200'">
+                  🏷️ Mined Items ({{ importNotionCombinedData.invoicesCount }})
+                </button>
+                <button 
+                  v-if="importNotionCombinedData.hasBalances"
+                  type="button"
+                  @click="importNotionPreviewTab = 'balances'"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  :class="importNotionPreviewTab === 'balances' ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-white text-zinc-700 hover:bg-zinc-100 border border-zinc-200'">
+                  💳 Customer Balances ({{ importNotionCombinedData.balancesPreview.length }})
+                </button>
+              </div>
+              <div class="text-[11px] text-zinc-500 font-medium">
+                {{ importNotionCombinedData.totalValidRows }} total records ready
+              </div>
+            </div>
+
+            <!-- Preview Records Table -->
+            <div class="border border-zinc-200 rounded-xl bg-white overflow-hidden max-h-48 overflow-y-auto">
+              <table class="w-full text-left text-[11px]">
+                <thead class="bg-zinc-100/90 text-zinc-600 font-mono text-[10px] uppercase sticky top-0 border-b border-zinc-200">
+                  <tr v-if="importNotionPreviewTab === 'invoices'">
+                    <th class="p-2">#</th>
+                    <th class="p-2">Customer</th>
+                    <th class="p-2">Description</th>
+                    <th class="p-2">Price</th>
+                    <th class="p-2">Date</th>
+                  </tr>
+                  <tr v-else>
+                    <th class="p-2">Customer</th>
+                    <th class="p-2">Status</th>
+                    <th class="p-2">Total</th>
+                    <th class="p-2">Paid</th>
+                    <th class="p-2">Balance</th>
+                    <th class="p-2">Note / Deposit</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-zinc-100">
+                  <template v-if="importNotionPreviewTab === 'invoices'">
+                    <tr v-for="(row, idx) in importNotionCombinedData.invoicesPreview" :key="idx" class="hover:bg-zinc-50">
+                      <td class="p-2 font-mono font-bold text-zinc-500">{{ row.controlNum }}</td>
+                      <td class="p-2 font-bold text-zinc-900">{{ row.customer }}</td>
+                      <td class="p-2 text-zinc-700">{{ row.description }}</td>
+                      <td class="p-2 font-bold text-zinc-900 font-mono">₱{{ row.price.toLocaleString() }}</td>
+                      <td class="p-2 text-zinc-500 font-mono">{{ row.date }}</td>
+                    </tr>
+                  </template>
+                  <template v-else>
+                    <tr v-for="(row, idx) in importNotionCombinedData.balancesPreview" :key="idx" class="hover:bg-zinc-50">
+                      <td class="p-2 font-bold text-zinc-900">{{ row.customer }}</td>
+                      <td class="p-2">
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold"
+                              :class="row.status.includes('Paid') ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'">
+                          {{ row.status }}
+                        </span>
+                      </td>
+                      <td class="p-2 font-bold text-zinc-900 font-mono">₱{{ row.totalAmount.toLocaleString() }}</td>
+                      <td class="p-2 text-emerald-700 font-mono">₱{{ row.paymentsMade.toLocaleString() }}</td>
+                      <td class="p-2 font-bold font-mono" :class="row.outstanding > 0 ? 'text-amber-700' : 'text-zinc-500'">
+                        ₱{{ row.outstanding.toLocaleString() }}
+                      </td>
+                      <td class="p-2 text-zinc-600 italic">{{ row.comment }}</td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Import Mode Selection -->
+            <div class="space-y-2 pt-1 border-t border-zinc-200">
+              <div class="font-semibold text-zinc-900 text-[11px]">Import Configuration</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <label class="flex items-start space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors"
+                       :class="importNotionMode === 'merge' ? 'border-zinc-900 bg-zinc-900/5 font-semibold' : 'border-zinc-200 bg-white hover:bg-zinc-50'">
+                  <input type="radio" value="merge" v-model="importNotionMode" class="mt-0.5 h-3.5 w-3.5 text-zinc-900 focus:ring-0" />
+                  <div>
+                    <div class="text-zinc-900 text-xs">Merge &amp; Append (Safe)</div>
+                    <div class="text-[10px] text-zinc-500 font-normal">Adds items, notes and balances to existing live session.</div>
+                  </div>
+                </label>
+
+                <label class="flex items-start space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors"
+                       :class="importNotionMode === 'replace' ? 'border-rose-600 bg-rose-50/50 font-semibold' : 'border-zinc-200 bg-white hover:bg-zinc-50'">
+                  <input type="radio" value="replace" v-model="importNotionMode" class="mt-0.5 h-3.5 w-3.5 text-rose-600 focus:ring-0" />
+                  <div>
+                    <div class="text-zinc-900 text-xs">Replace Session Data</div>
+                    <div class="text-[10px] text-zinc-500 font-normal">Starts fresh with imported Notion records and balances.</div>
+                  </div>
+                </label>
+              </div>
+
+              <label class="flex items-center space-x-2 pt-1 cursor-pointer">
+                <input type="checkbox" v-model="importNotionSyncSupabase" class="h-3.5 w-3.5 rounded text-emerald-600 focus:ring-0" />
+                <span class="text-zinc-700 text-[11px]">Automatically synchronize imported records to Supabase Cloud</span>
+              </label>
+            </div>
+
+          </div>
+
+          <!-- Error Feedback -->
+          <div v-if="importNotionError" class="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center space-x-2">
+            <span>⚠️</span>
+            <span>{{ importNotionError }}</span>
+          </div>
+
+        </div>
+
+        <!-- Pinned Footer -->
+        <div class="px-5 py-3 border-t border-zinc-200 bg-zinc-50 flex items-center justify-between shrink-0">
+          <button 
+            type="button"
+            @click="closeImportNotionModal()" 
+            class="px-3.5 py-1.5 rounded-xl text-zinc-600 hover:text-zinc-900 font-medium text-xs hover:bg-zinc-200/50 transition-colors cursor-pointer">
+            Cancel
+          </button>
+
+          <button 
+            type="button"
+            @click="executeNotionImport()"
+            :disabled="!importNotionCombinedData || importNotionCombinedData.totalValidRows === 0"
+            class="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+            <span>Import {{ importNotionCombinedData ? importNotionCombinedData.totalValidRows + ' Records (' + importNotionCombinedData.totalFiles + ' Files)' : 'Records' }} into POS</span>
           </button>
         </div>
 

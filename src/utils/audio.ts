@@ -1,4 +1,4 @@
-export function playBeep(type: 'success' | 'payment' | 'undo' | 'error' = 'success', soundEnabled = true): void {
+export function playBeep(type: 'success' | 'payment' | 'undo' | 'error' | 'mine' = 'success', soundEnabled = true): void {
   if (!soundEnabled) return;
   try {
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -9,7 +9,7 @@ export function playBeep(type: 'success' | 'payment' | 'undo' | 'error' = 'succe
     osc.connect(gain);
     gain.connect(ctx.destination);
 
-    if (type === 'success') {
+    if (type === 'success' || type === 'mine') {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.12);
