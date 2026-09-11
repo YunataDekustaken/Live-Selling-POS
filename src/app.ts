@@ -1329,6 +1329,12 @@ const app = createApp({
                 settings.value.activePrinterType = parsed.activePrinterType;
                 changed = true;
               }
+              if (parsed.activeLabelProfileId && parsed.activeLabelProfileId !== settings.value.activeLabelProfileId) {
+                settings.value.activeLabelProfileId = parsed.activeLabelProfileId;
+                activeLabelProfileId.value = parsed.activeLabelProfileId;
+                localStorage.setItem('pos_active_label_profile_id', parsed.activeLabelProfileId);
+                changed = true;
+              }
               if (parsed.securityPin && parsed.securityPin.trim() !== '' && parsed.securityPin !== settings.value.securityPin) {
                 const cloudPin = parsed.securityPin.trim();
                 settings.value.securityPin = cloudPin;
@@ -1366,9 +1372,7 @@ const app = createApp({
           const cloudLabelProfilesJson = await fetchLabelProfilesFromSupabase();
           if (cloudLabelProfilesJson) {
             const parsed = JSON.parse(cloudLabelProfilesJson);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              mergeCloudLabelProfiles(parsed);
-            }
+            mergeCloudLabelProfiles(parsed);
           }
         } catch (labelSyncErr) {
           console.warn('Label profiles cloud sync notice:', labelSyncErr);
@@ -2037,7 +2041,11 @@ const app = createApp({
     }
 
     const savedLabelProfiles = ref<SavedLabelProfile[]>([]);
-    const activeLabelProfileId = ref<string>('reference_qr');
+    const activeLabelProfileId = ref<string>(
+      initialSettings.activeLabelProfileId || 
+      (safeGetItem('pos_active_label_profile_id') as string) || 
+      'reference_qr'
+    );
     const showSaveProfileModal = ref<boolean>(false);
     const newProfileName = ref<string>('');
     const showPasteCoordinatesModal = ref<boolean>(false);
@@ -2080,8 +2088,26 @@ const app = createApp({
       ];
     }
 
-    function mergeCloudLabelProfiles(cloudProfiles: SavedLabelProfile[]) {
-      if (!Array.isArray(cloudProfiles) || cloudProfiles.length === 0) return;
+    function mergeCloudLabelProfiles(cloudData: any) {
+      if (!cloudData) return;
+      let cloudProfiles: SavedLabelProfile[] = [];
+      let cloudActiveProfileId: string | undefined;
+
+      if (Array.isArray(cloudData)) {
+        cloudProfiles = cloudData;
+      } else if (typeof cloudData === 'object') {
+        if (Array.isArray(cloudData.profiles)) {
+          cloudProfiles = cloudData.profiles;
+        }
+        if (cloudData.activeProfileId) {
+          cloudActiveProfileId = cloudData.activeProfileId;
+        } else if (cloudData.activeLabelProfileId) {
+          cloudActiveProfileId = cloudData.activeLabelProfileId;
+        }
+      }
+
+      if (cloudProfiles.length === 0 && !cloudActiveProfileId) return;
+
       const builtIns = getBuiltInLabelProfiles();
       const currentCustom = savedLabelProfiles.value.filter(p => !p.isBuiltIn);
       const profileMap = new Map<string, SavedLabelProfile>();
@@ -2108,6 +2134,22 @@ const app = createApp({
       savedLabelProfiles.value = [...builtIns, ...mergedCustom];
       const jsonStr = JSON.stringify(mergedCustom);
       localStorage.setItem('pos_saved_label_profiles_v1', jsonStr);
+
+      if (cloudActiveProfileId) {
+        activeLabelProfileId.value = cloudActiveProfileId;
+        settings.value.activeLabelProfileId = cloudActiveProfileId;
+        localStorage.setItem('pos_active_label_profile_id', cloudActiveProfileId);
+        safeSetItem('live_pos_settings', settings.value);
+
+        const matched = savedLabelProfiles.value.find(p => p.id === cloudActiveProfileId);
+        if (matched && matched.elements) {
+          if (!settings.value.labelLayout) settings.value.labelLayout = { ...defaultLabelLayout };
+          settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(matched.elements));
+          if (matched.labelSize) settings.value.labelLayout.labelSize = matched.labelSize as any;
+          safeSetItem('live_pos_settings', settings.value);
+          updateSamplePreviewQr();
+        }
+      }
     }
 
     function initSavedLabelProfiles() {
@@ -2140,14 +2182,23 @@ const app = createApp({
         savedLabelProfiles.value = getBuiltInLabelProfiles();
       }
 
+      const savedActive = settings.value.activeLabelProfileId || localStorage.getItem('pos_active_label_profile_id');
+      if (savedActive) {
+        activeLabelProfileId.value = savedActive;
+        const matched = savedLabelProfiles.value.find(p => p.id === savedActive);
+        if (matched && (!settings.value.labelLayout?.customElements || settings.value.labelLayout.customElements.length === 0)) {
+          if (!settings.value.labelLayout) settings.value.labelLayout = { ...defaultLabelLayout };
+          settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(matched.elements));
+          if (matched.labelSize) settings.value.labelLayout.labelSize = matched.labelSize as any;
+        }
+      }
+
       // Automatically fetch and merge custom label profiles from Supabase database
       fetchLabelProfilesFromSupabase().then(cloudJson => {
         if (cloudJson) {
           try {
-            const cloudProfiles = JSON.parse(cloudJson);
-            if (Array.isArray(cloudProfiles) && cloudProfiles.length > 0) {
-              mergeCloudLabelProfiles(cloudProfiles);
-            }
+            const parsed = JSON.parse(cloudJson);
+            mergeCloudLabelProfiles(parsed);
           } catch (e) {
             console.warn('Failed parsing cloud label profiles:', e);
           }
@@ -2159,11 +2210,25 @@ const app = createApp({
 
     function persistUserLabelProfiles() {
       const customOnly = savedLabelProfiles.value.filter(p => !p.isBuiltIn);
+      const payload = {
+        profiles: customOnly,
+        activeProfileId: activeLabelProfileId.value,
+        timestamp: Date.now()
+      };
       const jsonStr = JSON.stringify(customOnly);
+      const payloadJson = JSON.stringify(payload);
       localStorage.setItem('pos_saved_label_profiles_v1', jsonStr);
-      // Persist to Supabase database so profiles are permanently saved in cloud
-      syncLabelProfilesToSupabase(jsonStr).catch(err => {
+      localStorage.setItem('pos_active_label_profile_id', activeLabelProfileId.value);
+      if (settings.value) {
+        settings.value.activeLabelProfileId = activeLabelProfileId.value;
+        safeSetItem('live_pos_settings', settings.value);
+      }
+      // Persist to Supabase database so profiles and active selection are permanently saved in cloud
+      syncLabelProfilesToSupabase(payloadJson).catch(err => {
         console.warn('Supabase label profile sync notice:', err);
+      });
+      syncAppSettingsToSupabase(JSON.stringify(settings.value)).catch(err => {
+        console.warn('Supabase settings sync notice:', err);
       });
     }
 
@@ -2174,6 +2239,7 @@ const app = createApp({
       if (!settings.value.labelLayout) {
         settings.value.labelLayout = { ...defaultLabelLayout };
       }
+      settings.value.activeLabelProfileId = profile.id;
       settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(profile.elements));
       if (Array.isArray(settings.value.labelLayout.customElements)) {
         for (const el of settings.value.labelLayout.customElements) {
@@ -2185,9 +2251,11 @@ const app = createApp({
       if (profile.labelSize) {
         settings.value.labelLayout.labelSize = profile.labelSize as any;
       }
+      localStorage.setItem('pos_active_label_profile_id', profile.id);
       saveSettings(true);
+      persistUserLabelProfiles();
       updateSamplePreviewQr();
-      showToast(`Loaded label profile: "${profile.name}"`);
+      showToast(`Loaded label profile: "${profile.name}" (synced across devices)`);
     }
 
     function openSaveProfileModal() {
@@ -2213,6 +2281,9 @@ const app = createApp({
       };
       savedLabelProfiles.value.push(newProfile);
       activeLabelProfileId.value = newProfile.id;
+      settings.value.activeLabelProfileId = newProfile.id;
+      localStorage.setItem('pos_active_label_profile_id', newProfile.id);
+      saveSettings(false);
       persistUserLabelProfiles();
       showSaveProfileModal.value = false;
       showToast(`Profile "${name}" saved to database & device! Ready for 1-click loading.`);
@@ -2222,10 +2293,16 @@ const app = createApp({
       const prof = savedLabelProfiles.value.find(p => p.id === profileId);
       if (!prof || prof.isBuiltIn) return;
       savedLabelProfiles.value = savedLabelProfiles.value.filter(p => p.id !== profileId);
-      persistUserLabelProfiles();
       if (activeLabelProfileId.value === profileId) {
         activeLabelProfileId.value = 'reference_qr';
+        settings.value.activeLabelProfileId = 'reference_qr';
+        localStorage.setItem('pos_active_label_profile_id', 'reference_qr');
+        if (settings.value.labelLayout) {
+          settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(defaultLabelElements));
+        }
+        saveSettings(false);
       }
+      persistUserLabelProfiles();
       showToast(`Profile "${prof.name}" deleted from database & device.`);
     }
 
@@ -2545,6 +2622,8 @@ const app = createApp({
       if (!settings.value.labelLayout) settings.value.labelLayout = { ...defaultLabelLayout };
 
       activeLabelProfileId.value = presetName;
+      settings.value.activeLabelProfileId = presetName;
+      localStorage.setItem('pos_active_label_profile_id', presetName);
 
       if (presetName === 'reference_qr') {
         settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(defaultLabelElements));
@@ -2604,6 +2683,7 @@ const app = createApp({
       }
 
       saveSettings(true);
+      persistUserLabelProfiles();
       updateSamplePreviewQr();
     }
 

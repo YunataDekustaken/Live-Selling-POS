@@ -162,6 +162,7 @@ export interface AppSettings {
   receiptPrinterName?: string;
   labelPrinterName?: string;
   activePrinterType?: 'receipt_pt210' | 'label_pt265' | 'auto';
+  activeLabelProfileId?: string;
   securityPin?: string;
   requirePasscode?: boolean;
 }
