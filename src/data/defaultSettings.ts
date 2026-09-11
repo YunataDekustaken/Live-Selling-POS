@@ -5,7 +5,7 @@ export const defaultLabelElements: VisualLabelElement[] = [
   { id: 'time', name: 'Time', visible: true, x: 232, y: 10, fontSize: 14, fontWeight: 'normal', align: 'right', fontFamily: 'sans' },
   { id: 'buyer', name: 'Customer Name', visible: true, x: 8, y: 44, fontSize: 15, fontWeight: 'bold', align: 'left', fontFamily: 'sans' },
   { id: 'tag', name: 'Item / Tag', visible: true, x: 8, y: 78, fontSize: 15, fontWeight: 'bold', align: 'left', fontFamily: 'sans' },
-  { id: 'price', name: 'Price', visible: true, x: 8, y: 114, fontSize: 18, fontWeight: 'black', align: 'left', prefix: 'P', fontFamily: 'sans' },
+  { id: 'price', name: 'Price', visible: true, x: 8, y: 114, fontSize: 18, fontWeight: 'black', align: 'left', prefix: '₱', fontFamily: 'sans' },
   { id: 'qrCode', name: '2D QR Code', visible: true, x: 144, y: 42, width: 88, height: 88, fontSize: 12, fontWeight: 'normal', align: 'center' },
   { id: 'storeName', name: 'Store Name', visible: false, x: 8, y: 4, fontSize: 10, fontWeight: 'bold', align: 'left', fontFamily: 'sans' },
   { id: 'sessionDate', name: 'Session Date', visible: false, x: 232, y: 30, fontSize: 12, fontWeight: 'normal', align: 'right', prefix: '#', fontFamily: 'sans' },

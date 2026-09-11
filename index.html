@@ -2221,7 +2221,7 @@
                         {{ (elem.prefix || '') + (samplePreviewItem.tag || 'Denim Jacket') + (elem.suffix || '') }}
                       </template>
                       <template v-else-if="elem.id === 'price'">
-                        {{ (elem.prefix !== undefined ? elem.prefix : activeProfile.currency) + samplePreviewItem.price.toLocaleString() + (elem.suffix || '') }}
+                        {{ (elem.prefix === 'P' ? '₱' : (elem.prefix !== undefined ? elem.prefix : (activeProfile.currency || '₱'))) + samplePreviewItem.price.toLocaleString() + (elem.suffix || '') }}
                       </template>
                       <template v-else-if="elem.id === 'storeName'">
                         {{ (elem.prefix || '') + (activeProfile.name || 'Store') + (elem.suffix || '') }}
@@ -5090,7 +5090,7 @@
 
                             <!-- Price -->
                             <div v-if="settings.labelLayout.showPrice !== false" class="font-black text-black text-sm leading-tight">
-                              {{ (activeProfile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P') }}{{ samplePreviewItem.price }}
+                              {{ (activeProfile.currency || '₱').replace(/PHP/g, '₱') }}{{ samplePreviewItem.price }}
                             </div>
                           </div>
 

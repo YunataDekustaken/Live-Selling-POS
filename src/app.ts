@@ -314,6 +314,12 @@ const app = createApp({
     }
     if (!initialSettings.labelLayout.customElements || initialSettings.labelLayout.customElements.length === 0) {
       initialSettings.labelLayout.customElements = JSON.parse(JSON.stringify(defaultLabelElements));
+    } else {
+      for (const el of initialSettings.labelLayout.customElements) {
+        if (el.id === 'price' && (el.prefix === 'P' || el.prefix === 'PHP' || !el.prefix)) {
+          el.prefix = '₱';
+        }
+      }
     }
 
     if (!initialSettings.receiptLayout) {
@@ -1795,6 +1801,15 @@ const app = createApp({
         const builtIns = getBuiltInLabelProfiles();
         if (raw) {
           const userProfiles: SavedLabelProfile[] = JSON.parse(raw);
+          for (const up of userProfiles) {
+            if (Array.isArray(up.elements)) {
+              for (const el of up.elements) {
+                if (el.id === 'price' && (el.prefix === 'P' || el.prefix === 'PHP' || !el.prefix)) {
+                  el.prefix = '₱';
+                }
+              }
+            }
+          }
           const merged = [...builtIns];
           for (const up of userProfiles) {
             if (!merged.some(m => m.id === up.id)) {
@@ -1824,6 +1839,13 @@ const app = createApp({
         settings.value.labelLayout = { ...defaultLabelLayout };
       }
       settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(profile.elements));
+      if (Array.isArray(settings.value.labelLayout.customElements)) {
+        for (const el of settings.value.labelLayout.customElements) {
+          if (el.id === 'price' && (el.prefix === 'P' || el.prefix === 'PHP' || !el.prefix)) {
+            el.prefix = '₱';
+          }
+        }
+      }
       if (profile.labelSize) {
         settings.value.labelLayout.labelSize = profile.labelSize as any;
       }
@@ -2015,6 +2037,12 @@ const app = createApp({
         }
         return { ...def };
       });
+
+      for (const el of mergedElements) {
+        if (el.id === 'price' && (el.prefix === 'P' || el.prefix === 'PHP' || !el.prefix)) {
+          el.prefix = '₱';
+        }
+      }
 
       if (!settings.value.labelLayout) settings.value.labelLayout = { ...defaultLabelLayout };
       settings.value.labelLayout.customElements = mergedElements;

@@ -378,7 +378,8 @@ export async function buildStickerCanvasRaster(
         } else if (elem.id === 'tag') {
           val = item.tag || item.description || 'Item';
         } else if (elem.id === 'price') {
-          const cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || 'P').replace(/₱/g, 'P');
+          let cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || '₱');
+          if (cur === 'P') cur = '₱';
           val = `${cur}${item.price.toLocaleString()}`;
         } else if (elem.id === 'storeName') {
           val = profile.name || 'Store';
@@ -511,7 +512,7 @@ export async function buildStickerCanvasRaster(
     const tagPart = cfg.showTag ? (item.tag || '') : '';
     const descPart = (cfg.showDescription && item.description) ? item.description : '';
     const itemLabel = tagPart ? (descPart ? `${tagPart} ${descPart}` : tagPart) : (descPart || item.tag || 'Item');
-    const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+    const currencyStr = (profile.currency || '₱').replace(/PHP/g, '₱');
     const priceStr = `${currencyStr}${item.price.toLocaleString()}`;
 
     const infoRows: { text: string; font: string }[] = [];
@@ -627,7 +628,7 @@ export async function buildStickerCanvasRaster(
 
     // 4. Tag / Description & Price
     if (cfg.showPrice !== false || cfg.showTag || cfg.showDescription) {
-      const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+      const currencyStr = (profile.currency || '₱').replace(/PHP/g, '₱');
       const priceStr = cfg.showPrice !== false ? `${currencyStr}${item.price.toLocaleString()}` : '';
       const tagPart = cfg.showTag ? (item.tag || '') : '';
       const descPart = (cfg.showDescription && item.description) ? item.description : '';
@@ -856,7 +857,7 @@ export function buildStickerEscPos(
 
   // 4. Tag / Description & Price (Smart compact 20mm layout)
   if (cfg.showPrice !== false || cfg.showTag || cfg.showDescription) {
-    const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+    const currencyStr = (profile.currency || '₱').replace(/PHP/g, '₱');
     const priceStr = (cfg.showPrice !== false) ? `${currencyStr}${item.price.toLocaleString()}` : '';
     const tagPart = cfg.showTag ? (item.tag || '') : '';
     const descPart = (cfg.showDescription && item.description) ? item.description : '';
@@ -947,7 +948,7 @@ export function buildStickerTSPL(
 
   const cleanBuyer = (item.buyer || '').replace(/^@+/, '').replace(/"/g, '');
   const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
-  const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+  const currencyStr = (profile.currency || '₱').replace(/PHP/g, '₱');
   const priceStr = `${currencyStr}${item.price.toLocaleString()}`;
 
   // Build TSPL command stream
@@ -956,6 +957,7 @@ export function buildStickerTSPL(
   tspl += `SPEED ${cfg.printSpeed || 3}\r\n`;
   tspl += `DENSITY ${cfg.printDensity || 10}\r\n`;
   tspl += `DIRECTION 1\r\n`;
+  tspl += `CODEPAGE UTF-8\r\n`;
   tspl += `REFERENCE ${xOffsetDots},${yOffsetDots}\r\n`;
   tspl += `CLS\r\n`;
 
@@ -988,7 +990,8 @@ export function buildStickerTSPL(
         } else if (elem.id === 'tag') {
           val = item.tag || item.description || 'Item';
         } else if (elem.id === 'price') {
-          const cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || 'P').replace(/₱/g, 'P');
+          let cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || '₱');
+          if (cur === 'P') cur = '₱';
           val = `${cur}${item.price.toLocaleString()}`;
         } else if (elem.id === 'storeName') {
           val = profile.name || 'Store';
