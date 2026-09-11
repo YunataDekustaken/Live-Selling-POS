@@ -47,7 +47,11 @@ import {
   syncAppSettingsToSupabase,
   fetchAppSettingsFromSupabase,
   syncLabelProfilesToSupabase,
-  fetchLabelProfilesFromSupabase
+  fetchLabelProfilesFromSupabase,
+  pushSinglePhotoToSupabase,
+  fetchCloudPhotosForProfile,
+  batchPushPhotosToSupabase,
+  deleteSinglePhotoFromSupabase
 } from './utils/supabase';
 import {
   isWebBluetoothSupported,
@@ -705,14 +709,16 @@ const app = createApp({
             tag: m.tag,
             price: m.price,
             buyer: m.buyer,
-            photo: m.photo || '',
             timestamp: String(m.timestamp || Date.now())
           }));
-          const { error: batchErr } = await client.from('mined_items').upsert(minePayloads);
-          if (batchErr) {
-            // Fallback if schema issue
-            const fallbackPayloads = minePayloads.map(({ photo, ...rest }) => rest);
-            await client.from('mined_items').upsert(fallbackPayloads);
+          await client.from('mined_items').upsert(minePayloads);
+
+          // Back up and sync all photos to customer_notes table for multi-device cross-sync
+          const photosToPush = activeMines
+            .filter(m => m.photo && m.photo.trim() !== '')
+            .map(m => ({ mineId: m.id, photo: m.photo! }));
+          if (photosToPush.length > 0) {
+            await batchPushPhotosToSupabase(photosToPush, activeProfileId.value);
           }
         }
 
@@ -914,6 +920,9 @@ const app = createApp({
           .select('*')
           .eq('profile_id', activeProfileId.value);
 
+        // Fetch cloud-persisted photos from customer_notes for this profile
+        const cloudPhotos = await fetchCloudPhotosForProfile(activeProfileId.value);
+
         if (remoteMines && !mErr) {
           // Immediately purge remote items matching deleted tombstones
           for (const rm of remoteMines) {
@@ -932,6 +941,27 @@ const app = createApp({
             const remoteIsDescription = remoteTag && remoteTag !== rm.control_code && remoteTag !== 'Decor';
             const cleanRemoteDesc = remoteIsDescription ? remoteTag : '';
 
+            const cloudPhoto = cloudPhotos[rm.id] || '';
+            const localPhoto = local ? (local.photo || '') : '';
+
+            // Synchronize photo across devices:
+            // Prefer CDN URL or available photo from cloud if local is empty;
+            // keep local photo if present.
+            let resolvedPhoto = localPhoto;
+            if (cloudPhoto) {
+              if (!localPhoto || cloudPhoto.startsWith('http')) {
+                resolvedPhoto = cloudPhoto;
+              }
+            } else if (!resolvedPhoto) {
+              resolvedPhoto = cloudPhoto;
+            }
+
+            // Auto-heal / cross-upload: If this device has a photo locally that hasn't made it to cloud yet,
+            // push it to Supabase customer_notes immediately so all other connected devices receive it!
+            if (localPhoto && !cloudPhoto) {
+              pushSinglePhotoToSupabase(rm.id, localPhoto, activeProfileId.value);
+            }
+
             if (local) {
               const localCleanDesc = (local.description && local.description !== 'Decor') ? local.description : cleanRemoteDesc;
               mergedMines.push({
@@ -941,7 +971,7 @@ const app = createApp({
                 description: localCleanDesc,
                 price: Number(rm.price) || local.price,
                 buyer: rm.buyer || local.buyer,
-                photo: rm.photo || local.photo || '',
+                photo: resolvedPhoto,
                 date: rm.session_date || local.date || sessionDate.value
               });
               localMap.delete(rm.id);
@@ -954,7 +984,7 @@ const app = createApp({
                 description: cleanRemoteDesc,
                 price: Number(rm.price) || 0,
                 buyer: rm.buyer || '',
-                photo: rm.photo || '',
+                photo: resolvedPhoto,
                 date: rm.session_date || sessionDate.value,
                 time: '',
                 timestamp: Number(rm.timestamp) || Date.now()
@@ -975,6 +1005,8 @@ const app = createApp({
           }
 
           allMines.value = mergedMines.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          saveProfileData(activeProfileId.value);
+          saveAll();
         }
 
         const { data: remotePayments, error: pErr } = await client
@@ -1113,11 +1145,11 @@ const app = createApp({
         lastSyncedAt.value = nowTime;
         localStorage.setItem('live_pos_last_synced', nowTime);
         supabaseStatus.value = 'connected';
-        supabaseSyncMessage.value = `${profiles.value.length} profiles, ${allMines.value.length} items & ${allPayments.value.length} payments in sync`;
+        supabaseSyncMessage.value = `${profiles.value.length} profiles, ${allMines.value.length} items (${totalPhotosCount.value} photos) & ${allPayments.value.length} payments in sync`;
 
         if (showNotification) {
           playBeep('success', settings.value.soundEnabled);
-          showToast(`Supabase synced: ${profiles.value.length} profiles, ${allMines.value.length} items, ${allPayments.value.length} payments`);
+          showToast(`Supabase synced: ${profiles.value.length} profiles, ${allMines.value.length} items (${totalPhotosCount.value} photos), ${allPayments.value.length} payments`);
         }
       } catch (err) {
         console.error('Supabase sync error:', err);

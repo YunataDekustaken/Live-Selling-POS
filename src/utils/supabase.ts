@@ -136,18 +136,110 @@ export async function pushSingleMineToSupabase(mine: MinedItem, activeProfileId:
       tag: mine.description || mine.tag || '',
       price: mine.price,
       buyer: mine.buyer,
-      photo: mine.photo || '',
       timestamp: String(mine.timestamp || Date.now())
     };
 
+    // Save item details to mined_items table
     const { error: upsertErr } = await client.from('mined_items').upsert([payload]);
     if (upsertErr) {
-      // If the mined_items table schema issue, retry without photo
-      delete payload.photo;
-      await client.from('mined_items').upsert([payload]);
+      console.warn('mined_items upsert notice:', upsertErr);
+    }
+
+    // Persist photo to customer_notes table (using __photo_{mineId} key for cross-device cloud sync)
+    if (mine.photo && mine.photo.trim() !== '') {
+      await pushSinglePhotoToSupabase(mine.id, mine.photo, activeProfileId);
+    } else {
+      await deleteSinglePhotoFromSupabase(mine.id, activeProfileId);
     }
   } catch (e) {
     console.warn('Supabase mine sync notice:', e);
+  }
+}
+
+export async function pushSinglePhotoToSupabase(mineId: string, photo: string, activeProfileId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !mineId || !activeProfileId) return;
+  try {
+    if (photo && photo.trim() !== '') {
+      await client.from('customer_notes').upsert([{
+        profile_id: activeProfileId,
+        buyer: '__photo_' + mineId,
+        notes: photo
+      }]);
+    } else {
+      await deleteSinglePhotoFromSupabase(mineId, activeProfileId);
+    }
+  } catch (e) {
+    console.warn('pushSinglePhotoToSupabase error:', e);
+  }
+}
+
+export async function deleteSinglePhotoFromSupabase(mineId: string, activeProfileId?: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !mineId) return;
+  try {
+    let query = client.from('customer_notes').delete().eq('buyer', '__photo_' + mineId);
+    if (activeProfileId) {
+      query = query.eq('profile_id', activeProfileId);
+    }
+    await query;
+  } catch (e) {
+    console.warn('deleteSinglePhotoFromSupabase error:', e);
+  }
+}
+
+export async function fetchCloudPhotosForProfile(profileId: string): Promise<Record<string, string>> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profileId) return {};
+  try {
+    let query = client
+      .from('customer_notes')
+      .select('buyer, notes')
+      .eq('profile_id', profileId);
+
+    if (typeof query.like === 'function') {
+      query = query.like('buyer', '__photo_%');
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn('fetchCloudPhotosForProfile notice:', error);
+      return {};
+    }
+
+    const photoMap: Record<string, string> = {};
+    if (data && Array.isArray(data)) {
+      for (const row of data) {
+        if (row.buyer && row.buyer.startsWith('__photo_') && row.notes) {
+          const mineId = row.buyer.substring('__photo_'.length);
+          photoMap[mineId] = row.notes;
+        }
+      }
+    }
+    return photoMap;
+  } catch (e) {
+    console.warn('fetchCloudPhotosForProfile error:', e);
+    return {};
+  }
+}
+
+export async function batchPushPhotosToSupabase(photos: Array<{ mineId: string; photo: string }>, activeProfileId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !photos.length || !activeProfileId) return;
+  try {
+    const valid = photos.filter(p => p.photo && p.photo.trim() !== '');
+    // Process in batches of 5 to keep payloads lightweight and performant
+    for (let i = 0; i < valid.length; i += 5) {
+      const chunk = valid.slice(i, i + 5).map(p => ({
+        profile_id: activeProfileId,
+        buyer: '__photo_' + p.mineId,
+        notes: p.photo
+      }));
+      await client.from('customer_notes').upsert(chunk);
+    }
+  } catch (e) {
+    console.warn('batchPushPhotosToSupabase error:', e);
   }
 }
 

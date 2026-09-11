@@ -64,12 +64,33 @@
       }
 
       eq(col, val) {
-        this._params.set(col, 'eq.' + encodeURIComponent(String(val)));
+        this._params.set(col, 'eq.' + String(val));
         return this;
       }
 
       neq(col, val) {
-        this._params.set(col, 'neq.' + encodeURIComponent(String(val)));
+        this._params.set(col, 'neq.' + String(val));
+        return this;
+      }
+
+      like(col, pattern) {
+        this._params.set(col, 'like.' + String(pattern));
+        return this;
+      }
+
+      ilike(col, pattern) {
+        this._params.set(col, 'ilike.' + String(pattern));
+        return this;
+      }
+
+      in(col, values) {
+        const valStr = Array.isArray(values) ? values.map(v => `"${v}"`).join(',') : String(values);
+        this._params.set(col, 'in.(' + valStr + ')');
+        return this;
+      }
+
+      is(col, val) {
+        this._params.set(col, 'is.' + String(val));
         return this;
       }
 
