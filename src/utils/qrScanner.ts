@@ -61,29 +61,57 @@ export class LiveScannerController {
         }
       });
 
-      // Video constraints: request 1080p/720p rear camera with continuous focus for crisp small QR scanning
-      const videoConstraints: MediaTrackConstraints = {
-        facingMode: { ideal: 'environment' },
-        width: { min: 640, ideal: 1280, max: 1920 },
-        height: { min: 480, ideal: 720, max: 1080 }
+      // Html5Qrcode expects cameraIdOrConfig to have EXACTLY 1 key: either 'facingMode' or 'deviceId'
+      // Try environment (rear) camera first. If on laptop/desktop without rear camera, fallback to user (front)
+      const scanConfig = {
+        fps: 15,
+        disableFlip: false,
+        videoConstraints: {
+          facingMode: { ideal: 'environment' },
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
+        }
       };
 
-      await this.scanner.start(
-        videoConstraints,
-        {
-          fps: 15,
-          // Scanning entire frame (no qrbox restriction) allows small QRs anywhere in the viewfinder to be detected reliably!
-          disableFlip: false
-        },
-        (decodedText) => {
-          if (decodedText) {
-            onDecoded(decodedText.trim());
+      let started = false;
+
+      try {
+        await this.scanner.start(
+          { facingMode: 'environment' },
+          scanConfig,
+          (decodedText) => {
+            if (decodedText) {
+              onDecoded(decodedText.trim());
+            }
+          },
+          () => {
+            // frame tick
           }
-        },
-        () => {
-          // frame tick
+        );
+        started = true;
+      } catch (backCamErr) {
+        console.warn('Could not start with environment facingMode, attempting fallback:', backCamErr);
+        try {
+          await this.scanner.start(
+            { facingMode: 'user' },
+            { fps: 15, disableFlip: false },
+            (decodedText) => {
+              if (decodedText) {
+                onDecoded(decodedText.trim());
+              }
+            },
+            () => {}
+          );
+          started = true;
+        } catch (frontCamErr) {
+          console.warn('Could not start user camera fallback:', frontCamErr);
         }
-      );
+      }
+
+      if (!started) {
+        this.isRunning = false;
+        return false;
+      }
 
       this.isRunning = true;
 
@@ -158,42 +186,76 @@ export class LiveScannerController {
    * Toggle Flashlight / Torch
    */
   public async toggleTorch(): Promise<boolean> {
-    if (!this.videoTrack || !this.capabilities.hasTorch) return false;
+    if (!this.capabilities.hasTorch) return false;
+    const nextState = !this.capabilities.torchOn;
+    
     try {
-      const nextState = !this.capabilities.torchOn;
-      await (this.videoTrack as any).applyConstraints({
-        advanced: [{ torch: nextState }]
-      });
-      this.capabilities.torchOn = nextState;
-      return nextState;
-    } catch (err) {
-      console.warn('Error toggling flashlight:', err);
-      return this.capabilities.torchOn;
+      if (this.scanner && typeof (this.scanner as any).applyVideoConstraints === 'function') {
+        await (this.scanner as any).applyVideoConstraints({
+          advanced: [{ torch: nextState }]
+        });
+        this.capabilities.torchOn = nextState;
+        return nextState;
+      }
+    } catch (e) {
+      console.debug('applyVideoConstraints torch failed, trying direct track constraint:', e);
     }
+
+    if (this.videoTrack) {
+      try {
+        await (this.videoTrack as any).applyConstraints({
+          advanced: [{ torch: nextState }]
+        });
+        this.capabilities.torchOn = nextState;
+        return nextState;
+      } catch (err) {
+        console.warn('Error toggling flashlight:', err);
+      }
+    }
+
+    return this.capabilities.torchOn;
   }
 
   /**
    * Apply Optical/Digital Camera Zoom level (e.g. 1.0 to 3.0 or max)
    */
   public async setZoom(zoomLevel: number): Promise<number> {
-    if (!this.videoTrack || !this.capabilities.hasZoom) return 1;
+    if (!this.capabilities.hasZoom) return 1;
+    const clamped = Math.min(this.capabilities.maxZoom, Math.max(this.capabilities.minZoom, zoomLevel));
+    
     try {
-      const clamped = Math.min(this.capabilities.maxZoom, Math.max(this.capabilities.minZoom, zoomLevel));
-      await (this.videoTrack as any).applyConstraints({
-        advanced: [{ zoom: clamped }]
-      });
-      this.capabilities.currentZoom = clamped;
-      return clamped;
-    } catch (err) {
-      console.warn('Error setting camera zoom:', err);
-      return this.capabilities.currentZoom;
+      if (this.scanner && typeof (this.scanner as any).applyVideoConstraints === 'function') {
+        await (this.scanner as any).applyVideoConstraints({
+          advanced: [{ zoom: clamped }]
+        });
+        this.capabilities.currentZoom = clamped;
+        return clamped;
+      }
+    } catch (e) {
+      console.debug('applyVideoConstraints zoom failed, trying direct track constraint:', e);
     }
+
+    if (this.videoTrack) {
+      try {
+        await (this.videoTrack as any).applyConstraints({
+          advanced: [{ zoom: clamped }]
+        });
+        this.capabilities.currentZoom = clamped;
+        return clamped;
+      } catch (err) {
+        console.warn('Error setting camera zoom:', err);
+      }
+    }
+
+    return this.capabilities.currentZoom;
   }
 
   public async stop(): Promise<void> {
-    if (this.capabilities.torchOn && this.videoTrack) {
+    if (this.capabilities.torchOn) {
       try {
-        await (this.videoTrack as any).applyConstraints({ advanced: [{ torch: false }] });
+        if (this.videoTrack) {
+          await (this.videoTrack as any).applyConstraints({ advanced: [{ torch: false }] });
+        }
       } catch (e) {
         // ignore
       }
