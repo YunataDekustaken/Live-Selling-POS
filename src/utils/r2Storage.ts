@@ -8,7 +8,25 @@ export interface R2Config {
   publicDomain: string; // e.g. "https://pub-xxxx.r2.dev" or custom domain
 }
 
+export interface ServerR2Status {
+  hasEnv: boolean;
+  bucketName?: string;
+  publicDomain?: string;
+}
+
 const R2_CONFIG_KEY = 'live_pos_r2_config';
+
+export async function checkServerR2Status(): Promise<ServerR2Status> {
+  try {
+    const res = await fetch('/api/r2-status');
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    // offline or static mode
+  }
+  return { hasEnv: false };
+}
 
 export function getStoredR2Config(): R2Config {
   const saved = safeGetItem<any>(R2_CONFIG_KEY);
@@ -96,35 +114,36 @@ export async function uploadToCloudflareR2(
   base64DataUrl: string,
   config = getStoredR2Config()
 ): Promise<{ success: boolean; url: string; error?: string }> {
-  if (!isR2Configured(config)) {
-    return { success: false, url: base64DataUrl, error: 'Cloudflare R2 is not configured.' };
-  }
-
   const cleanKey = fileKey.replace(/^\/+/, '');
-  const accountId = config.accountId.trim();
-  const bucketName = config.bucketName.trim();
-  const accessKeyId = config.accessKeyId.trim();
-  const secretAccessKey = config.secretAccessKey.trim();
-  const publicDomain = config.publicDomain.trim().replace(/\/+$/, '');
+  const accountId = (config?.accountId || '').trim();
+  const bucketName = (config?.bucketName || '').trim();
+  const accessKeyId = (config?.accessKeyId || '').trim();
+  const secretAccessKey = (config?.secretAccessKey || '').trim();
+  const publicDomain = (config?.publicDomain || '').trim().replace(/\/+$/, '');
 
-  // 1. Try Server-Side API Proxy First (bypasses browser CORS & TLS restrictions)
+  // 1. Try Server-Side API Proxy First (supports server .env credentials & bypasses browser CORS)
   try {
+    const proxyPayload: any = {
+      fileKey: cleanKey,
+      base64DataUrl
+    };
+
+    if (accountId || accessKeyId || secretAccessKey || bucketName) {
+      proxyPayload.config = {
+        accountId,
+        bucketName,
+        accessKeyId,
+        secretAccessKey,
+        publicDomain
+      };
+    }
+
     const proxyRes = await fetch('/api/r2-upload', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        fileKey: cleanKey,
-        base64DataUrl,
-        config: {
-          accountId,
-          bucketName,
-          accessKeyId,
-          secretAccessKey,
-          publicDomain
-        }
-      })
+      body: JSON.stringify(proxyPayload)
     });
 
     if (proxyRes.ok) {
@@ -134,13 +153,26 @@ export async function uploadToCloudflareR2(
       }
     } else {
       const errData = await proxyRes.json().catch(() => ({}));
+      if (!isR2Configured(config)) {
+        return { 
+          success: false, 
+          url: base64DataUrl, 
+          error: errData.error || 'Cloudflare R2 is not configured in .env or Settings.' 
+        };
+      }
       console.warn('Server proxy upload returned non-200, trying direct client upload:', errData);
     }
   } catch (proxyErr) {
     console.warn('Server proxy unavailable (e.g. offline mode), falling back to direct S3 SigV4:', proxyErr);
+    if (!isR2Configured(config)) {
+      return { success: false, url: base64DataUrl, error: 'Cloudflare R2 is not configured.' };
+    }
   }
 
   // 2. Direct Client-Side S3 SigV4 Upload (using correct path-style endpoint)
+  if (!isR2Configured(config)) {
+    return { success: false, url: base64DataUrl, error: 'Cloudflare R2 is not configured.' };
+  }
   try {
     const { data: fileBytes, mimeType } = dataUrlToUint8Array(base64DataUrl);
 

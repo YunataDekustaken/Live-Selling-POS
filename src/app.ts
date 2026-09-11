@@ -49,6 +49,7 @@ import {
   setStoredR2Config,
   isR2Configured,
   uploadToCloudflareR2,
+  checkServerR2Status,
   R2Config
 } from './utils/r2Storage';
 
@@ -451,8 +452,8 @@ const app = createApp({
             showToast('Photo attached! 📸');
             playBeep('success', settings.value.soundEnabled);
 
-            // Direct upload to Cloudflare R2 if configured
-            if (isR2Configured(r2Form)) {
+            // Direct upload to Cloudflare R2 if configured (via .env or in-app settings)
+            if (isR2Ready.value) {
               r2Status.value = 'uploading';
               r2StatusMessage.value = 'Uploading photo to Cloudflare R2...';
               const cleanSession = (sessionDate.value || 'live').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -951,8 +952,11 @@ const app = createApp({
     const r2StatusMessage = ref('');
     const r2GuideModalOpen = ref(false);
     const r2Testing = ref(false);
+    const serverR2Configured = ref(false);
+    const serverR2Bucket = ref('');
+    const serverR2PublicDomain = ref('');
 
-    const isR2Ready = computed(() => isR2Configured(r2Form));
+    const isR2Ready = computed(() => isR2Configured(r2Form) || serverR2Configured.value);
 
     const currentAppOrigin = computed(() => {
       try {
@@ -978,8 +982,8 @@ const app = createApp({
     }
 
     async function testR2Connection() {
-      if (!isR2Configured(r2Form)) {
-        showToast('Please fill in Account ID, Access Key ID, Secret Key, and Bucket Name first');
+      if (!isR2Ready.value) {
+        showToast('Please configure R2 in .env or fill in Account ID, Access Key ID, Secret Key, and Bucket Name');
         return;
       }
       r2Testing.value = true;
@@ -997,7 +1001,9 @@ const app = createApp({
           r2StatusMessage.value = `✓ Connected successfully to R2! Uploaded & verified: ${res.url.substring(0, 45)}...`;
           showToast('Cloudflare R2 connection successful! ⚡');
           playBeep('success', settings.value.soundEnabled);
-          saveR2Settings();
+          if (isR2Configured(r2Form)) {
+            saveR2Settings();
+          }
         } else {
           r2Status.value = 'error';
           r2StatusMessage.value = 'Connection failed: ' + (res.error || 'Check CORS or credentials');
@@ -1013,8 +1019,8 @@ const app = createApp({
     }
 
     async function migrateLegacyPhotosToR2() {
-      if (!isR2Configured(r2Form)) {
-        showToast('Please configure Cloudflare R2 credentials first');
+      if (!isR2Ready.value) {
+        showToast('Please configure Cloudflare R2 in .env or Settings first');
         return;
       }
       const legacyItems = allMines.value.filter(m => m.photo && m.photo.trim().startsWith('data:image'));
@@ -2443,6 +2449,17 @@ const app = createApp({
         syncAllWithSupabase(false);
       }
 
+      // Check if Cloudflare R2 is configured via server environment (.env)
+      checkServerR2Status().then(status => {
+        if (status.hasEnv) {
+          serverR2Configured.value = true;
+          serverR2Bucket.value = status.bucketName || '';
+          serverR2PublicDomain.value = status.publicDomain || '';
+        }
+      }).catch(e => {
+        console.warn('R2 server status check notice:', e);
+      });
+
       // Realtime subscription: sync immediately when any device undos or logs an item
       try {
         const client = getSupabaseClient();
@@ -2627,6 +2644,9 @@ const app = createApp({
       r2GuideModalOpen,
       r2Testing,
       isR2Ready,
+      serverR2Configured,
+      serverR2Bucket,
+      serverR2PublicDomain,
       currentAppOrigin,
       totalPhotosCount,
       legacyBase64PhotosCount,

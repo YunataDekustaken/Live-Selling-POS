@@ -2730,7 +2730,7 @@
                   <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
                         :class="isR2Ready ? 'bg-emerald-50 text-emerald-800 border-emerald-300' : (r2Status === 'testing' ? 'bg-amber-100 text-amber-900 border-amber-300 animate-pulse' : 'bg-zinc-100 text-zinc-600 border-zinc-300')">
                     <span class="inline-block w-1.5 h-1.5 rounded-full mr-1" :class="isR2Ready ? 'bg-emerald-500' : (r2Status === 'testing' ? 'bg-amber-500' : 'bg-zinc-400')"></span>
-                    {{ isR2Ready ? 'Configured & Active' : (r2Status === 'testing' ? 'Testing...' : 'Not Configured') }}
+                    {{ serverR2Configured ? 'Active (.env Configured)' : (isR2Ready ? 'Configured & Active' : (r2Status === 'testing' ? 'Testing...' : 'Not Configured')) }}
                   </span>
                 </div>
               </div>
@@ -2740,7 +2740,22 @@
                   Photos are compressed and uploaded <strong>directly to Cloudflare R2</strong> upon capture. Zero base64 database bloat, permanent links, and 100% multi-device sync without login popups!
                 </p>
 
-                <div class="p-2 rounded bg-orange-50/90 border border-orange-200/70 text-[10px] text-orange-950 space-y-1">
+                <!-- Server Environment Configured Banner -->
+                <div v-if="serverR2Configured" class="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-950 text-[11px] space-y-1">
+                  <div class="flex items-center justify-between font-semibold">
+                    <span class="flex items-center space-x-1.5">
+                      <span class="text-emerald-700 font-bold">🔒 Server Environment Active (.env)</span>
+                    </span>
+                    <span class="text-emerald-800 font-mono text-[10px] bg-emerald-200/70 px-1.5 py-0.5 rounded">
+                      Bucket: {{ serverR2Bucket || 'Active' }}
+                    </span>
+                  </div>
+                  <p class="text-[10px] text-emerald-800">
+                    Your R2 credentials are hardcoded in the server environment variables (<code class="bg-emerald-100 px-1 rounded">.env</code>). All connected phones, tablets, and devices automatically upload directly to Cloudflare R2 with zero manual setup required on each device.
+                  </p>
+                </div>
+
+                <div v-else class="p-2 rounded bg-orange-50/90 border border-orange-200/70 text-[10px] text-orange-950 space-y-1">
                   <div class="flex items-center justify-between font-semibold">
                     <span class="flex items-center space-x-1">
                       <span>⚡ Cloudflare R2 Highlights:</span>
@@ -2748,7 +2763,7 @@
                     <span class="text-emerald-700 font-bold bg-emerald-100/80 px-1.5 py-0.5 rounded">10 GB Free Storage</span>
                   </div>
                   <ul class="list-disc list-inside space-y-0.5 pl-0.5 text-orange-900">
-                    <li><strong>Set-It-And-Forget-It:</strong> Fill in credentials once on one device and it automatically syncs across all your phones and tablets via Supabase.</li>
+                    <li><strong>Set-It-And-Forget-It:</strong> Fill in credentials once on one device and it automatically syncs across all your phones and tablets via Supabase, or set via <code class="bg-orange-100 px-1 rounded">.env</code>.</li>
                     <li><strong>Zero Database Overhead:</strong> Supabase only stores lightweight URLs, keeping your database razor fast.</li>
                     <li><strong>Permanent Forever Access:</strong> View photos anytime in invoices, customer previews, and photo zoom without 60-minute token expirations.</li>
                   </ul>
@@ -2757,7 +2772,10 @@
                 <!-- R2 Credentials Form -->
                 <div class="space-y-2 bg-white p-3 rounded-lg border border-orange-200 shadow-2xs">
                   <div class="flex items-center justify-between pb-1 border-b border-zinc-100">
-                    <span class="font-bold text-zinc-800 text-[11px]">R2 API Credentials</span>
+                    <div class="flex items-center space-x-1.5">
+                      <span class="font-bold text-zinc-800 text-[11px]">R2 API Credentials</span>
+                      <span v-if="serverR2Configured" class="text-[9px] text-zinc-500 italic">(Optional In-App Overrides)</span>
+                    </div>
                     <button 
                       @click="r2GuideModalOpen = true" 
                       type="button" 
@@ -2771,7 +2789,7 @@
                     <input 
                       v-model="r2Form.accountId" 
                       type="text" 
-                      placeholder="e.g. 2344795fe19b671a5c689d0b04a8b75e" 
+                      :placeholder="serverR2Configured ? '(Using server .env configuration)' : 'e.g. 2344795fe19b671a5c689d0b04a8b75e'" 
                       class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
                     />
                   </div>
@@ -2782,7 +2800,7 @@
                       <input 
                         v-model="r2Form.accessKeyId" 
                         type="text" 
-                        placeholder="e.g. 3a6b32bf4..." 
+                        :placeholder="serverR2Configured ? '(Using server .env configuration)' : 'e.g. 3a6b32bf4...'" 
                         class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
                       />
                     </div>
@@ -2791,7 +2809,7 @@
                       <input 
                         v-model="r2Form.bucketName" 
                         type="text" 
-                        placeholder="e.g. livepos-photos" 
+                        :placeholder="serverR2Configured ? (serverR2Bucket || '(Using server .env)') : 'e.g. livepos-photos'" 
                         class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
                       />
                     </div>
@@ -2802,7 +2820,7 @@
                     <input 
                       v-model="r2Form.secretAccessKey" 
                       type="password" 
-                      placeholder="e.g. d7164b8a2c1..." 
+                      :placeholder="serverR2Configured ? '••••••••••••••••••••••••' : 'e.g. d7164b8a2c1...'" 
                       class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
                     />
                   </div>
@@ -2815,7 +2833,7 @@
                     <input 
                       v-model="r2Form.publicDomain" 
                       type="text" 
-                      placeholder="https://pub-xxxxxx.r2.dev or custom domain" 
+                      :placeholder="serverR2Configured ? (serverR2PublicDomain || 'https://pub-xxxxxx.r2.dev') : 'https://pub-xxxxxx.r2.dev or custom domain'" 
                       class="w-full bg-zinc-50 border border-zinc-300 rounded px-2.5 py-1.5 text-[11px] font-mono text-zinc-900 focus:bg-white focus:outline-none focus:border-zinc-900"
                     />
                   </div>
@@ -2832,7 +2850,7 @@
                     <button 
                       @click="testR2Connection" 
                       type="button" 
-                      :disabled="r2Testing || !r2Form.accountId || !r2Form.accessKeyId || !r2Form.secretAccessKey || !r2Form.bucketName"
+                      :disabled="r2Testing || !isR2Ready"
                       class="py-1.5 px-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 disabled:opacity-50 text-zinc-800 border border-zinc-300 text-[11px] font-semibold flex items-center justify-center space-x-1 cursor-pointer transition-colors shadow-2xs">
                       <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                       <span>{{ r2Testing ? 'Testing...' : 'Test Connection' }}</span>

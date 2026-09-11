@@ -15,17 +15,39 @@ async function startServer() {
     res.json({ status: 'ok' });
   });
 
-  // R2 Upload Proxy Endpoint
+  // Check R2 status (detects if server has .env variables configured)
+  app.get('/api/r2-status', (req, res) => {
+    const hasEnv = Boolean(
+      process.env.R2_ACCOUNT_ID &&
+      process.env.R2_ACCESS_KEY_ID &&
+      process.env.R2_SECRET_ACCESS_KEY &&
+      process.env.R2_BUCKET_NAME
+    );
+    res.json({
+      hasEnv,
+      bucketName: process.env.R2_BUCKET_NAME || '',
+      publicDomain: process.env.R2_PUBLIC_DOMAIN || ''
+    });
+  });
+
+  // R2 Upload Proxy Endpoint (Supports both client config & server .env fallback)
   app.post('/api/r2-upload', async (req, res) => {
     try {
       const { fileKey, base64DataUrl, config } = req.body;
-      if (!fileKey || !base64DataUrl || !config) {
-        return res.status(400).json({ error: 'Missing required parameters' });
+      if (!fileKey || !base64DataUrl) {
+        return res.status(400).json({ error: 'Missing required parameters (fileKey or base64DataUrl)' });
       }
 
-      const { accountId, accessKeyId, secretAccessKey, bucketName, publicDomain } = config;
+      const accountId = (config?.accountId || process.env.R2_ACCOUNT_ID || '').trim();
+      const accessKeyId = (config?.accessKeyId || process.env.R2_ACCESS_KEY_ID || '').trim();
+      const secretAccessKey = (config?.secretAccessKey || process.env.R2_SECRET_ACCESS_KEY || '').trim();
+      const bucketName = (config?.bucketName || process.env.R2_BUCKET_NAME || '').trim();
+      const publicDomain = (config?.publicDomain || process.env.R2_PUBLIC_DOMAIN || '').trim().replace(/\/+$/, '');
+
       if (!accountId || !accessKeyId || !secretAccessKey || !bucketName) {
-        return res.status(400).json({ error: 'Incomplete R2 credentials' });
+        return res.status(400).json({ 
+          error: 'Incomplete R2 credentials. Please configure R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME in .env or in the App Settings.' 
+        });
       }
 
       const parts = base64DataUrl.split(',');
@@ -33,8 +55,8 @@ async function startServer() {
       const fileBuffer = Buffer.from(parts[1], 'base64');
       const cleanKey = fileKey.replace(/^\/+/, '');
 
-      const host = `${accountId.trim()}.r2.cloudflarestorage.com`;
-      const uriPath = `/${encodeURIComponent(bucketName.trim())}/${cleanKey.split('/').map(encodeURIComponent).join('/')}`;
+      const host = `${accountId}.r2.cloudflarestorage.com`;
+      const uriPath = `/${encodeURIComponent(bucketName)}/${cleanKey.split('/').map(encodeURIComponent).join('/')}`;
       const endpoint = `https://${host}${uriPath}`;
 
       const now = new Date();
