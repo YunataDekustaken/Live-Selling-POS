@@ -51,7 +51,9 @@ import {
   pushSinglePhotoToSupabase,
   fetchCloudPhotosForProfile,
   batchPushPhotosToSupabase,
-  deleteSinglePhotoFromSupabase
+  deleteSinglePhotoFromSupabase,
+  syncSecurityPinToSupabase,
+  fetchSecurityPinFromSupabase
 } from './utils/supabase';
 import {
   isWebBluetoothSupported,
@@ -380,11 +382,21 @@ const app = createApp({
     const loginErrorMsg = ref<string>('');
     const rememberDevice = ref<boolean>(true);
 
+    // Change PIN Form State in Settings
+    const changePinCurrent = ref<string>('');
+    const changePinNew = ref<string>('');
+    const changePinConfirm = ref<string>('');
+    const changePinError = ref<string>('');
+    const changePinSuccess = ref<string>('');
+    const isSavingPin = ref<boolean>(false);
+    const showPinInSettings = ref<boolean>(false);
+
     function onKeypadPress(num: string) {
       if (loginPinInput.value.length < 8) {
         loginPinInput.value += num;
         loginErrorMsg.value = '';
-        if (loginPinInput.value.length === 4) {
+        const expectedLength = (adminPin.value || settings.value.securityPin || '1234').trim().length || 4;
+        if (loginPinInput.value.length >= 4 && loginPinInput.value.length === expectedLength) {
           setTimeout(() => {
             verifyAdminPin();
           }, 100);
@@ -392,41 +404,135 @@ const app = createApp({
       }
     }
 
-    function verifyAdminPin(enteredPin?: string): boolean {
-      const testPin = (enteredPin !== undefined ? enteredPin : loginPinInput.value).trim();
-      const actualPin = (adminPin.value || settings.value.securityPin || '1234').trim();
-
-      if (testPin === actualPin || testPin === '1234') {
-        isAdminAuthenticated.value = true;
-        loginErrorMsg.value = '';
-        loginPinInput.value = '';
-        showStaffLoginModal.value = false;
-        if (rememberDevice.value) {
-          localStorage.setItem('live_pos_auth_session', 'true');
-        } else {
-          sessionStorage.setItem('live_pos_auth_session', 'true');
-        }
-        playBeep('success', settings.value.soundEnabled);
-        showToast('Store POS Unlocked! Welcome back.');
-        if (isCustomerCheckoutView.value) {
-          isCustomerCheckoutView.value = false;
-        }
-        return true;
+    function unlockSuccess() {
+      isAdminAuthenticated.value = true;
+      loginErrorMsg.value = '';
+      loginPinInput.value = '';
+      showStaffLoginModal.value = false;
+      if (rememberDevice.value) {
+        localStorage.setItem('live_pos_auth_session', 'true');
       } else {
-        loginErrorMsg.value = 'Incorrect passcode. Try again.';
-        playBeep('error', settings.value.soundEnabled);
-        return false;
+        sessionStorage.setItem('live_pos_auth_session', 'true');
+      }
+      playBeep('success', settings.value.soundEnabled);
+      showToast('Store POS Unlocked! Welcome back.');
+      if (isCustomerCheckoutView.value) {
+        isCustomerCheckoutView.value = false;
       }
     }
 
-    function lockPos() {
+    async function verifyAdminPin(enteredPin?: string): Promise<boolean> {
+      const testPin = (enteredPin !== undefined ? enteredPin : loginPinInput.value).trim();
+      const actualPin = (adminPin.value || settings.value.securityPin || '1234').trim();
+
+      if (testPin === actualPin) {
+        unlockSuccess();
+        return true;
+      }
+
+      // Check Supabase if local pin doesn't match, in case it was changed on another device!
+      if (navigator.onLine) {
+        try {
+          const cloudPin = await fetchSecurityPinFromSupabase();
+          if (cloudPin && cloudPin.trim() !== '') {
+            const cleanCloud = cloudPin.trim();
+            adminPin.value = cleanCloud;
+            settings.value.securityPin = cleanCloud;
+            localStorage.setItem('live_pos_admin_pin', cleanCloud);
+            safeSetItem('live_pos_settings', settings.value);
+            if (testPin === cleanCloud) {
+              unlockSuccess();
+              return true;
+            }
+          }
+        } catch (e) {
+          console.warn('verifyAdminPin cloud check notice:', e);
+        }
+      }
+
+      loginErrorMsg.value = 'Incorrect passcode. Try again.';
+      playBeep('error', settings.value.soundEnabled);
+      return false;
+    }
+
+    function logout() {
       isAdminAuthenticated.value = false;
       localStorage.removeItem('live_pos_auth_session');
       sessionStorage.removeItem('live_pos_auth_session');
       loginPinInput.value = '';
       loginErrorMsg.value = '';
       showStaffLoginModal.value = false;
-      showToast('POS Register Locked');
+      appMenuOpen.value = false;
+      settingsModalOpen.value = false;
+      profileModalOpen.value = false;
+      playBeep('undo', settings.value.soundEnabled);
+      showToast('Logged out. POS Register is locked.');
+    }
+
+    function lockPos() {
+      logout();
+    }
+
+    async function changeStorePin(): Promise<boolean> {
+      changePinError.value = '';
+      changePinSuccess.value = '';
+
+      const currentExpected = (adminPin.value || settings.value.securityPin || '1234').trim();
+      const currentInput = changePinCurrent.value.trim();
+      const newPin = changePinNew.value.trim();
+      const confirmPin = changePinConfirm.value.trim();
+
+      if (currentInput !== currentExpected) {
+        changePinError.value = 'Current PIN is incorrect.';
+        playBeep('error', settings.value.soundEnabled);
+        return false;
+      }
+
+      if (!newPin) {
+        changePinError.value = 'Please enter a new PIN.';
+        return false;
+      }
+
+      if (!/^\d{4,8}$/.test(newPin)) {
+        changePinError.value = 'New PIN must be 4 to 8 numeric digits.';
+        return false;
+      }
+
+      if (newPin !== confirmPin) {
+        changePinError.value = 'New PIN and Confirm PIN do not match.';
+        return false;
+      }
+
+      isSavingPin.value = true;
+      try {
+        adminPin.value = newPin;
+        settings.value.securityPin = newPin;
+        localStorage.setItem('live_pos_admin_pin', newPin);
+        safeSetItem('live_pos_settings', settings.value);
+
+        let cloudSynced = false;
+        if (navigator.onLine) {
+          const pinSaved = await syncSecurityPinToSupabase(newPin);
+          await syncAppSettingsToSupabase(JSON.stringify(settings.value));
+          cloudSynced = pinSaved;
+        }
+
+        changePinCurrent.value = '';
+        changePinNew.value = '';
+        changePinConfirm.value = '';
+        changePinSuccess.value = cloudSynced 
+          ? 'PIN updated and synced across devices via Supabase!'
+          : 'PIN updated locally. Will sync to Supabase when connected.';
+
+        playBeep('success', settings.value.soundEnabled);
+        showToast('PIN changed successfully!');
+        return true;
+      } catch (err: any) {
+        changePinError.value = 'Failed to update PIN: ' + (err.message || 'Error');
+        return false;
+      } finally {
+        isSavingPin.value = false;
+      }
     }
 
     function updateStorePasscode(newPin: string) {
@@ -439,6 +545,7 @@ const app = createApp({
       settings.value.securityPin = clean;
       localStorage.setItem('live_pos_admin_pin', clean);
       saveSettings();
+      syncSecurityPinToSupabase(clean);
       showToast('Store Passcode updated!');
     }
 
@@ -1214,6 +1321,13 @@ const app = createApp({
                 settings.value.activePrinterType = parsed.activePrinterType;
                 changed = true;
               }
+              if (parsed.securityPin && parsed.securityPin.trim() !== '' && parsed.securityPin !== settings.value.securityPin) {
+                const cloudPin = parsed.securityPin.trim();
+                settings.value.securityPin = cloudPin;
+                adminPin.value = cloudPin;
+                localStorage.setItem('live_pos_admin_pin', cloudPin);
+                changed = true;
+              }
               if (changed) {
                 safeSetItem('live_pos_settings', settings.value);
               }
@@ -1221,6 +1335,22 @@ const app = createApp({
           }
         } catch (settingsSyncErr) {
           console.warn('App settings sync notice:', settingsSyncErr);
+        }
+
+        // Dedicated cross-device security PIN sync from Supabase
+        try {
+          const directCloudPin = await fetchSecurityPinFromSupabase();
+          if (directCloudPin && directCloudPin.trim() !== '') {
+            const cleanPin = directCloudPin.trim();
+            if (cleanPin !== adminPin.value || cleanPin !== settings.value.securityPin) {
+              adminPin.value = cleanPin;
+              settings.value.securityPin = cleanPin;
+              localStorage.setItem('live_pos_admin_pin', cleanPin);
+              safeSetItem('live_pos_settings', settings.value);
+            }
+          }
+        } catch (pinSyncErr) {
+          console.warn('Dedicated security PIN cloud sync notice:', pinSyncErr);
         }
 
         // Sync saved custom label profiles from database
@@ -3610,6 +3740,9 @@ const app = createApp({
       safeSetItem('live_pos_settings', settings.value);
       try {
         await syncAppSettingsToSupabase(JSON.stringify(settings.value));
+        if (settings.value.securityPin) {
+          await syncSecurityPinToSupabase(settings.value.securityPin);
+        }
       } catch (e) {
         console.warn('Sync settings error:', e);
       }
@@ -4087,6 +4220,15 @@ const app = createApp({
 
       if (navigator.onLine) {
         syncAllWithSupabase(false);
+        fetchSecurityPinFromSupabase().then(cloudPin => {
+          if (cloudPin && cloudPin.trim() !== '') {
+            const clean = cloudPin.trim();
+            adminPin.value = clean;
+            settings.value.securityPin = clean;
+            localStorage.setItem('live_pos_admin_pin', clean);
+            safeSetItem('live_pos_settings', settings.value);
+          }
+        }).catch(() => {});
       }
 
       // Check if Cloudflare R2 is configured via server environment (.env)
@@ -4190,6 +4332,15 @@ const app = createApp({
       onKeypadPress,
       verifyAdminPin,
       lockPos,
+      logout,
+      changePinCurrent,
+      changePinNew,
+      changePinConfirm,
+      changePinError,
+      changePinSuccess,
+      isSavingPin,
+      showPinInSettings,
+      changeStorePin,
       updateStorePasscode,
       previewCustomerPage,
       copyInvoiceLink,

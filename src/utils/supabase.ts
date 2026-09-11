@@ -416,3 +416,43 @@ export async function pushCustomerNoteToSupabase(buyer: string, notes: string, a
     console.warn('Supabase note sync notice:', e);
   }
 }
+
+export async function syncSecurityPinToSupabase(pin: string): Promise<boolean> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !pin) return false;
+  try {
+    const { error } = await client.from('customer_notes').upsert([{
+      profile_id: '_meta_',
+      buyer: '__security_pin__',
+      notes: pin.trim()
+    }]);
+    if (error) {
+      console.warn('Supabase security pin sync notice:', error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.warn('Supabase security pin sync exception:', e);
+    return false;
+  }
+}
+
+export async function fetchSecurityPinFromSupabase(): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return null;
+  try {
+    const { data, error } = await client
+      .from('customer_notes')
+      .select('notes')
+      .eq('profile_id', '_meta_')
+      .eq('buyer', '__security_pin__')
+      .limit(1);
+    if (!error && data && data.length > 0 && data[0].notes) {
+      const pin = data[0].notes.trim();
+      return pin || null;
+    }
+  } catch (e) {
+    console.warn('fetchSecurityPinFromSupabase notice:', e);
+  }
+  return null;
+}
