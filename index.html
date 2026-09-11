@@ -65,7 +65,7 @@
   <div id="app" v-cloak class="flex flex-col min-h-screen max-w-4xl mx-auto relative bg-white border-x border-zinc-200/80 shadow-sm">
     
     <!-- TOP APP HEADER -->
-    <header class="screen-ui sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-zinc-200 px-2.5 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between">
+    <header v-if="!isCustomerCheckoutView && isAdminAuthenticated" class="screen-ui sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-zinc-200 px-2.5 sm:px-4 py-1.5 sm:py-2 flex items-center justify-between">
       <!-- Store Identity, Profile & Session Info (Space-Efficient Multi-Line Flex Container) -->
       <div class="flex items-center space-x-2 sm:space-x-2.5 min-w-0">
         <!-- Compact Interactive POS Logo Button for Switching Profiles -->
@@ -294,6 +294,14 @@
                 <span class="font-bold">{{ settings.autoPrint ? 'ON' : 'OFF' }}</span>
               </button>
 
+              <!-- Lock POS Register -->
+              <button 
+                @click="lockPos(); appMenuOpen = false"
+                class="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[11px] transition-colors cursor-pointer border border-rose-200">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                <span>Lock POS</span>
+              </button>
+
               <!-- Open Full Settings -->
               <button 
                 @click="openSettingsModal(); appMenuOpen = false"
@@ -309,7 +317,7 @@
     </header>
 
     <!-- OFFLINE REASSURANCE BANNER (Shown when Internet drops) -->
-    <div v-if="!isOnline" class="screen-ui bg-amber-50 border-b border-amber-200 px-3 sm:px-4 py-2 flex items-center justify-between text-xs text-amber-900">
+    <div v-if="!isCustomerCheckoutView && isAdminAuthenticated && !isOnline" class="screen-ui bg-amber-50 border-b border-amber-200 px-3 sm:px-4 py-2 flex items-center justify-between text-xs text-amber-900">
       <div class="flex items-center space-x-2">
         <span class="w-2 h-2 rounded-full bg-amber-600 animate-pulse shrink-0"></span>
         <span class="font-bold">Offline:</span>
@@ -321,7 +329,7 @@
     </div>
 
     <!-- TAB NAVIGATION BAR (Removed on Home/Dashboard and Designer full-page; shown on workspaces for fast tab switching) -->
-    <nav v-if="currentTab !== 'dashboard' && currentTab !== 'designer'" id="app-navigation" class="screen-ui sticky top-[45px] sm:top-[49px] z-30 bg-white border-b border-zinc-200 px-2 sm:px-4 pt-1 shadow-2xs">
+    <nav v-if="!isCustomerCheckoutView && isAdminAuthenticated && currentTab !== 'dashboard' && currentTab !== 'designer'" id="app-navigation" class="screen-ui sticky top-[45px] sm:top-[49px] z-30 bg-white border-b border-zinc-200 px-2 sm:px-4 pt-1 shadow-2xs">
       <div class="grid grid-cols-4 gap-1 sm:gap-2">
         <!-- Return to Home Dashboard -->
         <button @click="currentTab = 'dashboard'"
@@ -389,24 +397,62 @@
       <!-- =============================================================== -->
       <!-- CUSTOMER PUBLIC CHECKOUT & MINED PHOTOS VIEW                    -->
       <!-- =============================================================== -->
-      <div v-if="isCustomerCheckoutView && customerCheckoutData" class="max-w-xl mx-auto space-y-4 pb-12 animate-fadeIn">
+      <div v-if="isCustomerCheckoutView" class="max-w-xl mx-auto space-y-4 pb-12 animate-fadeIn">
         
-        <!-- Top Banner for Merchant when in Preview mode -->
+        <!-- Top Banner: Shows Live Checkout indicator; allows Staff Login or return for authenticated merchants -->
         <div class="bg-zinc-900 text-white rounded-xl px-4 py-2.5 flex items-center justify-between shadow-sm">
-          <div class="flex items-center space-x-2 text-xs">
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span class="font-bold">Live Customer Checkout Page</span>
-            <span class="text-zinc-400 text-[11px] hidden sm:inline">({{ customerCheckoutData.items.length }} mined item photos)</span>
+          <div class="flex items-center space-x-2 text-xs min-w-0">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+            <span class="font-bold truncate">{{ customerCheckoutData?.displayName || 'Customer' }}'s Order Invoice</span>
+            <span v-if="customerCheckoutData?.items" class="text-zinc-400 text-[11px] hidden sm:inline">({{ customerCheckoutData.items.length }} mined items)</span>
           </div>
-          <button 
-            @click="isCustomerCheckoutView = false" 
-            class="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 transition-colors">
-            ← Back to Admin
-          </button>
+          <div class="flex items-center space-x-2 shrink-0">
+            <button 
+              v-if="isAdminAuthenticated"
+              @click="isCustomerCheckoutView = false" 
+              class="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 transition-colors cursor-pointer">
+              ← Back to Admin
+            </button>
+            <button 
+              v-else
+              @click="showStaffLoginModal = true; loginPinInput = ''; loginErrorMsg = ''"
+              class="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px] font-medium text-zinc-300 transition-colors cursor-pointer flex items-center space-x-1">
+              <span>🔒 Staff Login</span>
+            </button>
+          </div>
         </div>
 
-        <!-- Customer Invoice Card -->
-        <div class="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
+        <!-- 1. LOADING STATE (e.g. When opened from TikTok link while syncing items and cloud photos) -->
+        <div v-if="customerCheckoutLoading" class="bg-white border border-zinc-200 rounded-2xl p-8 sm:p-12 text-center space-y-4 shadow-sm">
+          <div class="w-12 h-12 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <div class="space-y-1">
+            <h3 class="font-bold text-zinc-900 text-base">Loading Your Mined Photos & Invoice...</h3>
+            <p class="text-xs text-zinc-500 max-w-sm mx-auto leading-relaxed">
+              Connecting to live stream basket and downloading photos.
+            </p>
+          </div>
+        </div>
+
+        <!-- 2. ERROR / NOT FOUND STATE -->
+        <div v-else-if="customerCheckoutError && (!customerCheckoutData || !customerCheckoutData.items || customerCheckoutData.items.length === 0)" class="bg-white border border-zinc-200 rounded-2xl p-6 sm:p-8 text-center space-y-4 shadow-sm">
+          <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto text-2xl">
+            📦
+          </div>
+          <div class="space-y-1">
+            <h3 class="font-bold text-zinc-900 text-base">Invoice In Preparation</h3>
+            <p class="text-xs text-zinc-500 max-w-sm mx-auto leading-relaxed">{{ customerCheckoutError }}</p>
+          </div>
+          <div class="pt-2 flex justify-center space-x-2">
+            <button 
+              @click="resolveCustomerCheckoutFromUrl(true)"
+              class="px-4 py-2 bg-zinc-900 text-white text-xs font-bold rounded-xl hover:bg-black transition-colors cursor-pointer shadow-xs">
+              🔄 Tap to Refresh
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. CUSTOMER INVOICE CARD (When loaded) -->
+        <div v-else-if="customerCheckoutData" class="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
           
           <!-- Header -->
           <div class="bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 text-white p-5 space-y-3">
@@ -556,9 +602,80 @@
       </div>
 
       <!-- =============================================================== -->
+      <!-- MERCHANT POS PASSCODE / PIN LOCK SCREEN                         -->
+      <!-- =============================================================== -->
+      <div v-if="!isCustomerCheckoutView && !isAdminAuthenticated" class="max-w-sm mx-auto my-auto py-8 sm:py-14 px-4 space-y-6 animate-fadeIn">
+        <div class="text-center space-y-2">
+          <div class="w-14 h-14 rounded-2xl bg-zinc-900 text-white flex items-center justify-center mx-auto shadow-md text-2xl font-black">
+            🔒
+          </div>
+          <h2 class="text-xl font-black tracking-tight text-zinc-900">{{ activeProfile.name || settings.storeName || 'Live Mining POS' }}</h2>
+          <p class="text-xs text-zinc-500">POS Register Locked • Enter 4-digit Passcode to access merchant dashboard</p>
+        </div>
+
+        <!-- PIN Dots Display -->
+        <div class="bg-zinc-50 border border-zinc-200 rounded-2xl p-5 text-center space-y-3">
+          <div class="flex items-center justify-center space-x-3.5 h-10">
+            <span 
+              v-for="i in 4" 
+              :key="i"
+              class="w-4 h-4 rounded-full border-2 transition-all"
+              :class="loginPinInput.length >= i ? 'bg-zinc-900 border-zinc-900 scale-110' : 'bg-white border-zinc-300'">
+            </span>
+          </div>
+
+          <div v-if="loginErrorMsg" class="text-xs font-semibold text-rose-600 animate-pulse">
+            {{ loginErrorMsg }}
+          </div>
+          <div v-else class="text-[11px] text-zinc-400 font-mono">
+            Default Passcode: <strong class="text-zinc-700">1234</strong>
+          </div>
+        </div>
+
+        <!-- Touch-Friendly Numpad Grid -->
+        <div class="grid grid-cols-3 gap-2 sm:gap-2.5 max-w-[280px] mx-auto">
+          <button 
+            v-for="num in ['1','2','3','4','5','6','7','8','9']" 
+            :key="num"
+            @click="onKeypadPress(num)"
+            class="h-14 rounded-xl bg-white border border-zinc-200 shadow-2xs hover:bg-zinc-50 active:bg-zinc-100 text-lg font-bold text-zinc-900 flex items-center justify-center transition-transform active:scale-95 cursor-pointer">
+            {{ num }}
+          </button>
+          <button 
+            @click="loginPinInput = loginPinInput.slice(0, -1); loginErrorMsg = ''"
+            class="h-14 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 text-xs font-semibold text-zinc-600 flex items-center justify-center transition-transform active:scale-95 cursor-pointer">
+            ⌫ Del
+          </button>
+          <button 
+            @click="onKeypadPress('0')"
+            class="h-14 rounded-xl bg-white border border-zinc-200 shadow-2xs hover:bg-zinc-50 active:bg-zinc-100 text-lg font-bold text-zinc-900 flex items-center justify-center transition-transform active:scale-95 cursor-pointer">
+            0
+          </button>
+          <button 
+            @click="verifyAdminPin()"
+            class="h-14 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-sm">
+            Unlock
+          </button>
+        </div>
+
+        <!-- Remember Device Checkbox & Info -->
+        <div class="flex items-center justify-between text-xs text-zinc-500 pt-2 border-t border-zinc-100">
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" v-model="rememberDevice" class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900">
+            <span>Keep this device logged in</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- =============================================================== -->
+      <!-- AUTHENTICATED MERCHANT WORKSPACES CONTAINER                    -->
+      <!-- =============================================================== -->
+      <template v-if="!isCustomerCheckoutView && isAdminAuthenticated">
+
+      <!-- =============================================================== -->
       <!-- SCREEN 0: HOME DASHBOARD                                       -->
       <!-- =============================================================== -->
-      <div v-if="!isCustomerCheckoutView && currentTab === 'dashboard'" class="space-y-4">
+      <div v-if="currentTab === 'dashboard'" class="space-y-4">
 
         <!-- LIVE SELLING WORKSPACES (Stream & Sales Controls Header matching screenshot) -->
         <div class="bg-zinc-900 text-white border border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
@@ -2981,12 +3098,14 @@
 
       </div>
 
+      </template>
+
     </main>
 
     <!-- =============================================================== -->
     <!-- APP STATUS BAR (Persistent space-efficient status bar)          -->
     <!-- =============================================================== -->
-    <footer id="app-status-bar" class="screen-ui sticky bottom-0 z-30 bg-white/95 backdrop-blur border-t border-zinc-200 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs text-zinc-600 shadow-2xs">
+    <footer v-if="!isCustomerCheckoutView && isAdminAuthenticated" id="app-status-bar" class="screen-ui sticky bottom-0 z-30 bg-white/95 backdrop-blur border-t border-zinc-200 px-3 sm:px-4 py-1.5 flex items-center justify-between text-xs text-zinc-600 shadow-2xs">
       <!-- Left: Online / Offline Badge & Cloud Sync Status -->
       <div class="flex items-center space-x-2">
         <!-- Online / Offline Badge Button -->
@@ -3018,6 +3137,76 @@
         <span class="text-zinc-900 font-bold">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</span>
       </div>
     </footer>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 0: STAFF LOGIN MODAL (When accessing from Customer View)  -->
+    <!-- =============================================================== -->
+    <div v-if="showStaffLoginModal" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/60 backdrop-blur-xs animate-fadeIn">
+      <div class="bg-white rounded-2xl border border-zinc-200 shadow-2xl max-w-sm w-full p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-2">
+            <span class="text-base">🔒</span>
+            <h3 class="font-bold text-zinc-900 text-sm">Staff Register Access</h3>
+          </div>
+          <button @click="showStaffLoginModal = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none cursor-pointer">✕</button>
+        </div>
+        <p class="text-xs text-zinc-500 leading-relaxed">Enter merchant 4-digit passcode to exit customer view and access live POS registers.</p>
+
+        <!-- PIN Dots Display -->
+        <div class="bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-center space-y-2">
+          <div class="flex items-center justify-center space-x-3 h-8">
+            <span 
+              v-for="i in 4" 
+              :key="i"
+              class="w-3.5 h-3.5 rounded-full border-2 transition-all"
+              :class="loginPinInput.length >= i ? 'bg-zinc-900 border-zinc-900 scale-110' : 'bg-white border-zinc-300'">
+            </span>
+          </div>
+          <div v-if="loginErrorMsg" class="text-xs font-semibold text-rose-600 animate-pulse">
+            {{ loginErrorMsg }}
+          </div>
+          <div v-else class="text-[11px] text-zinc-400 font-mono">
+            Default Passcode: <strong class="text-zinc-700">1234</strong>
+          </div>
+        </div>
+
+        <!-- Touch-Friendly Numpad Grid -->
+        <div class="grid grid-cols-3 gap-2 max-w-[240px] mx-auto">
+          <button 
+            v-for="num in ['1','2','3','4','5','6','7','8','9']" 
+            :key="num"
+            @click="onKeypadPress(num)"
+            class="h-12 rounded-xl bg-white border border-zinc-200 shadow-2xs hover:bg-zinc-50 active:bg-zinc-100 text-base font-bold text-zinc-900 flex items-center justify-center transition-transform active:scale-95 cursor-pointer">
+            {{ num }}
+          </button>
+          <button 
+            @click="loginPinInput = loginPinInput.slice(0, -1); loginErrorMsg = ''"
+            class="h-12 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 text-xs font-semibold text-zinc-600 flex items-center justify-center transition-transform active:scale-95 cursor-pointer">
+            ⌫ Del
+          </button>
+          <button 
+            @click="onKeypadPress('0')"
+            class="h-12 rounded-xl bg-white border border-zinc-200 shadow-2xs hover:bg-zinc-50 active:bg-zinc-100 text-base font-bold text-zinc-900 flex items-center justify-center transition-transform active:scale-95 cursor-pointer">
+            0
+          </button>
+          <button 
+            @click="verifyAdminPin()"
+            class="h-12 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold flex items-center justify-center transition-transform active:scale-95 cursor-pointer shadow-xs">
+            Unlock
+          </button>
+        </div>
+
+        <div class="pt-2 border-t border-zinc-100 flex items-center justify-between text-xs text-zinc-500">
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" v-model="rememberDevice" class="rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900">
+            <span>Remember device</span>
+          </label>
+          <button @click="showStaffLoginModal = false" class="text-zinc-500 hover:text-zinc-800 text-xs underline cursor-pointer">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- =============================================================== -->
     <!-- MODAL 0A: BUSINESS PROFILE SWITCHER MODAL                       -->
@@ -3574,6 +3763,48 @@
                   <span v-if="activeStoreForm.color === c" class="text-white text-[10px] font-bold">✓</span>
                 </button>
               </div>
+            </div>
+
+            <!-- Store Security & POS PIN Passcode Settings -->
+            <div class="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs space-y-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-xs font-semibold text-zinc-900 flex items-center space-x-1.5">
+                    <span>🔒</span>
+                    <span>Store Security & POS PIN Passcode</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-500">Protect POS terminal and restrict public invoice links from accessing merchant data</div>
+                </div>
+                <button 
+                  type="button" 
+                  @click="lockPos(); settingsModalOpen = false"
+                  class="px-2.5 py-1 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold text-[11px] border border-rose-200 cursor-pointer">
+                  Lock POS Now
+                </button>
+              </div>
+
+              <!-- Passcode Configuration Form -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <div>
+                  <label class="block text-[11px] font-medium text-zinc-700 mb-1">4-Digit Merchant PIN</label>
+                  <input 
+                    v-model="adminPin"
+                    type="password"
+                    maxlength="8"
+                    placeholder="1234"
+                    class="w-full bg-white border border-zinc-300 rounded-lg px-3 py-1.5 text-xs text-zinc-900 font-mono focus:outline-none focus:border-zinc-900"
+                  />
+                </div>
+                <div class="flex items-end">
+                  <button 
+                    type="button"
+                    @click="settings.securityPin = adminPin; saveSettings(); showToast('Security PIN updated successfully!')"
+                    class="w-full py-1.5 px-3 rounded-lg bg-zinc-900 hover:bg-black text-white text-xs font-semibold transition-colors cursor-pointer">
+                    Save New PIN
+                  </button>
+                </div>
+              </div>
+              <p class="text-[10px] text-zinc-400">Default PIN is <strong>1234</strong>. Customers opening shared invoice links cannot access POS without this PIN.</p>
             </div>
 
             <!-- Store Save Action -->

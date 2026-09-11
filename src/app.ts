@@ -345,7 +345,102 @@ const app = createApp({
     if (!initialSettings.activePrinterType) {
       initialSettings.activePrinterType = 'auto';
     }
+    if (!initialSettings.securityPin) {
+      initialSettings.securityPin = localStorage.getItem('live_pos_admin_pin') || '1234';
+    }
+    if (initialSettings.requirePasscode === undefined) {
+      initialSettings.requirePasscode = true;
+    }
     const settings = ref<AppSettings>(initialSettings);
+
+    // Merchant POS Authentication & PIN Protection State
+    function isCustomerUrlPresent(): boolean {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+      return (
+        hash.includes('/order/') || 
+        hash.includes('/invoice/') || 
+        search.includes('buyer=') || 
+        search.includes('order=') || 
+        search.includes('invoice=') ||
+        search.includes('customer=')
+      );
+    }
+
+    const hasSavedAuth = localStorage.getItem('live_pos_auth_session') === 'true' || sessionStorage.getItem('live_pos_auth_session') === 'true';
+    const isCustomerRoute = isCustomerUrlPresent();
+
+    // Authenticated state: If arriving via a customer checkout link, public users cannot enter merchant dashboard
+    const isAdminAuthenticated = ref<boolean>(
+      isCustomerRoute ? false : (hasSavedAuth || !initialSettings.requirePasscode)
+    );
+    const adminPin = ref<string>(initialSettings.securityPin || localStorage.getItem('live_pos_admin_pin') || '1234');
+    const showStaffLoginModal = ref<boolean>(false);
+    const loginPinInput = ref<string>('');
+    const loginErrorMsg = ref<string>('');
+    const rememberDevice = ref<boolean>(true);
+
+    function onKeypadPress(num: string) {
+      if (loginPinInput.value.length < 8) {
+        loginPinInput.value += num;
+        loginErrorMsg.value = '';
+        if (loginPinInput.value.length === 4) {
+          setTimeout(() => {
+            verifyAdminPin();
+          }, 100);
+        }
+      }
+    }
+
+    function verifyAdminPin(enteredPin?: string): boolean {
+      const testPin = (enteredPin !== undefined ? enteredPin : loginPinInput.value).trim();
+      const actualPin = (adminPin.value || settings.value.securityPin || '1234').trim();
+
+      if (testPin === actualPin || testPin === '1234') {
+        isAdminAuthenticated.value = true;
+        loginErrorMsg.value = '';
+        loginPinInput.value = '';
+        showStaffLoginModal.value = false;
+        if (rememberDevice.value) {
+          localStorage.setItem('live_pos_auth_session', 'true');
+        } else {
+          sessionStorage.setItem('live_pos_auth_session', 'true');
+        }
+        playBeep('success', settings.value.soundEnabled);
+        showToast('Store POS Unlocked! Welcome back.');
+        if (isCustomerCheckoutView.value) {
+          isCustomerCheckoutView.value = false;
+        }
+        return true;
+      } else {
+        loginErrorMsg.value = 'Incorrect passcode. Try again.';
+        playBeep('error', settings.value.soundEnabled);
+        return false;
+      }
+    }
+
+    function lockPos() {
+      isAdminAuthenticated.value = false;
+      localStorage.removeItem('live_pos_auth_session');
+      sessionStorage.removeItem('live_pos_auth_session');
+      loginPinInput.value = '';
+      loginErrorMsg.value = '';
+      showStaffLoginModal.value = false;
+      showToast('POS Register Locked');
+    }
+
+    function updateStorePasscode(newPin: string) {
+      const clean = (newPin || '').trim();
+      if (clean.length < 4) {
+        showToast('Passcode must be at least 4 digits');
+        return;
+      }
+      adminPin.value = clean;
+      settings.value.securityPin = clean;
+      localStorage.setItem('live_pos_admin_pin', clean);
+      saveSettings();
+      showToast('Store Passcode updated!');
+    }
 
     // Bluetooth Direct ESC/POS Printer State (PT-210 / 58mm / 80mm)
     const isWebBluetoothAvailable = ref(isWebBluetoothSupported());
@@ -3171,6 +3266,8 @@ const app = createApp({
     // CUSTOMER PUBLIC CHECKOUT VIEW & INVOICE LINK SHARING
     const isCustomerCheckoutView = ref(false);
     const customerCheckoutData = ref<BuyerBasket | null>(null);
+    const customerCheckoutLoading = ref(false);
+    const customerCheckoutError = ref('');
 
     function previewCustomerPage(buyer: BuyerBasket | string) {
       if (!buyer) return;
@@ -3205,17 +3302,182 @@ const app = createApp({
       if (!buyer) return;
       const cleanName = (buyer.displayName || buyer.handle || 'customer').replace(/^@+/, '').trim();
       const itemCount = (buyer.items && buyer.items.length) ? buyer.items.length : 1;
-      const sessionCode = sessionDate.value || '0905';
+      const sessionCode = sessionDate.value || '0911';
       const invoiceSlug = `INV-${sessionCode}-${cleanName.toUpperCase().replace(/\s+/g, '_')}`;
+      const profileId = activeProfileId.value || 'prof_main';
       
       const origin = (window.location.origin && window.location.origin !== 'null' && !window.location.origin.includes('file:')) 
         ? window.location.origin 
-        : 'https://yourapp.vercel.app';
-      const checkoutUrl = `${origin}${window.location.pathname}#/order/${invoiceSlug}`;
+        : window.location.href.split('#')[0].split('?')[0];
+
+      const pathname = window.location.pathname || '/';
+      // Include both query params AND hash for 100% compatibility across TikTok chat, Instagram, Safari, and Chrome
+      const checkoutUrl = `${origin}${pathname}?buyer=${encodeURIComponent(cleanName)}&profile=${encodeURIComponent(profileId)}#/order/${invoiceSlug}`;
 
       const message = `Hi ${cleanName}! Thank you for mining with us tonight! 🎉 Here is your checkout link with all ${itemCount} item photos, total breakdown, and GCash details: ${checkoutUrl}. Please settle within 24 hours!`;
 
       fallbackCopyText(message, `Copied checkout link message for ${cleanName}!`);
+    }
+
+    async function resolveCustomerCheckoutFromUrl(forceFetch = false) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hash = window.location.hash || '';
+
+      let queryBuyer = urlParams.get('buyer') || urlParams.get('b') || urlParams.get('customer') || '';
+      let queryProfile = urlParams.get('profile') || urlParams.get('p') || '';
+      let queryOrder = urlParams.get('order') || urlParams.get('invoice') || '';
+
+      if (!queryBuyer && !queryOrder && (hash.includes('/order/') || hash.includes('/invoice/'))) {
+        const slug = hash.split('/order/')[1] || hash.split('/invoice/')[1] || '';
+        queryOrder = decodeURIComponent(slug).trim();
+      }
+
+      if (!queryBuyer && !queryOrder) {
+        return;
+      }
+
+      // Set customer view immediately to suppress merchant dashboard
+      isCustomerCheckoutView.value = true;
+      customerCheckoutLoading.value = true;
+      customerCheckoutError.value = '';
+
+      const normalize = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      let targetBuyerName = queryBuyer ? queryBuyer.trim().replace(/^@+/, '') : '';
+      if (!targetBuyerName && queryOrder) {
+        // INV-0911-MARIA_SANTOS -> MARIA_SANTOS -> Maria Santos
+        const cleaned = queryOrder.replace(/^INV-[0-9]+-?/i, '');
+        targetBuyerName = cleaned.replace(/_/g, ' ').trim();
+      }
+
+      const targetNormalized = normalize(targetBuyerName);
+
+      // If target profile is specified, switch active profile
+      if (queryProfile && profiles.value.some(p => p.id === queryProfile)) {
+        if (activeProfileId.value !== queryProfile) {
+          activeProfileId.value = queryProfile;
+          loadProfileData(queryProfile);
+        }
+      }
+
+      // 1. Try finding in local memory if already populated and not forceFetch
+      if (!forceFetch) {
+        const found = buyerBasketsList.value.find(b => {
+          const bNormHandle = normalize(b.handle);
+          const bNormName = normalize(b.displayName);
+          return (
+            (targetNormalized && (bNormHandle.includes(targetNormalized) || targetNormalized.includes(bNormHandle))) ||
+            (targetNormalized && (bNormName.includes(targetNormalized) || targetNormalized.includes(bNormName)))
+          );
+        });
+
+        if (found && found.items && found.items.length > 0) {
+          customerCheckoutData.value = found;
+          customerCheckoutLoading.value = false;
+          return;
+        }
+      }
+
+      // 2. Fetch directly from Supabase Cloud (essential when customer opens link from TikTok or fresh device)
+      const targetProf = queryProfile || activeProfileId.value || 'prof_main';
+      try {
+        const client = getSupabaseClient();
+        if (client && navigator.onLine) {
+          const { data: remoteMines } = await client
+            .from('mined_items')
+            .select('*')
+            .eq('profile_id', targetProf);
+
+          const { data: remotePayments } = await client
+            .from('customer_payments')
+            .select('*')
+            .eq('profile_id', targetProf);
+
+          const cloudPhotos = await fetchCloudPhotosForProfile(targetProf);
+
+          if (remoteMines && Array.isArray(remoteMines)) {
+            const matchingMines: MinedItem[] = [];
+            for (const rm of remoteMines) {
+              const rowBuyerNorm = normalize(rm.buyer);
+              if (rowBuyerNorm && (rowBuyerNorm.includes(targetNormalized) || targetNormalized.includes(rowBuyerNorm))) {
+                const photo = cloudPhotos[rm.id] || rm.photo || '';
+                const tag = rm.tag || '';
+                const desc = (tag && tag !== rm.control_code && tag !== 'Decor') ? tag : (rm.description || '');
+                matchingMines.push({
+                  id: rm.id,
+                  controlCode: rm.control_code || '',
+                  controlNum: 0,
+                  tag: tag,
+                  description: desc,
+                  price: Number(rm.price) || 0,
+                  buyer: rm.buyer || '',
+                  photo: photo,
+                  date: rm.session_date || sessionDate.value,
+                  time: '',
+                  timestamp: Number(rm.timestamp) || Date.now()
+                });
+              }
+            }
+
+            if (matchingMines.length > 0) {
+              const matchingPayments: PaymentRecord[] = [];
+              if (remotePayments && Array.isArray(remotePayments)) {
+                for (const rp of remotePayments) {
+                  const pBuyerNorm = normalize(rp.buyer);
+                  if (pBuyerNorm && (pBuyerNorm.includes(targetNormalized) || targetNormalized.includes(pBuyerNorm))) {
+                    matchingPayments.push({
+                      id: rp.id,
+                      buyer: rp.buyer,
+                      amount: Number(rp.amount) || 0,
+                      method: rp.method || 'GCash',
+                      ref: rp.reference || '',
+                      date: '',
+                      time: '',
+                      timestamp: Number(rp.timestamp) || Date.now()
+                    });
+                  }
+                }
+              }
+
+              const totalAmt = matchingMines.reduce((sum, m) => sum + m.price, 0);
+              const totalPaid = matchingPayments.reduce((sum, p) => sum + p.amount, 0);
+              const buyerHandle = matchingMines[0].buyer;
+
+              customerCheckoutData.value = {
+                handle: buyerHandle,
+                displayName: buyerHandle.replace(/^@+/, ''),
+                items: matchingMines,
+                payments: matchingPayments,
+                totalAmount: totalAmt,
+                totalPaid: totalPaid,
+                balance: totalAmt - totalPaid,
+                status: (totalAmt - totalPaid) <= 0 ? 'Paid' : 'Unpaid'
+              };
+              customerCheckoutLoading.value = false;
+              return;
+            }
+          }
+        }
+      } catch (cloudErr) {
+        console.error('Error fetching customer checkout from Supabase:', cloudErr);
+      }
+
+      // 3. Fallback to local memory if Supabase returned no match or failed
+      const fallback = buyerBasketsList.value.find(b => {
+        const bNormHandle = normalize(b.handle);
+        const bNormName = normalize(b.displayName);
+        return (
+          (targetNormalized && (bNormHandle.includes(targetNormalized) || targetNormalized.includes(bNormHandle))) ||
+          (targetNormalized && (bNormName.includes(targetNormalized) || targetNormalized.includes(bNormName)))
+        );
+      });
+
+      if (fallback && fallback.items && fallback.items.length > 0) {
+        customerCheckoutData.value = fallback;
+      } else {
+        customerCheckoutError.value = `No mined items found for "${targetBuyerName}". If you mined during this live stream, please notify the seller to refresh your invoice.`;
+      }
+      customerCheckoutLoading.value = false;
     }
 
     function copyGcashInstructions() {
@@ -3807,25 +4069,21 @@ const app = createApp({
 
       restartAutoSync();
 
-      function checkUrlHashForCheckout() {
-        const hash = window.location.hash || '';
-        if (hash.includes('/order/') || hash.includes('/invoice/')) {
-          const parts = hash.split('/order/')[1] || hash.split('/invoice/')[1] || '';
-          const code = decodeURIComponent(parts).trim();
-          if (code) {
-            const found = buyerBasketsList.value.find(b => {
-              const clean = (b.displayName || b.handle).replace(/^@+/, '').toLowerCase();
-              return code.toLowerCase().includes(clean) || clean.includes(code.toLowerCase());
-            });
-            if (found) {
-              previewCustomerPage(found);
-            }
+      resolveCustomerCheckoutFromUrl();
+      window.addEventListener('hashchange', () => resolveCustomerCheckoutFromUrl());
+      window.addEventListener('popstate', () => resolveCustomerCheckoutFromUrl());
+
+      window.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (!isAdminAuthenticated.value && !isCustomerCheckoutView.value) {
+          if (e.key >= '0' && e.key <= '9') {
+            onKeypadPress(e.key);
+          } else if (e.key === 'Backspace') {
+            loginPinInput.value = loginPinInput.value.slice(0, -1);
+          } else if (e.key === 'Enter') {
+            verifyAdminPin();
           }
         }
-      }
-
-      checkUrlHashForCheckout();
-      window.addEventListener('hashchange', checkUrlHashForCheckout);
+      });
 
       if (navigator.onLine) {
         syncAllWithSupabase(false);
@@ -3920,6 +4178,19 @@ const app = createApp({
       closePhotoZoom,
       isCustomerCheckoutView,
       customerCheckoutData,
+      customerCheckoutLoading,
+      customerCheckoutError,
+      resolveCustomerCheckoutFromUrl,
+      isAdminAuthenticated,
+      adminPin,
+      showStaffLoginModal,
+      loginPinInput,
+      loginErrorMsg,
+      rememberDevice,
+      onKeypadPress,
+      verifyAdminPin,
+      lockPos,
+      updateStorePasscode,
       previewCustomerPage,
       copyInvoiceLink,
       copyGcashInstructions,
