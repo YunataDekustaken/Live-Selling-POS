@@ -1,21 +1,25 @@
 /**
- * Web Bluetooth Direct ESC/POS Printer Driver for PT-210 / 58mm / 80mm Thermal Printers
+ * Web Bluetooth Direct ESC/POS & TSPL Printer Driver for PT-210 (Receipts) & PT-265 (30x20mm Labels)
  * Enables direct printing from Google Chrome / Edge on Android without RawBT.
  */
 
 import {
   buildStickerEscPos,
+  buildStickerTSPL,
+  buildFeedGapEscPos,
+  buildFeedGapTSPL,
   buildPackingSlipEscPos,
   buildInvoiceEscPos,
   buildTestReceiptEscPos
 } from './escpos';
+import type { LabelLayoutSettings, ReceiptLayoutSettings } from '../types';
 
 // Known Bluetooth Thermal Printer Service & Characteristic UUIDs
 const KNOWN_PRINTER_SERVICES = [
   '000018f0-0000-1000-8000-00805f9b34fb', // Standard ESC/POS
   '0000ffe0-0000-1000-8000-00805f9b34fb', // Common 58mm BLE (PT-210 / MPT-II)
   '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC / Microchip Transparent Serial
-  '0000ff00-0000-1000-8000-00805f9b34fb', // Feasycom / GOOJPRT
+  '0000ff00-0000-1000-8000-00805f9b34fb', // Feasycom / GOOJPRT / PT-265
   'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Telit / Custom GATT
   '0000fee7-0000-1000-8000-00805f9b34fb', // Tencent / WeChat IoT
   '0000ae00-0000-1000-8000-00805f9b34fb', // AI-Thinker / Milestone
@@ -45,7 +49,7 @@ export function isWebBluetoothSupported(): boolean {
  */
 export function getConnectedPrinterName(): string | null {
   if (bluetoothDevice && bluetoothDevice.gatt && bluetoothDevice.gatt.connected) {
-    return bluetoothDevice.name || 'PT-210 Printer';
+    return bluetoothDevice.name || 'Thermal Printer';
   }
   return null;
 }
@@ -72,7 +76,7 @@ export async function connectBluetoothPrinter(
   }
 
   try {
-    // Prompt user to select their PT-210 / Thermal printer
+    // Prompt user to select their PT-210 / PT-265 / Thermal printer
     const device = await (navigator as any).bluetooth.requestDevice({
       acceptAllDevices: true,
       optionalServices: KNOWN_PRINTER_SERVICES
@@ -141,12 +145,12 @@ export async function connectBluetoothPrinter(
       return {
         success: false,
         deviceName: device.name || 'Printer',
-        error: 'Found Bluetooth device, but could not detect ESC/POS writable channel. Ensure printer is in Bluetooth pairing mode.'
+        error: 'Found Bluetooth device, but could not detect ESC/POS or TSPL writable channel. Ensure printer is in Bluetooth pairing mode.'
       };
     }
 
     printerCharacteristic = writeChar;
-    const name = device.name || 'PT-210 Thermal Printer';
+    const name = device.name || 'Thermal Printer';
 
     // Store in localStorage for UI recall
     localStorage.setItem('live_pos_bt_printer_name', name);
@@ -185,11 +189,11 @@ export function disconnectBluetoothPrinter(): void {
 }
 
 /**
- * Send raw ESC/POS byte buffer to connected printer in safe BLE MTU chunks (64 bytes)
+ * Send raw ESC/POS or TSPL byte buffer to connected printer in safe BLE MTU chunks (64 bytes)
  */
 export async function sendEscPosBytes(bytes: Uint8Array): Promise<boolean> {
   if (!printerCharacteristic) {
-    throw new Error('No Bluetooth printer connected. Please connect your PT-210 in settings.');
+    throw new Error('No Bluetooth printer connected. Please connect your PT-210 or PT-265 printer in settings.');
   }
 
   const CHUNK_SIZE = 64; // Safe BLE MTU write packet size
@@ -206,7 +210,7 @@ export async function sendEscPosBytes(bytes: Uint8Array): Promise<boolean> {
       throw new Error('Printer characteristic does not support write operations.');
     }
 
-    // Small delay to prevent buffer overflows on microcontrollers like PT-210
+    // Small delay to prevent buffer overflows on microcontrollers like PT-210 / PT-265
     if (offset + CHUNK_SIZE < totalLength) {
       await new Promise(resolve => setTimeout(resolve, 25));
     }
@@ -216,7 +220,7 @@ export async function sendEscPosBytes(bytes: Uint8Array): Promise<boolean> {
 }
 
 /**
- * Directly print a 50x30mm / 58mm thermal sticker to PT-210
+ * Directly print a 30x20mm thermal sticker to PT-265 / thermal printer
  */
 export async function printDirectSticker(
   mine: {
@@ -234,9 +238,23 @@ export async function printDirectSticker(
     currency?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 32
+  paperCols: number = 24,
+  layoutConfig?: LabelLayoutSettings
 ): Promise<boolean> {
-  const bytes = buildStickerEscPos(mine, profile, sessionDate, paperCols);
+  let bytes: Uint8Array;
+  if (layoutConfig && layoutConfig.protocol === 'tspl') {
+    bytes = buildStickerTSPL(mine, profile, sessionDate, layoutConfig);
+  } else {
+    bytes = buildStickerEscPos(mine, profile, sessionDate, paperCols, layoutConfig);
+  }
+  return await sendEscPosBytes(bytes);
+}
+
+/**
+ * Feed to next label gap sensor cutoff (calibrates PT-265 tear-off position)
+ */
+export async function feedToNextLabelGap(protocol: 'escpos' | 'tspl' = 'escpos'): Promise<boolean> {
+  const bytes = protocol === 'tspl' ? buildFeedGapTSPL() : buildFeedGapEscPos();
   return await sendEscPosBytes(bytes);
 }
 
@@ -259,9 +277,10 @@ export async function printDirectPackingSlip(
     paymentDetails?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 32
+  paperCols: number = 32,
+  layoutConfig?: ReceiptLayoutSettings
 ): Promise<boolean> {
-  const bytes = buildPackingSlipEscPos(basket, profile, sessionDate, paperCols);
+  const bytes = buildPackingSlipEscPos(basket, profile, sessionDate, paperCols, layoutConfig);
   return await sendEscPosBytes(bytes);
 }
 
@@ -284,17 +303,18 @@ export async function printDirectInvoice(
     paymentDetails?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 32
+  paperCols: number = 32,
+  layoutConfig?: ReceiptLayoutSettings
 ): Promise<boolean> {
-  const bytes = buildInvoiceEscPos(basket, profile, sessionDate, paperCols);
+  const bytes = buildInvoiceEscPos(basket, profile, sessionDate, paperCols, layoutConfig);
   return await sendEscPosBytes(bytes);
 }
 
 /**
- * Directly print a self-test slip to PT-210
+ * Directly print a self-test slip to PT-210 / PT-265
  */
 export async function printDirectTest(
-  storeName: string = 'PT-210 Thermal Printer',
+  storeName: string = 'PT-210 / PT-265 Thermal Printer',
   paperCols: number = 32
 ): Promise<boolean> {
   const bytes = buildTestReceiptEscPos(storeName, paperCols);

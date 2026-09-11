@@ -1,8 +1,4 @@
-/* Sticker Print Template strictly formatted for 50x30mm or 40x30mm thermal rolls */
-@page {
-  size: 50mm 30mm;
-  margin: 0;
-}
+/* Sticker & Receipt Print Templates formatted for PT-265 (30x20mm Sticker) and PT-210 (58mm Roll) */
 
 @media print {
   body {
@@ -10,14 +6,14 @@
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 50mm !important;
   }
+  
   /* Hide all screen UI elements */
   .screen-ui, header, nav, #app-navigation, #main-screen {
     display: none !important;
   }
   
-  /* 50x30mm Thermal Sticker */
+  /* 30x20mm Thermal Sticker (PT-265 Compact Mode) */
   .print-thermal-sticker {
     display: flex !important;
     flex-direction: column;
@@ -25,10 +21,10 @@
     position: absolute;
     left: 0;
     top: 0;
-    width: 50mm !important;
-    height: 30mm !important;
-    max-height: 30mm !important;
-    padding: 1.2mm 2.2mm !important;
+    width: 30mm !important;
+    height: 20mm !important;
+    max-height: 20mm !important;
+    padding: 0.6mm 1mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
     color: #000000 !important;
@@ -38,15 +34,16 @@
     page-break-after: always !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    line-height: 1.1;
   }
 
-  /* Consolidated Packing Slip */
+  /* Consolidated Packing Slip (PT-210 58mm Roll) */
   .print-packing-slip {
     display: block !important;
     position: absolute;
     left: 0;
     top: 0;
-    width: 50mm !important;
+    width: 58mm !important;
     padding: 2mm 2.2mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;
@@ -57,13 +54,13 @@
     print-color-adjust: exact;
   }
 
-  /* Consolidated Customer Invoice */
+  /* Consolidated Customer Invoice (PT-210 58mm Roll) */
   .print-invoice {
     display: block !important;
     position: absolute;
     left: 0;
     top: 0;
-    width: 50mm !important;
+    width: 58mm !important;
     padding: 2mm 2.2mm !important;
     box-sizing: border-box !important;
     background: #ffffff !important;

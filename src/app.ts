@@ -1,7 +1,17 @@
 import { createApp, ref, reactive, computed, onMounted, nextTick } from 'vue';
-import type { Profile, MinedItem, PaymentRecord, BuyerBasket, AppSettings, ActiveStoreForm, LiveMiningForm } from './types';
+import type {
+  Profile,
+  MinedItem,
+  PaymentRecord,
+  BuyerBasket,
+  AppSettings,
+  ActiveStoreForm,
+  LiveMiningForm,
+  LabelLayoutSettings,
+  ReceiptLayoutSettings
+} from './types';
 import { defaultProfiles } from './data/defaultProfiles';
-import { defaultSettings } from './data/defaultSettings';
+import { defaultSettings, defaultLabelLayout, defaultReceiptLayout } from './data/defaultSettings';
 import { getSampleMines, getSamplePayments, sampleCustomerNotes } from './data/sampleData';
 import { playBeep } from './utils/audio';
 import { safeGetItem, safeSetItem, safeParseJson } from './utils/storage';
@@ -44,6 +54,7 @@ import {
   printDirectPackingSlip,
   printDirectInvoice,
   printDirectTest,
+  feedToNextLabelGap,
   getConnectedPrinterName
 } from './utils/bluetoothPrinter';
 import {
@@ -275,6 +286,25 @@ const app = createApp({
     }
     if (initialSettings.autoPrint === undefined) {
       initialSettings.autoPrint = true;
+    }
+    if (!initialSettings.labelLayout) {
+      initialSettings.labelLayout = { ...defaultLabelLayout };
+    } else {
+      initialSettings.labelLayout = { ...defaultLabelLayout, ...initialSettings.labelLayout };
+    }
+    if (!initialSettings.receiptLayout) {
+      initialSettings.receiptLayout = { ...defaultReceiptLayout };
+    } else {
+      initialSettings.receiptLayout = { ...defaultReceiptLayout, ...initialSettings.receiptLayout };
+    }
+    if (!initialSettings.labelPrinterName) {
+      initialSettings.labelPrinterName = 'PT-265';
+    }
+    if (!initialSettings.receiptPrinterName) {
+      initialSettings.receiptPrinterName = 'PT-210';
+    }
+    if (!initialSettings.activePrinterType) {
+      initialSettings.activePrinterType = 'auto';
     }
     const settings = ref<AppSettings>(initialSettings);
 
@@ -997,6 +1027,26 @@ const app = createApp({
                 settings.value.miningFieldsOrder = parsed.miningFieldsOrder;
                 changed = true;
               }
+              if (parsed.labelLayout && typeof parsed.labelLayout === 'object') {
+                settings.value.labelLayout = { ...defaultLabelLayout, ...parsed.labelLayout };
+                changed = true;
+              }
+              if (parsed.receiptLayout && typeof parsed.receiptLayout === 'object') {
+                settings.value.receiptLayout = { ...defaultReceiptLayout, ...parsed.receiptLayout };
+                changed = true;
+              }
+              if (parsed.labelPrinterName && parsed.labelPrinterName !== settings.value.labelPrinterName) {
+                settings.value.labelPrinterName = parsed.labelPrinterName;
+                changed = true;
+              }
+              if (parsed.receiptPrinterName && parsed.receiptPrinterName !== settings.value.receiptPrinterName) {
+                settings.value.receiptPrinterName = parsed.receiptPrinterName;
+                changed = true;
+              }
+              if (parsed.activePrinterType && parsed.activePrinterType !== settings.value.activePrinterType) {
+                settings.value.activePrinterType = parsed.activePrinterType;
+                changed = true;
+              }
               if (changed) {
                 safeSetItem('live_pos_settings', settings.value);
               }
@@ -1427,6 +1477,62 @@ const app = createApp({
       showToast('Bluetooth printer disconnected');
     }
 
+    // Layout & Printer Designer Modal State
+    const printerLayoutModalOpen = ref(false);
+    const activeLayoutTab = ref<'label' | 'receipt' | 'printers'>('label');
+
+    function openPrinterLayoutModal(tab: 'label' | 'receipt' | 'printers' = 'label') {
+      activeLayoutTab.value = tab;
+      printerLayoutModalOpen.value = true;
+      appMenuOpen.value = false;
+    }
+
+    function closePrinterLayoutModal() {
+      printerLayoutModalOpen.value = false;
+    }
+
+    // Dynamic Live Preview Sample Data
+    const samplePreviewItem = computed(() => {
+      if (allMines.value.length > 0) {
+        return allMines.value[allMines.value.length - 1];
+      }
+      const prefix = getStorePrefix(activeProfile.value);
+      return {
+        id: 'preview_sample_1',
+        controlCode: `${prefix}${sessionDate.value}-001`,
+        controlNum: 1,
+        tag: 'Vintage Denim Jacket',
+        description: 'Size M • Stone Washed',
+        price: 350,
+        buyer: 'sarah_styles',
+        date: 'Today',
+        time: '14:30',
+        timestamp: Date.now()
+      };
+    });
+
+    const samplePreviewBasket = computed(() => {
+      if (buyerBasketsList.value.length > 0) {
+        return buyerBasketsList.value[0];
+      }
+      const prefix = getStorePrefix(activeProfile.value);
+      return {
+        handle: 'sarah_styles',
+        displayName: 'sarah_styles',
+        dateIssued: 'Today',
+        paymentDate: '',
+        items: [
+          { id: 'p1', controlCode: `${prefix}${sessionDate.value}-001`, controlNum: 1, tag: 'Denim Jacket', description: 'Size M', price: 350, buyer: 'sarah_styles', date: 'Today', time: '14:30', timestamp: Date.now() },
+          { id: 'p2', controlCode: `${prefix}${sessionDate.value}-002`, controlNum: 2, tag: 'Cropped Top', description: 'White Ribbed', price: 180, buyer: 'sarah_styles', date: 'Today', time: '14:35', timestamp: Date.now() }
+        ],
+        totalAmount: 530,
+        totalPaid: 200,
+        balance: 330,
+        status: 'Partial' as const,
+        payments: []
+      };
+    });
+
     async function testBluetoothPrint() {
       if (!btPrinterConnected.value) {
         showToast('Please connect your PT-210 Bluetooth printer first');
@@ -1441,15 +1547,82 @@ const app = createApp({
       }
     }
 
+    async function testLabelPrint() {
+      if (!btPrinterConnected.value) {
+        await connectBluetooth();
+        if (!btPrinterConnected.value) {
+          showToast('Please connect PT-265 via Bluetooth first');
+          return;
+        }
+      }
+      try {
+        const item = samplePreviewItem.value;
+        const is30x20 = settings.value.labelLayout?.labelSize === '30x20mm';
+        const cols = is30x20 ? 24 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
+        await printDirectSticker(item, activeProfile.value, sessionDate.value, cols, settings.value.labelLayout);
+        showToast(`Label test sent to ${btPrinterName.value || 'PT-265'}`);
+      } catch (e: any) {
+        showToast(`Label print error: ${e.message || e}`);
+      }
+    }
+
+    async function calibratePt265Gap() {
+      if (!btPrinterConnected.value) {
+        await connectBluetooth();
+        if (!btPrinterConnected.value) {
+          showToast('Please connect PT-265 via Bluetooth first');
+          return;
+        }
+      }
+      try {
+        const protocol = settings.value.labelLayout?.protocol === 'tspl' ? 'tspl' : 'escpos';
+        await feedToNextLabelGap(protocol);
+        showToast('PT-265: Fed precisely to sticker cutoff gap!');
+      } catch (e: any) {
+        showToast(`Gap feed error: ${e.message || e}`);
+      }
+    }
+
+    async function testReceiptPrint() {
+      if (!btPrinterConnected.value) {
+        await connectBluetooth();
+        if (!btPrinterConnected.value) {
+          showToast('Please connect PT-210 via Bluetooth first');
+          return;
+        }
+      }
+      try {
+        const basket = samplePreviewBasket.value;
+        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
+        await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+        showToast(`Receipt test sent to ${btPrinterName.value || 'PT-210'}`);
+      } catch (e: any) {
+        showToast(`Receipt print error: ${e.message || e}`);
+      }
+    }
+
+    function resetLabelLayout() {
+      settings.value.labelLayout = { ...defaultLabelLayout };
+      saveSettings(true);
+      showToast('Sticker layout reset to PT-265 (30x20mm) default');
+    }
+
+    function resetReceiptLayout() {
+      settings.value.receiptLayout = { ...defaultReceiptLayout };
+      saveSettings(true);
+      showToast('Receipt layout reset to PT-210 (58mm) default');
+    }
+
     async function directPrintStickerBt(mine: MinedItem) {
       if (!btPrinterConnected.value) {
         await connectBluetooth();
         if (!btPrinterConnected.value) return;
       }
       try {
-        const cols = settings.value.printerPaperWidth === '80mm' ? 48 : 32;
-        await printDirectSticker(mine, activeProfile.value, sessionDate.value, cols);
-        showToast(`Sticker printed to PT-210`);
+        const is30x20 = settings.value.labelLayout?.labelSize === '30x20mm';
+        const cols = is30x20 ? 24 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
+        await printDirectSticker(mine, activeProfile.value, sessionDate.value, cols, settings.value.labelLayout);
+        showToast(`Sticker printed to ${btPrinterName.value || 'PT-265'}`);
       } catch (err: any) {
         showToast(`Print failed: ${err.message || err}`);
       }
@@ -1461,9 +1634,9 @@ const app = createApp({
         if (!btPrinterConnected.value) return;
       }
       try {
-        const cols = settings.value.printerPaperWidth === '80mm' ? 48 : 32;
-        await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols);
-        showToast(`Packing slip printed to PT-210`);
+        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
+        await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+        showToast(`Packing slip printed to ${btPrinterName.value || 'PT-210'}`);
       } catch (err: any) {
         showToast(`Print failed: ${err.message || err}`);
       }
@@ -1475,9 +1648,9 @@ const app = createApp({
         if (!btPrinterConnected.value) return;
       }
       try {
-        const cols = settings.value.printerPaperWidth === '80mm' ? 48 : 32;
-        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols);
-        showToast(`Invoice printed to PT-210`);
+        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
+        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+        showToast(`Invoice printed to ${btPrinterName.value || 'PT-210'}`);
       } catch (err: any) {
         showToast(`Print failed: ${err.message || err}`);
       }
@@ -1509,9 +1682,9 @@ const app = createApp({
     async function triggerInvoicePrint(buyer: BuyerBasket) {
       if (settings.value.escPosDirectPrint && btPrinterConnected.value) {
         try {
-          const cols = settings.value.printerPaperWidth === '80mm' ? 48 : 32;
-          await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols);
-          showToast(`Invoice printed to PT-210`);
+          const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
+          await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+          showToast(`Invoice printed to ${btPrinterName.value || 'PT-210'}`);
           return;
         } catch (err: any) {
           console.warn('Bluetooth invoice print notice, falling back to system print:', err);
@@ -1648,9 +1821,10 @@ const app = createApp({
     async function triggerStickerPrint(mine: MinedItem) {
       if (settings.value.escPosDirectPrint && btPrinterConnected.value) {
         try {
-          const cols = settings.value.printerPaperWidth === '80mm' ? 48 : 32;
-          await printDirectSticker(mine, activeProfile.value, sessionDate.value, cols);
-          showToast(`Sticker printed to PT-210`);
+          const is30x20 = settings.value.labelLayout?.labelSize === '30x20mm';
+          const cols = is30x20 ? 24 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
+          await printDirectSticker(mine, activeProfile.value, sessionDate.value, cols, settings.value.labelLayout);
+          showToast(`Sticker printed to ${btPrinterName.value || 'PT-265'}`);
           return;
         } catch (err: any) {
           console.warn('Bluetooth sticker print notice, falling back to system print:', err);
@@ -1668,9 +1842,9 @@ const app = createApp({
     async function triggerPackingSlipPrint(basket: BuyerBasket) {
       if (settings.value.escPosDirectPrint && btPrinterConnected.value) {
         try {
-          const cols = settings.value.printerPaperWidth === '80mm' ? 48 : 32;
-          await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols);
-          showToast(`Packing slip printed to PT-210`);
+          const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
+          await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+          showToast(`Packing slip printed to ${btPrinterName.value || 'PT-210'}`);
           return;
         } catch (err: any) {
           console.warn('Bluetooth packing slip print notice, falling back to system print:', err);
@@ -2787,6 +2961,17 @@ const app = createApp({
       connectBluetooth,
       disconnectBluetooth,
       testBluetoothPrint,
+      printerLayoutModalOpen,
+      activeLayoutTab,
+      openPrinterLayoutModal,
+      closePrinterLayoutModal,
+      samplePreviewItem,
+      samplePreviewBasket,
+      testLabelPrint,
+      calibratePt265Gap,
+      testReceiptPrint,
+      resetLabelLayout,
+      resetReceiptLayout,
       activeStickerToPrint,
       activePackingSlipToPrint,
       activeInvoiceToPrint,

@@ -1,7 +1,11 @@
 /**
- * ESC/POS Binary Command Builder for 58mm (PT-210 / GOOJPRT / MPT) and 80mm Thermal Printers
+ * ESC/POS & TSPL Binary Command Builder for PT-210 (58mm Receipt) and PT-265 (30x20mm Thermal Label)
  * Standard 58mm receipt printers have 32 characters per line (font A).
+ * 30mm x 20mm label printers (PT-265) have ~240 x 160 dots at 203 DPI.
  */
+
+import type { LabelLayoutSettings, ReceiptLayoutSettings } from '../types';
+import { defaultLabelLayout, defaultReceiptLayout } from '../data/defaultSettings';
 
 export class EscPosEncoder {
   private buffer: number[] = [];
@@ -59,6 +63,22 @@ export class EscPosEncoder {
   }
 
   /**
+   * Set line spacing in dots (ESC 3 n)
+   * e.g., 18 or 20 dots for compact sticker printing within 20mm height
+   */
+  public setLineSpacing(dots: number = 24): this {
+    const clamped = Math.max(0, Math.min(255, dots));
+    this.buffer.push(0x1B, 0x33, clamped);
+    return this;
+  }
+
+  public resetLineSpacing(): this {
+    // ESC 2 (Default line spacing ~30 dots)
+    this.buffer.push(0x1B, 0x32);
+    return this;
+  }
+
+  /**
    * Set text magnification:
    * widthMultiplier: 1 to 8 (1 = normal)
    * heightMultiplier: 1 to 8 (1 = normal)
@@ -82,7 +102,7 @@ export class EscPosEncoder {
 
   public text(str: string): this {
     if (!str) return this;
-    // Replace currency symbols if needed for raw ASCII or UTF-8
+    // Replace currency symbols and special chars for standard ASCII
     const cleanStr = str
       .replace(/₱/g, 'PHP ')
       .replace(/•/g, '-');
@@ -103,6 +123,23 @@ export class EscPosEncoder {
     for (let i = 0; i < lines; i++) {
       this.buffer.push(0x0A);
     }
+    return this;
+  }
+
+  /**
+   * Feed until label gap / black mark sensor cutoff (GS FF: 0x1D, 0x0C)
+   * In label mode, this commands PT-265 to stop precisely at the die-cut sticker gap.
+   */
+  public feedToLabelGap(): this {
+    this.buffer.push(0x1D, 0x0C);
+    return this;
+  }
+
+  /**
+   * Form Feed (0x0C)
+   */
+  public formFeed(): this {
+    this.buffer.push(0x0C);
     return this;
   }
 
@@ -146,7 +183,7 @@ export class EscPosEncoder {
 }
 
 /**
- * Builds standard 58mm Thermal Sticker byte stream for PT-210
+ * Builds ESC/POS Thermal Sticker byte stream optimized for 30x20mm (PT-265) & custom sizes
  */
 export function buildStickerEscPos(
   item: {
@@ -164,60 +201,216 @@ export function buildStickerEscPos(
     currency?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 32
+  paperCols: number = 24,
+  layoutConfig?: LabelLayoutSettings
 ): Uint8Array {
-  const enc = new EscPosEncoder(paperCols);
+  const cfg = layoutConfig || defaultLabelLayout;
+  const is30x20 = cfg.labelSize === '30x20mm';
+  
+  // Set appropriate columns: 30mm is ~20-24 chars in Font B, 58mm is 32 chars
+  const cols = is30x20 ? (paperCols <= 24 ? paperCols : 22) : paperCols;
+  const enc = new EscPosEncoder(cols);
 
-  enc.init()
-    .alignCenter()
-    .bold(true)
-    .line(profile.name || 'LIVE MINING POS')
-    .normal()
-    .alignCenter()
-    .line(`Session: #${sessionDate || '0905'} ${item.time || ''}`)
-    .separator('-');
+  enc.init();
 
-  // Big Bold Item Control Code Box
-  const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
-  enc.alignCenter()
-    .size(2, 2)
-    .bold(true)
-    .line(`[ ${codeStr} ]`)
-    .normal();
+  // For 30x20mm compact sticker, set tight line spacing (18 dots) so content stays within 20mm
+  if (is30x20 || cfg.compactSpacing) {
+    enc.setLineSpacing(18);
+  }
 
-  // Item Description / Tag
-  if (item.tag || item.description) {
+  // 1. Store Name / Session header (Optional, usually omitted on 30x20mm to save space)
+  if (cfg.showStoreName) {
     enc.alignCenter()
       .bold(true)
-      .line(`Tag: ${item.tag || item.controlCode}`)
+      .line(profile.name || 'LIVE POS')
       .normal();
-    if (item.description) {
-      enc.alignCenter()
-        .line(`(${item.description})`);
+    if (is30x20) enc.setLineSpacing(18);
+  }
+
+  if (cfg.showSessionDate || cfg.showTime) {
+    const parts: string[] = [];
+    if (cfg.showSessionDate) parts.push(`#${sessionDate || 'LIVE'}`);
+    if (cfg.showTime) parts.push(item.time || '');
+    if (parts.length > 0) {
+      enc.alignCenter().line(parts.join(' '));
     }
   }
 
-  enc.separator('-');
+  // 2. Control Code (e.g. [ #001 ] or [ LL-0910-001 ])
+  if (cfg.showControlCode) {
+    const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
+    enc.alignCenter().bold(true);
+    if (cfg.codeSize === 'extra_large') {
+      enc.size(2, 2);
+    } else if (cfg.codeSize === 'large') {
+      enc.size(1, 2);
+    } else {
+      enc.size(1, 1);
+    }
+    enc.line(`[ ${codeStr} ]`).normal();
+    if (is30x20) enc.setLineSpacing(18);
+  }
 
-  // Price (Large)
-  const currencyStr = (profile.currency || 'PHP').replace(/₱/g, 'PHP');
-  enc.alignCenter()
-    .size(2, 2)
-    .bold(true)
-    .line(`${currencyStr} ${item.price.toLocaleString()}`)
-    .normal();
+  // 3. Buyer Tag (Prominent)
+  if (cfg.showBuyer) {
+    const cleanBuyer = (item.buyer || '').replace(/^@+/, '');
+    enc.alignCenter().bold(true);
+    if (cfg.buyerSize === 'large') {
+      enc.size(1, 2);
+    } else {
+      enc.size(1, 1);
+    }
+    enc.line(`@${cleanBuyer}`).normal();
+    if (is30x20) enc.setLineSpacing(18);
+  }
 
-  // Buyer Tag (Inverted / Bold highlight)
-  const cleanBuyer = (item.buyer || '').replace(/^@+/, '');
-  enc.alignCenter()
-    .bold(true)
-    .size(1, 2)
-    .line(`@${cleanBuyer}`)
-    .normal()
-    .separator('=')
-    .feed(3);
+  // 4. Item Tag / Description
+  if (cfg.showTag || cfg.showDescription) {
+    const tagPart = cfg.showTag ? (item.tag || item.controlCode) : '';
+    const descPart = (cfg.showDescription && item.description) ? item.description : '';
+    let textOut = '';
+    if (tagPart && descPart) {
+      textOut = `${tagPart}: ${descPart}`;
+    } else {
+      textOut = tagPart || descPart;
+    }
+    if (textOut) {
+      enc.alignCenter().line(textOut.substring(0, cols));
+    }
+  }
+
+  // 5. Price
+  if (cfg.showPrice) {
+    const currencyStr = (profile.currency || 'PHP').replace(/₱/g, 'PHP');
+    enc.alignCenter().bold(true);
+    if (cfg.priceSize === 'large') {
+      enc.size(1, 2);
+    } else {
+      enc.size(1, 1);
+    }
+    enc.line(`${currencyStr} ${item.price.toLocaleString()}`).normal();
+    if (is30x20) enc.setLineSpacing(18);
+  }
+
+  // 6. Custom Footer Note
+  if (cfg.customFooterText && cfg.customFooterText.trim()) {
+    enc.alignCenter().line(cfg.customFooterText.trim().substring(0, cols));
+  }
+
+  // 7. Gap Feed & Cutoff Line Command (Crucial for PT-265 sticker alignment)
+  if (cfg.gapFeedMode === 'gs_ff') {
+    // Command PT-265 to feed directly to sticker gap / black mark cutoff
+    enc.feedToLabelGap();
+  } else if (cfg.gapFeedMode === 'form_feed') {
+    enc.formFeed();
+  } else {
+    // Plain line feeds
+    const lines = cfg.feedLines !== undefined ? cfg.feedLines : (is30x20 ? 0 : 2);
+    if (lines > 0) {
+      enc.feed(lines);
+    }
+  }
 
   return enc.encode();
+}
+
+/**
+ * Builds Native TSPL Label Byte stream for PT-265 (30mm x 20mm)
+ * Uses printer hardware coordinates and gap sensor calibration for exact stopping.
+ */
+export function buildStickerTSPL(
+  item: {
+    controlCode: string;
+    controlNum?: number | string;
+    tag?: string;
+    description?: string;
+    price: number;
+    buyer: string;
+    date?: string;
+    time?: string;
+  },
+  profile: {
+    name: string;
+    currency?: string;
+  },
+  sessionDate: string = '',
+  layoutConfig?: LabelLayoutSettings
+): Uint8Array {
+  const cfg = layoutConfig || defaultLabelLayout;
+  const is30x20 = cfg.labelSize === '30x20mm';
+
+  // Label dimensions in mm (203 DPI = 8 dots/mm)
+  // 30mm = 240 dots, 20mm = 160 dots
+  const widthMm = is30x20 ? 30 : (cfg.labelSize === '40x30mm' ? 40 : 50);
+  const heightMm = is30x20 ? 20 : (cfg.labelSize === '40x30mm' ? 30 : 30);
+
+  const cleanBuyer = (item.buyer || '').replace(/^@+/, '').replace(/"/g, '');
+  const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
+  const currencyStr = (profile.currency || 'PHP').replace(/₱/g, 'PHP');
+  const priceStr = `${currencyStr} ${item.price.toLocaleString()}`;
+
+  let tspl = `SIZE ${widthMm} mm, ${heightMm} mm\r\n`;
+  tspl += `GAP 2 mm, 0 mm\r\n`;
+  tspl += `SPEED 4\r\n`;
+  tspl += `DENSITY 10\r\n`;
+  tspl += `DIRECTION 1\r\n`;
+  tspl += `REFERENCE 0,0\r\n`;
+  tspl += `CLS\r\n`;
+
+  let yPos = 12;
+
+  if (cfg.showStoreName) {
+    const storeName = (profile.name || 'LIVE POS').replace(/"/g, '').substring(0, 16);
+    tspl += `TEXT 120,${yPos},"1",0,1,1,2,"${storeName}"\r\n`; // Centered
+    yPos += 22;
+  }
+
+  if (cfg.showControlCode) {
+    tspl += `TEXT 120,${yPos},"3",0,1,1,2,"[ ${codeStr} ]"\r\n`;
+    yPos += 34;
+  }
+
+  if (cfg.showBuyer) {
+    tspl += `TEXT 120,${yPos},"2",0,1,1,2,"@${cleanBuyer.substring(0, 14)}"\r\n`;
+    yPos += 28;
+  }
+
+  if (cfg.showTag || cfg.showDescription) {
+    const desc = ((cfg.showDescription && item.description) ? item.description : (item.tag || '')).replace(/"/g, '').substring(0, 16);
+    if (desc) {
+      tspl += `TEXT 120,${yPos},"1",0,1,1,2,"${desc}"\r\n`;
+      yPos += 20;
+    }
+  }
+
+  if (cfg.showPrice) {
+    tspl += `TEXT 120,${yPos},"3",0,1,1,2,"${priceStr}"\r\n`;
+    yPos += 30;
+  }
+
+  if (cfg.customFooterText && cfg.customFooterText.trim()) {
+    const footer = cfg.customFooterText.trim().replace(/"/g, '').substring(0, 16);
+    tspl += `TEXT 120,${yPos},"1",0,1,1,2,"${footer}"\r\n`;
+  }
+
+  tspl += `PRINT 1,1\r\n`;
+
+  return new TextEncoder().encode(tspl);
+}
+
+/**
+ * Builds Gap Feed / Align Calibration command for PT-265
+ */
+export function buildFeedGapEscPos(): Uint8Array {
+  const enc = new EscPosEncoder(24);
+  enc.init();
+  enc.feedToLabelGap();
+  return enc.encode();
+}
+
+export function buildFeedGapTSPL(): Uint8Array {
+  const tspl = `GAP 2 mm, 0 mm\r\nFORMFEED\r\n`;
+  return new TextEncoder().encode(tspl);
 }
 
 /**
@@ -239,58 +432,99 @@ export function buildPackingSlipEscPos(
     paymentDetails?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 32
+  paperCols: number = 32,
+  layoutConfig?: ReceiptLayoutSettings
 ): Uint8Array {
-  const enc = new EscPosEncoder(paperCols);
+  const cfg = layoutConfig || defaultReceiptLayout;
+  const cols = cfg.paperWidth === '80mm' ? 48 : paperCols;
+  const enc = new EscPosEncoder(cols);
   const currencyStr = (profile.currency || 'PHP').replace(/₱/g, 'PHP');
 
-  enc.init()
-    .alignCenter()
-    .bold(true)
-    .line(profile.name || 'LIVE SELLING POS')
-    .line('PARCEL PACKING SLIP')
-    .normal()
-    .line(`Session: #${sessionDate} • ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`)
-    .separator('-');
+  enc.init();
 
-  // Customer Name Large
-  enc.alignCenter()
-    .size(2, 2)
-    .bold(true)
-    .line(`@${(basket.displayName || basket.handle).replace(/^@+/, '')}`)
-    .normal()
-    .alignCenter()
-    .line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`)
-    .separator('-');
+  if (cfg.showStoreName || cfg.showTitle) {
+    enc.alignCenter().bold(true);
+    if (cfg.showStoreName) {
+      enc.line(profile.name || 'LIVE SELLING POS');
+    }
+    if (cfg.showTitle) {
+      enc.line('PARCEL PACKING SLIP');
+    }
+    enc.normal();
+  }
+
+  if (cfg.showSessionDate || cfg.showDateTime) {
+    const parts: string[] = [];
+    if (cfg.showSessionDate) parts.push(`Session: #${sessionDate}`);
+    if (cfg.showDateTime) parts.push(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    enc.alignCenter().line(parts.join(' - '));
+  }
+
+  if (cfg.showDividers) enc.separator('-');
+
+  // Customer Name
+  if (cfg.showBuyerName) {
+    enc.alignCenter()
+      .size(2, 2)
+      .bold(true)
+      .line(`@${(basket.displayName || basket.handle).replace(/^@+/, '')}`)
+      .normal();
+  }
+
+  if (cfg.showPaymentStatus) {
+    enc.alignCenter()
+      .line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
+  }
+
+  if (cfg.showDividers) enc.separator('-');
 
   // Items Header
-  enc.twoColumns('ITEM / CODE', `AMT (${currencyStr})`)
-    .separator('-');
+  enc.twoColumns('ITEM / CODE', `AMT (${currencyStr})`);
+  if (cfg.showDividers) enc.separator('-');
 
   basket.items.forEach((it, idx) => {
+    const numPart = cfg.showItemNumber ? `${idx + 1}. ` : '';
     const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
-    const desc = it.description ? ` (${it.description})` : '';
-    const label = `${idx + 1}. ${code} [${it.tag || code}]${desc}`;
+    const tag = cfg.showItemTag ? ` [${it.tag || code}]` : '';
+    const desc = (cfg.showItemDescription && it.description) ? ` (${it.description})` : '';
+    const label = `${numPart}${code}${tag}${desc}`;
     enc.twoColumns(label, `${it.price.toLocaleString()}`);
   });
 
-  enc.separator('-')
-    .bold(true)
-    .twoColumns(`Total Items:`, `${basket.items.length} pcs`)
-    .twoColumns(`Subtotal:`, `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
+  if (cfg.showDividers) enc.separator('-');
 
-  if (basket.totalPaid > 0) {
+  enc.bold(true);
+  if (cfg.showItemCount) {
+    enc.twoColumns(`Total Items:`, `${basket.items.length} pcs`);
+  }
+  if (cfg.showSubtotal) {
+    enc.twoColumns(`Subtotal:`, `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
+  }
+  if (cfg.showTotalPaid && basket.totalPaid > 0) {
     enc.twoColumns(`Paid:`, `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
   }
+  if (cfg.showBalanceDue) {
+    enc.size(1, 2)
+      .twoColumns(`BALANCE DUE:`, `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`)
+      .normal();
+  }
 
-  enc.size(1, 2)
-    .twoColumns(`BALANCE DUE:`, `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`)
-    .normal()
-    .doubleSeparator()
-    .alignCenter()
-    .line('QC Verified: [  ] Packed Pass')
-    .line(`*${basket.handle}*`)
-    .feed(3);
+  if (cfg.showDividers) enc.doubleSeparator();
+
+  if (cfg.showQcCheckbox) {
+    enc.alignCenter().line('QC Verified: [  ] Packed Pass');
+  }
+
+  if (cfg.customFooterNote && cfg.customFooterNote.trim()) {
+    enc.alignCenter().line(cfg.customFooterNote.trim());
+  }
+
+  enc.alignCenter().line(`*${basket.handle}*`);
+
+  const lines = cfg.feedLines !== undefined ? cfg.feedLines : 3;
+  if (lines > 0) {
+    enc.feed(lines);
+  }
 
   return enc.encode();
 }
@@ -314,52 +548,73 @@ export function buildInvoiceEscPos(
     paymentDetails?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 32
+  paperCols: number = 32,
+  layoutConfig?: ReceiptLayoutSettings
 ): Uint8Array {
-  const enc = new EscPosEncoder(paperCols);
+  const cfg = layoutConfig || defaultReceiptLayout;
+  const cols = cfg.paperWidth === '80mm' ? 48 : paperCols;
+  const enc = new EscPosEncoder(cols);
   const currencyStr = (profile.currency || 'PHP').replace(/₱/g, 'PHP');
   const cleanName = (basket.displayName || basket.handle).replace(/^@+/, '');
 
-  enc.init()
-    .alignCenter()
-    .bold(true)
-    .line(profile.name || 'LIVE SELLING POS')
-    .line('OFFICIAL SALES INVOICE')
-    .normal()
-    .line(`#INV-${sessionDate}-${cleanName.toUpperCase()}`)
-    .separator('-');
+  enc.init();
 
-  enc.alignCenter()
-    .size(2, 2)
-    .bold(true)
-    .line(`@${cleanName}`)
-    .normal()
-    .line(`Date: ${sessionDate} • ${new Date().toLocaleDateString()}`)
-    .separator('-');
-
-  enc.twoColumns('ITEM', `PRICE`)
-    .separator('-');
-
-  basket.items.forEach((it, i) => {
-    const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
-    const desc = it.description ? ` (${it.description})` : '';
-    enc.twoColumns(`${i + 1}. ${code}${desc}`, `${it.price.toLocaleString()}`);
-  });
-
-  enc.separator('-')
-    .twoColumns('Subtotal:', `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
-
-  if (basket.totalPaid > 0) {
-    enc.twoColumns('Paid:', `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
+  if (cfg.showStoreName || cfg.showTitle) {
+    enc.alignCenter().bold(true);
+    if (cfg.showStoreName) {
+      enc.line(profile.name || 'LIVE SELLING POS');
+    }
+    if (cfg.showTitle) {
+      enc.line('OFFICIAL SALES INVOICE');
+    }
+    enc.normal();
   }
 
-  enc.size(1, 2)
-    .bold(true)
-    .twoColumns('TOTAL DUE:', `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`)
-    .normal()
-    .separator('-');
+  enc.alignCenter().line(`#INV-${sessionDate}-${cleanName.toUpperCase()}`);
+  if (cfg.showDividers) enc.separator('-');
 
-  if (profile.paymentDetails) {
+  if (cfg.showBuyerName) {
+    enc.alignCenter()
+      .size(2, 2)
+      .bold(true)
+      .line(`@${cleanName}`)
+      .normal();
+  }
+
+  if (cfg.showSessionDate || cfg.showDateTime) {
+    enc.alignCenter().line(`Date: ${sessionDate} - ${new Date().toLocaleDateString()}`);
+  }
+
+  if (cfg.showDividers) enc.separator('-');
+
+  enc.twoColumns('ITEM', `PRICE`);
+  if (cfg.showDividers) enc.separator('-');
+
+  basket.items.forEach((it, i) => {
+    const numPart = cfg.showItemNumber ? `${i + 1}. ` : '';
+    const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
+    const desc = (cfg.showItemDescription && it.description) ? ` (${it.description})` : '';
+    enc.twoColumns(`${numPart}${code}${desc}`, `${it.price.toLocaleString()}`);
+  });
+
+  if (cfg.showDividers) enc.separator('-');
+
+  if (cfg.showSubtotal) {
+    enc.twoColumns('Subtotal:', `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
+  }
+  if (cfg.showTotalPaid && basket.totalPaid > 0) {
+    enc.twoColumns('Paid:', `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
+  }
+  if (cfg.showBalanceDue) {
+    enc.size(1, 2)
+      .bold(true)
+      .twoColumns('TOTAL DUE:', `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`)
+      .normal();
+  }
+
+  if (cfg.showDividers) enc.separator('-');
+
+  if (cfg.showPaymentAccounts && profile.paymentDetails) {
     enc.alignLeft()
       .bold(true)
       .line('PAYMENT ACCOUNTS:')
@@ -368,13 +623,19 @@ export function buildInvoiceEscPos(
     lines.forEach(l => {
       if (l.trim()) enc.line(l.trim());
     });
-    enc.separator('-');
+    if (cfg.showDividers) enc.separator('-');
   }
 
-  enc.alignCenter()
-    .line('Thank you for mining with us!')
-    .line(`*${basket.handle}*`)
-    .feed(3);
+  if (cfg.customFooterNote && cfg.customFooterNote.trim()) {
+    enc.alignCenter().line(cfg.customFooterNote.trim());
+  }
+
+  enc.alignCenter().line(`*${basket.handle}*`);
+
+  const lines = cfg.feedLines !== undefined ? cfg.feedLines : 3;
+  if (lines > 0) {
+    enc.feed(lines);
+  }
 
   return enc.encode();
 }

@@ -49,6 +49,49 @@ export interface BuyerBasket {
   isExpanded?: boolean;
 }
 
+export interface LabelLayoutSettings {
+  labelSize: '30x20mm' | '40x30mm' | '50x30mm' | '58mm_roll';
+  protocol: 'escpos_gap' | 'tspl' | 'escpos_standard';
+  showStoreName: boolean;
+  showSessionDate: boolean;
+  showTime: boolean;
+  showControlCode: boolean;
+  codeSize: 'normal' | 'large' | 'extra_large';
+  showTag: boolean;
+  showDescription: boolean;
+  showPrice: boolean;
+  priceSize: 'normal' | 'large';
+  showBuyer: boolean;
+  buyerSize: 'normal' | 'large';
+  showBarcode: boolean;
+  customFooterText: string;
+  gapFeedMode: 'gs_ff' | 'form_feed' | 'lines';
+  feedLines: number; // 0, 1, 2, 3
+  compactSpacing: boolean;
+}
+
+export interface ReceiptLayoutSettings {
+  paperWidth: '58mm' | '80mm';
+  showStoreName: boolean;
+  showTitle: boolean;
+  showSessionDate: boolean;
+  showDateTime: boolean;
+  showBuyerName: boolean;
+  showPaymentStatus: boolean;
+  showItemNumber: boolean;
+  showItemTag: boolean;
+  showItemDescription: boolean;
+  showDividers: boolean;
+  showItemCount: boolean;
+  showSubtotal: boolean;
+  showTotalPaid: boolean;
+  showBalanceDue: boolean;
+  showPaymentAccounts: boolean;
+  showQcCheckbox: boolean;
+  customFooterNote: string;
+  feedLines: number;
+}
+
 export interface AppSettings {
   autoPrint: boolean;
   soundEnabled: boolean;
@@ -60,6 +103,11 @@ export interface AppSettings {
   escPosDirectPrint?: boolean;
   photoRetention?: '1_month' | '3_months' | '6_months' | '1_year' | 'never';
   autoCleanOldPhotos?: boolean;
+  labelLayout?: LabelLayoutSettings;
+  receiptLayout?: ReceiptLayoutSettings;
+  receiptPrinterName?: string;
+  labelPrinterName?: string;
+  activePrinterType?: 'receipt_pt210' | 'label_pt265' | 'auto';
 }
 
 export interface ActiveStoreForm {
