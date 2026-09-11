@@ -2948,6 +2948,43 @@ const app = createApp({
 
     const minedItemsSearchQuery = ref('');
     const minedItemsFilterCategory = ref('All');
+    const minedItemsFilterDate = ref('all'); // 'all', 'today', 'yesterday', 'custom', or specific date string
+    const minedItemsCustomDate = ref('');
+
+    function getItemDateNormalized(item: MinedItem): string {
+      if (item.timestamp) {
+        const d = new Date(item.timestamp);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        }
+      }
+      if (item.date) {
+        const d = new Date(item.date);
+        if (!isNaN(d.getTime())) {
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        }
+      }
+      return '';
+    }
+
+    const uniqueMinedDates = computed(() => {
+      const dates = new Set<string>();
+      for (const m of allMines.value) {
+        if (m.date) {
+          dates.add(m.date);
+        } else if (m.timestamp) {
+          const d = new Date(m.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          dates.add(d);
+        }
+      }
+      return Array.from(dates);
+    });
 
     const filteredMinedItems = computed(() => {
       let list = [...allMines.value].reverse();
@@ -2965,6 +3002,36 @@ const app = createApp({
       if (minedItemsFilterCategory.value && minedItemsFilterCategory.value !== 'All') {
         const cat = minedItemsFilterCategory.value.toLowerCase();
         list = list.filter(item => (item.description || '').toLowerCase() === cat);
+      }
+      if (minedItemsFilterDate.value && minedItemsFilterDate.value !== 'all') {
+        const now = new Date();
+        const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        
+        const yest = new Date();
+        yest.setDate(yest.getDate() - 1);
+        const yestIso = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, '0')}-${String(yest.getDate()).padStart(2, '0')}`;
+
+        if (minedItemsFilterDate.value === 'today') {
+          list = list.filter(item => {
+            const itemIso = getItemDateNormalized(item);
+            return itemIso === todayIso;
+          });
+        } else if (minedItemsFilterDate.value === 'yesterday') {
+          list = list.filter(item => {
+            const itemIso = getItemDateNormalized(item);
+            return itemIso === yestIso;
+          });
+        } else if (minedItemsFilterDate.value === 'custom' && minedItemsCustomDate.value) {
+          list = list.filter(item => {
+            const itemIso = getItemDateNormalized(item);
+            return itemIso === minedItemsCustomDate.value;
+          });
+        } else if (minedItemsFilterDate.value) {
+          list = list.filter(item => {
+            const itemIso = getItemDateNormalized(item);
+            return item.date === minedItemsFilterDate.value || itemIso === minedItemsFilterDate.value;
+          });
+        }
       }
       return list;
     });
@@ -3343,7 +3410,7 @@ const app = createApp({
       lines.push(`----------------------------------------`);
       lines.push(`MINED ITEMS (${buyer.items.length} pcs):`);
       buyer.items.forEach((item, i) => {
-        const itemCode = item.controlNum ? `#${item.controlNum}` : item.controlCode;
+        const itemCode = item.controlCode || (item.controlNum ? '#' + item.controlNum : '');
         const desc = (item.description && item.description !== item.controlCode && item.description !== 'Decor') ? ` • ${item.description}` : '';
         lines.push(`  ${i + 1}. ${itemCode}${desc} - ${activeProfile.value.currency}${item.price.toLocaleString()}`);
       });
@@ -4415,6 +4482,9 @@ const app = createApp({
       filteredBuyerBaskets,
       minedItemsSearchQuery,
       minedItemsFilterCategory,
+      minedItemsFilterDate,
+      minedItemsCustomDate,
+      uniqueMinedDates,
       filteredMinedItems,
       openInvoiceForBuyer,
       owingBuyersCount,

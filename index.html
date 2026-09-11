@@ -1814,7 +1814,7 @@
                   v-for="it in b.items" 
                   :key="it.id"
                   class="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-xs font-mono text-zinc-800">
-                  <span class="font-bold">{{ it.controlNum ? '#' + it.controlNum : it.controlCode }}</span>
+                  <span class="font-bold">{{ it.controlCode || (it.controlNum ? '#' + it.controlNum : '') }}</span>
                   <span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'" class="text-zinc-700 font-sans font-medium">• {{ it.description }}</span>
                   <span class="font-semibold">{{ activeProfile.currency }}{{ it.price }}</span>
                 </span>
@@ -1908,6 +1908,56 @@
             </button>
           </div>
 
+          <!-- Date Filter Controls -->
+          <div class="flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider flex items-center gap-1 shrink-0 mr-1">
+              <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              Date:
+            </span>
+
+            <button 
+              @click="minedItemsFilterDate = 'all'; minedItemsCustomDate = ''" 
+              class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+              :class="minedItemsFilterDate === 'all' ? 'bg-zinc-900 text-white font-semibold' : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'">
+              All Dates
+            </button>
+
+            <button 
+              @click="minedItemsFilterDate = 'today'" 
+              class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+              :class="minedItemsFilterDate === 'today' ? 'bg-zinc-900 text-white font-semibold' : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'">
+              Today
+            </button>
+
+            <button 
+              @click="minedItemsFilterDate = 'yesterday'" 
+              class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+              :class="minedItemsFilterDate === 'yesterday' ? 'bg-zinc-900 text-white font-semibold' : 'bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50'">
+              Yesterday
+            </button>
+
+            <!-- Custom Calendar Picker -->
+            <div class="inline-flex items-center space-x-1 shrink-0">
+              <input 
+                type="date" 
+                v-model="minedItemsCustomDate"
+                @change="minedItemsFilterDate = 'custom'"
+                class="bg-white border border-zinc-300 text-zinc-700 text-xs rounded-lg px-2 py-1 focus:outline-none focus:border-zinc-900 cursor-pointer shadow-2xs font-mono"
+                title="Select specific date"
+              />
+            </div>
+
+            <!-- Clear/Reset Date filter -->
+            <button 
+              v-if="minedItemsFilterDate !== 'all'"
+              @click="minedItemsFilterDate = 'all'; minedItemsCustomDate = ''"
+              type="button"
+              title="Reset date filter"
+              class="px-2 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-600 text-xs font-semibold transition-colors shrink-0">
+              ✕ Clear Date
+            </button>
+          </div>
+
           <!-- Category Filter Pills -->
           <div class="flex space-x-1 overflow-x-auto pb-0.5">
             <button 
@@ -1949,7 +1999,7 @@
                     <button 
                       v-if="item.photo" 
                       type="button" 
-                      @click="openPhotoZoom(item.photo, (item.controlNum ? '#' + item.controlNum : item.controlCode) + ' - ' + item.buyer)" 
+                      @click="openPhotoZoom(item.photo, (item.controlCode || (item.controlNum ? '#' + item.controlNum : '')) + ' - ' + item.buyer)" 
                       class="w-9 h-9 rounded-lg overflow-hidden border border-zinc-300 block hover:opacity-85 transition-opacity" 
                       title="Zoom photo">
                       <img :src="item.photo" :alt="item.controlCode" class="w-full h-full object-cover" />
@@ -1959,9 +2009,9 @@
                     </div>
                   </td>
 
-                  <!-- 1. Control # (e.g. 147) -->
+                  <!-- 1. Control # (e.g. L0910-005) -->
                   <td class="py-2.5 px-3 font-bold text-zinc-900 whitespace-nowrap">
-                    {{ item.controlNum || item.controlCode }}
+                    {{ item.controlCode || (item.controlNum ? '#' + item.controlNum : '') }}
                   </td>
 
                   <!-- 2. Customer -->
@@ -4605,18 +4655,18 @@
                   <button 
                     v-if="item.photo" 
                     type="button" 
-                    @click="openPhotoZoom(item.photo, (item.controlNum ? '#' + item.controlNum : item.controlCode) + ' - ' + (item.description || item.tag))" 
+                    @click="openPhotoZoom(item.photo, (item.controlCode || (item.controlNum ? '#' + item.controlNum : '')) + ' - ' + (item.description || item.tag))" 
                     class="relative w-10 h-10 rounded-lg overflow-hidden border border-zinc-300 shrink-0 hover:opacity-85 transition-opacity" 
                     title="View photo">
                     <img :src="item.photo" :alt="item.controlCode" class="w-full h-full object-cover" />
                   </button>
                   <div v-else class="w-10 h-10 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-400 shrink-0 font-mono text-[10px]">
-                    #{{ item.controlNum || idx + 1 }}
+                    {{ item.controlCode || (item.controlNum ? '#' + item.controlNum : '#' + (idx + 1)) }}
                   </div>
 
                   <div class="min-w-0">
                     <div class="flex items-center space-x-1.5 flex-wrap">
-                      <span class="font-bold text-zinc-900 font-mono text-xs">{{ item.controlNum ? '#' + item.controlNum : item.controlCode }}</span>
+                      <span class="font-bold text-zinc-900 font-mono text-xs">{{ item.controlCode || (item.controlNum ? '#' + item.controlNum : '') }}</span>
                       <span v-if="item.description && item.description !== item.controlCode && item.description !== 'Decor'" class="bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded font-medium text-zinc-800 text-[11px]">
                         {{ item.description }}
                       </span>
@@ -6145,7 +6195,7 @@
           <span>PRICE ({{ activeProfile.currency }})</span>
         </div>
         <div v-for="it in activePackingSlipToPrint.items" :key="it.id" style="display: flex; justify-content: space-between; margin-bottom: 0.8mm;">
-          <span>{{ it.controlNum ? '#' + it.controlNum : it.controlCode }}<span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'"> • {{ it.description }}</span></span>
+          <span>{{ it.controlCode || (it.controlNum ? '#' + it.controlNum : '') }}<span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'"> • {{ it.description }}</span></span>
           <span style="font-weight: 700;">{{ activeProfile.currency }}{{ it.price }}</span>
         </div>
       </div>
@@ -6201,7 +6251,7 @@
           <span>PRICE ({{ activeProfile.currency }})</span>
         </div>
         <div v-for="it in activeInvoiceToPrint.items" :key="it.id" style="display: flex; justify-content: space-between; margin-bottom: 0.8mm;">
-          <span>{{ it.controlNum ? '#' + it.controlNum : it.controlCode }}<span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'"> • {{ it.description }}</span></span>
+          <span>{{ it.controlCode || (it.controlNum ? '#' + it.controlNum : '') }}<span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'"> • {{ it.description }}</span></span>
           <span style="font-weight: 700;">{{ activeProfile.currency }}{{ it.price }}</span>
         </div>
       </div>
