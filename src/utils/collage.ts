@@ -167,7 +167,10 @@ export async function createPhotoCollageCanvas(
       ctx.textAlign = 'center';
       ctx.fillText(it.controlNum ? '#' + it.controlNum : it.controlCode, cellX + itemW / 2, cellY + (itemH - 58) / 2);
       ctx.font = '15px system-ui, -apple-system, sans-serif';
-      ctx.fillText(it.tag + (it.description ? ` (${it.description})` : ''), cellX + itemW / 2, cellY + (itemH - 58) / 2 + 30);
+      const fallbackItemName = (it.description && it.description !== it.controlCode && it.description !== 'Decor') ? it.description : '';
+      if (fallbackItemName) {
+        ctx.fillText(fallbackItemName, cellX + itemW / 2, cellY + (itemH - 58) / 2 + 30);
+      }
       ctx.textAlign = 'left';
     }
 
@@ -194,11 +197,14 @@ export async function createPhotoCollageCanvas(
     ctx.fillRect(cellX, cellY + itemH - 58, itemW, 58);
     ctx.fillStyle = '#18181b';
     ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`Tag: ${it.tag}`, cellX + 12, cellY + itemH - 34);
+    const bottomItemTitle = (it.description && it.description !== it.controlCode && it.description !== 'Decor') 
+      ? it.description 
+      : (it.controlNum ? '#' + it.controlNum : it.controlCode);
+    ctx.fillText(bottomItemTitle, cellX + 12, cellY + itemH - 34);
 
     ctx.fillStyle = '#71717a';
     ctx.font = '12px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`${it.description || 'Live mine'} • ${it.time || ''}`, cellX + 12, cellY + itemH - 14);
+    ctx.fillText(it.time ? `Mined at ${it.time}` : (it.date || 'Live Mine'), cellX + 12, cellY + itemH - 14);
   }
 
   // Footer Section: Totals and GCash Instructions

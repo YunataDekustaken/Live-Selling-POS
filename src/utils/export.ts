@@ -39,16 +39,16 @@ export function exportNotionMinedItemsCsv(
   if (!allMines || allMines.length === 0) {
     return;
   }
-  const headers = ['Control #', 'Customer', 'Date', 'Description', 'Amount', 'Tag'];
+  const headers = ['Control #', 'Customer', 'Date', 'Item Name', 'Amount'];
   const rows = allMines.map(item => {
     const num = item.controlNum ? item.controlNum : item.controlCode;
+    const itemName = (item.description && item.description !== item.controlCode && item.description !== 'Decor') ? item.description : '';
     return [
       num,
       `"${item.buyer}"`,
       `"${item.date || sessionDate} ${item.time || ''}"`,
-      `"${item.description || ''}"`,
-      item.price.toFixed(2),
-      `"${item.tag}"`
+      `"${itemName}"`,
+      item.price.toFixed(2)
     ];
   });
   const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
@@ -68,16 +68,18 @@ export function exportRawMinesCsv(
   if (!allMines || allMines.length === 0) {
     return;
   }
-  const headers = ['Control Code', 'Tag', 'Description', 'Price', 'Buyer', 'Date', 'Time'];
-  const rows = allMines.map(m => [
-    `"${m.controlCode}"`,
-    `"${m.tag}"`,
-    `"${m.description || ''}"`,
-    m.price,
-    `"${m.buyer}"`,
-    `"${m.date || ''}"`,
-    `"${m.time || ''}"`
-  ]);
+  const headers = ['Control Number', 'Customer Name', 'Item Name', 'Price', 'Date', 'Time'];
+  const rows = allMines.map(m => {
+    const itemName = (m.description && m.description !== m.controlCode && m.description !== 'Decor') ? m.description : '';
+    return [
+      `"${m.controlCode}"`,
+      `"${m.buyer}"`,
+      `"${itemName}"`,
+      m.price,
+      `"${m.date || ''}"`,
+      `"${m.time || ''}"`
+    ];
+  });
   const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');

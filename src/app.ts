@@ -213,11 +213,19 @@ const app = createApp({
     const sanitizedInitialMines = rawLoadedMines
       .filter((m: MinedItem) => m && m.id && !initialDeletedMineIds.has(m.id))
       .map((m: MinedItem) => {
-        // Sanitize corrupted 'Decor' descriptions from previous Supabase sync bug on live items
-        if (m.description === 'Decor' && m.id && m.id.startsWith('mine_')) {
-          return { ...m, description: '' };
+        let cleanDesc = (m.description || '').trim();
+        const cleanTag = (m.tag || '').trim();
+        if (cleanDesc === 'Decor' && m.id && m.id.startsWith('mine_')) {
+          cleanDesc = '';
         }
-        return m;
+        if (!cleanDesc && cleanTag && cleanTag !== m.controlCode && cleanTag !== 'Decor') {
+          cleanDesc = cleanTag;
+        }
+        return { 
+          ...m, 
+          description: cleanDesc,
+          tag: cleanDesc || m.controlCode || '' 
+        };
       });
     const allMines = ref<MinedItem[]>(sanitizedInitialMines);
     const allPayments = ref<PaymentRecord[]>(
@@ -3350,8 +3358,9 @@ const app = createApp({
       lines.push(`----------------------------------------`);
       lines.push(`MINED ITEMS (${buyer.items.length} pcs):`);
       buyer.items.forEach((item, i) => {
-        const desc = item.description ? ` (${item.description})` : '';
-        lines.push(`  ${i + 1}. ${item.controlCode} • Tag: ${item.tag}${desc} - ${activeProfile.value.currency}${item.price.toLocaleString()}`);
+        const itemCode = item.controlNum ? `#${item.controlNum}` : item.controlCode;
+        const desc = (item.description && item.description !== item.controlCode && item.description !== 'Decor') ? ` • ${item.description}` : '';
+        lines.push(`  ${i + 1}. ${itemCode}${desc} - ${activeProfile.value.currency}${item.price.toLocaleString()}`);
       });
       lines.push(`----------------------------------------`);
       lines.push(`Subtotal: ${activeProfile.value.currency}${buyer.totalAmount.toLocaleString()}`);

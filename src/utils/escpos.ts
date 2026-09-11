@@ -1191,9 +1191,8 @@ export function buildPackingSlipEscPos(
         basket.items.forEach((it, idx) => {
           const numPart = `${idx + 1}. `;
           const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
-          const tag = it.tag ? ` [${it.tag}]` : '';
-          const desc = it.description ? ` (${it.description})` : '';
-          enc.twoColumns(`${numPart}${code}${tag}${desc}`, `${it.price.toLocaleString()}`);
+          const desc = (it.description && it.description !== it.controlCode && it.description !== 'Decor') ? ` • ${it.description}` : '';
+          enc.twoColumns(`${numPart}${code}${desc}`, `${it.price.toLocaleString()}`);
         });
       } else if (sec.id === 'totals') {
         enc.bold(true);
@@ -1270,9 +1269,8 @@ export function buildPackingSlipEscPos(
     basket.items.forEach((it, idx) => {
       const numPart = cfg.showItemNumber ? `${idx + 1}. ` : '';
       const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
-      const tag = cfg.showItemTag ? ` [${it.tag || code}]` : '';
-      const desc = (cfg.showItemDescription && it.description) ? ` (${it.description})` : '';
-      const label = `${numPart}${code}${tag}${desc}`;
+      const desc = (it.description && it.description !== it.controlCode && it.description !== 'Decor') ? ` • ${it.description}` : '';
+      const label = `${numPart}${code}${desc}`;
       enc.twoColumns(label, `${it.price.toLocaleString()}`);
     });
 

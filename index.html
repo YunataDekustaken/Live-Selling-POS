@@ -531,8 +531,8 @@
 
                 <!-- Info footer -->
                 <div class="p-2 text-left space-y-0.5 bg-white">
-                  <div class="font-bold text-xs text-zinc-900 truncate">Tag: {{ item.tag }}</div>
-                  <div class="text-[10px] text-zinc-500 truncate font-mono">{{ item.description || 'Live mine' }} • {{ item.time }}</div>
+                  <div class="font-bold text-xs text-zinc-900 truncate">{{ (item.description && item.description !== item.controlCode && item.description !== 'Decor') ? item.description : (item.controlNum ? '#' + item.controlNum : item.controlCode) }}</div>
+                  <div class="text-[10px] text-zinc-500 truncate font-mono">{{ item.time ? 'Mined at ' + item.time : (item.date || 'Live session') }}</div>
                 </div>
               </div>
             </div>
@@ -544,12 +544,12 @@
             
             <div class="border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-200 text-xs font-mono">
               <div v-for="(it, i) in customerCheckoutData.items" :key="it.id" class="p-2.5 flex items-center justify-between bg-zinc-50/50">
-                <div class="flex items-center space-x-2">
+                <div class="flex items-center space-x-2 truncate">
                   <span class="text-zinc-400">{{ i + 1 }}.</span>
                   <span class="font-bold text-zinc-900">{{ it.controlNum ? '#' + it.controlNum : it.controlCode }}</span>
-                  <span class="text-zinc-600 font-sans">({{ it.tag }} - {{ it.description || 'Item' }})</span>
+                  <span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'" class="text-zinc-700 font-sans font-medium">• {{ it.description }}</span>
                 </div>
-                <span class="font-bold text-zinc-900">{{ activeProfile.currency }}{{ it.price.toLocaleString() }}</span>
+                <span class="font-bold text-zinc-900 shrink-0">{{ activeProfile.currency }}{{ it.price.toLocaleString() }}</span>
               </div>
             </div>
 
@@ -1039,17 +1039,15 @@
                 class="flex items-center justify-between p-2.5 rounded-lg border border-zinc-100 bg-zinc-50/40 hover:bg-zinc-50 transition-colors">
                 <div class="flex items-center space-x-2.5 min-w-0">
                   <span class="px-2 py-0.5 rounded bg-zinc-900 text-white font-mono font-bold text-xs shrink-0">
-                    {{ mine.tag }}
+                    {{ mine.controlNum ? '#' + mine.controlNum : mine.controlCode }}
                   </span>
                   <div class="min-w-0">
                     <div class="flex items-center space-x-1.5">
                       <span class="font-bold text-xs text-zinc-900 font-mono truncate">{{ mine.buyer }}</span>
-                      <span class="text-[10px] font-mono text-zinc-400">• {{ mine.controlCode }}</span>
+                      <span v-if="mine.description && mine.description !== mine.controlCode && mine.description !== 'Decor'" class="text-xs text-zinc-700 font-medium truncate">• {{ mine.description }}</span>
                     </div>
-                    <div class="text-[10px] text-zinc-500">
-                      <span v-if="mine.description && mine.description !== 'Decor'">{{ mine.description }} • </span>
-                      <span v-else-if="mine.tag && mine.tag !== mine.controlCode && mine.tag !== 'Decor'">{{ mine.tag }} • </span>
-                      <span>{{ mine.time }}</span>
+                    <div class="text-[10px] text-zinc-500 font-mono">
+                      <span>{{ mine.time || mine.date || sessionDate }}</span>
                     </div>
                   </div>
                 </div>
@@ -1483,11 +1481,8 @@
                     <span class="text-[10px] text-zinc-400 font-mono">{{ mine.time }}</span>
                   </div>
                   <div class="flex items-center space-x-2 mt-0.5">
-                    <span v-if="mine.description && mine.description !== 'Decor'" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-medium border border-zinc-200 truncate max-w-[130px]">
+                    <span v-if="mine.description && mine.description !== mine.controlCode && mine.description !== 'Decor'" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-medium border border-zinc-200 truncate max-w-[130px]">
                       {{ mine.description }}
-                    </span>
-                    <span v-else-if="mine.tag && mine.tag !== mine.controlCode && mine.tag !== 'Decor'" class="px-1.5 py-0.2 rounded bg-zinc-100 text-zinc-700 text-xs font-mono font-medium border border-zinc-200">
-                      {{ mine.tag }}
                     </span>
                     <span class="text-sm font-bold text-zinc-900 font-mono">
                       {{ activeProfile.currency }}{{ mine.price.toLocaleString() }}
@@ -1819,8 +1814,8 @@
                   v-for="it in b.items" 
                   :key="it.id"
                   class="inline-flex items-center space-x-1 px-2 py-0.5 rounded bg-zinc-100 border border-zinc-200 text-xs font-mono text-zinc-800">
-                  <span class="font-bold">{{ it.tag }}</span>
-                  <span v-if="it.description && it.description !== 'Decor'" class="text-zinc-500">({{ it.description }})</span>
+                  <span class="font-bold">{{ it.controlNum ? '#' + it.controlNum : it.controlCode }}</span>
+                  <span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'" class="text-zinc-700 font-sans font-medium">• {{ it.description }}</span>
                   <span class="font-semibold">{{ activeProfile.currency }}{{ it.price }}</span>
                 </span>
               </div>
@@ -1942,9 +1937,8 @@
                   <th class="py-2.5 px-3">Control #</th>
                   <th class="py-2.5 px-3">Customer</th>
                   <th class="py-2.5 px-3">Date</th>
-                  <th class="py-2.5 px-3">Description</th>
+                  <th class="py-2.5 px-3">Item Name</th>
                   <th class="py-2.5 px-3 text-right">Amount</th>
-                  <th class="py-2.5 px-3 text-center">Tags</th>
                   <th class="py-2.5 px-3 text-center">Actions</th>
                 </tr>
               </thead>
@@ -1980,9 +1974,9 @@
                     {{ item.date || sessionDate }} {{ item.time }}
                   </td>
 
-                  <!-- 4. Description -->
+                  <!-- 4. Item Name -->
                   <td class="py-2.5 px-3 whitespace-nowrap">
-                    <span v-if="item.description && item.description !== 'Decor'" class="inline-flex items-center px-2 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 text-[11px] font-sans font-medium">
+                    <span v-if="item.description && item.description !== item.controlCode && item.description !== 'Decor'" class="inline-flex items-center px-2 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 text-[11px] font-sans font-medium">
                       {{ item.description }}
                     </span>
                     <span v-else class="text-zinc-400 text-[11px] font-sans italic">
@@ -1995,14 +1989,7 @@
                     {{ activeProfile.currency }}{{ item.price.toFixed(2) }}
                   </td>
 
-                  <!-- 6. Tag (e.g. B02) -->
-                  <td class="py-2.5 px-3 whitespace-nowrap text-center">
-                    <span class="px-2 py-0.5 rounded bg-zinc-100 text-zinc-800 border border-zinc-200 font-bold text-[11px]">
-                      {{ item.tag }}
-                    </span>
-                  </td>
-
-                  <!-- 7. Actions -->
+                  <!-- 6. Actions -->
                   <td class="py-2.5 px-3 whitespace-nowrap text-center font-sans">
                     <div class="flex items-center justify-center space-x-1">
                       <!-- Reprint Thermal Sticker -->
@@ -4630,14 +4617,14 @@
                   <div class="min-w-0">
                     <div class="flex items-center space-x-1.5 flex-wrap">
                       <span class="font-bold text-zinc-900 font-mono text-xs">{{ item.controlNum ? '#' + item.controlNum : item.controlCode }}</span>
-                      <span class="bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded font-mono font-semibold text-zinc-800 text-[11px]">
-                        Tag: {{ item.tag }}
-                      </span>
-                      <span v-if="item.description" class="bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded font-medium text-zinc-700 text-[11px]">
+                      <span v-if="item.description && item.description !== item.controlCode && item.description !== 'Decor'" class="bg-zinc-100 border border-zinc-200 px-1.5 py-0.5 rounded font-medium text-zinc-800 text-[11px]">
                         {{ item.description }}
                       </span>
                     </div>
-                    <div class="text-[10px] text-zinc-400 font-mono mt-0.5">Mined at {{ item.time }}</div>
+                    <div class="text-[10px] text-zinc-400 font-mono mt-0.5">
+                      <span v-if="item.time">Mined at {{ item.time }}</span>
+                      <span v-else>{{ item.date || sessionDate }}</span>
+                    </div>
                   </div>
                 </div>
                 <div class="flex items-center space-x-2 font-mono shrink-0 pl-2">
@@ -6085,7 +6072,7 @@
 
       <!-- Item Code & Price -->
       <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #000; padding-top: 0.8mm; margin-bottom: 0.8mm;">
-        <span style="font-size: 10.5pt; font-weight: 900;">Tag: {{ activeStickerToPrint.tag }} <span v-if="activeStickerToPrint.description" style="font-size: 8.5pt; font-weight: 700;">({{ activeStickerToPrint.description }})</span></span>
+        <span style="font-size: 10.5pt; font-weight: 900;">{{ (activeStickerToPrint.description && activeStickerToPrint.description !== activeStickerToPrint.controlCode && activeStickerToPrint.description !== 'Decor') ? activeStickerToPrint.description : activeStickerToPrint.controlCode }}</span>
         <span style="font-size: 11pt; font-weight: 900;">{{ activeProfile.currency }}{{ activeStickerToPrint.price }}</span>
       </div>
 
@@ -6154,11 +6141,11 @@
       <!-- Itemized list -->
       <div style="font-size: 8pt; margin-bottom: 2mm;">
         <div style="font-weight: 800; border-bottom: 1px solid #000; display: flex; justify-content: space-between; padding-bottom: 0.5mm; margin-bottom: 1mm;">
-          <span>ITEM / TAG</span>
+          <span>ITEM</span>
           <span>PRICE ({{ activeProfile.currency }})</span>
         </div>
         <div v-for="it in activePackingSlipToPrint.items" :key="it.id" style="display: flex; justify-content: space-between; margin-bottom: 0.8mm;">
-          <span>{{ it.controlNum ? '#' + it.controlNum : it.controlCode }} [{{ it.tag }}]<span v-if="it.description"> ({{ it.description }})</span></span>
+          <span>{{ it.controlNum ? '#' + it.controlNum : it.controlCode }}<span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'"> • {{ it.description }}</span></span>
           <span style="font-weight: 700;">{{ activeProfile.currency }}{{ it.price }}</span>
         </div>
       </div>
@@ -6210,11 +6197,11 @@
       <!-- Itemized list: What Did They Mine -->
       <div style="font-size: 8pt; margin-bottom: 2mm;">
         <div style="font-weight: 800; border-bottom: 1px solid #000; display: flex; justify-content: space-between; padding-bottom: 0.5mm; margin-bottom: 1mm;">
-          <span>ITEM / TAG</span>
+          <span>ITEM</span>
           <span>PRICE ({{ activeProfile.currency }})</span>
         </div>
         <div v-for="it in activeInvoiceToPrint.items" :key="it.id" style="display: flex; justify-content: space-between; margin-bottom: 0.8mm;">
-          <span>{{ it.controlNum ? '#' + it.controlNum : it.controlCode }} [{{ it.tag }}]<span v-if="it.description"> ({{ it.description }})</span></span>
+          <span>{{ it.controlNum ? '#' + it.controlNum : it.controlCode }}<span v-if="it.description && it.description !== it.controlCode && it.description !== 'Decor'"> • {{ it.description }}</span></span>
           <span style="font-weight: 700;">{{ activeProfile.currency }}{{ it.price }}</span>
         </div>
       </div>
