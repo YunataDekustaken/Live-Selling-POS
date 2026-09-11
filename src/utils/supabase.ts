@@ -260,6 +260,39 @@ export async function fetchAppSettingsFromSupabase(): Promise<string | null> {
   return null;
 }
 
+export async function syncLabelProfilesToSupabase(profilesJson: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profilesJson) return;
+  try {
+    await client.from('customer_notes').upsert([{
+      profile_id: '_meta_',
+      buyer: '__saved_label_profiles__',
+      notes: profilesJson
+    }]);
+  } catch (e) {
+    console.warn('Supabase label profiles sync notice:', e);
+  }
+}
+
+export async function fetchLabelProfilesFromSupabase(): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine) return null;
+  try {
+    const { data, error } = await client
+      .from('customer_notes')
+      .select('notes')
+      .eq('profile_id', '_meta_')
+      .eq('buyer', '__saved_label_profiles__')
+      .limit(1);
+    if (!error && data && data.length > 0 && data[0].notes) {
+      return data[0].notes;
+    }
+  } catch (e) {
+    console.warn('fetchLabelProfilesFromSupabase notice:', e);
+  }
+  return null;
+}
+
 export async function pushSinglePaymentToSupabase(payment: PaymentRecord, activeProfileId: string) {
   const client = getSupabaseClient();
   if (!client || !navigator.onLine) return;

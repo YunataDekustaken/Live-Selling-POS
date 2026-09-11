@@ -45,7 +45,9 @@ import {
   syncR2ConfigToSupabase,
   fetchR2ConfigFromSupabase,
   syncAppSettingsToSupabase,
-  fetchAppSettingsFromSupabase
+  fetchAppSettingsFromSupabase,
+  syncLabelProfilesToSupabase,
+  fetchLabelProfilesFromSupabase
 } from './utils/supabase';
 import {
   isWebBluetoothSupported,
@@ -738,6 +740,11 @@ const app = createApp({
           await client.from('customer_notes').upsert(notePayloads);
         }
 
+        const customLabelProfiles = savedLabelProfiles.value.filter(p => !p.isBuiltIn);
+        if (customLabelProfiles.length > 0) {
+          await syncLabelProfilesToSupabase(JSON.stringify(customLabelProfiles));
+        }
+
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         lastSyncedAt.value = nowTime;
         localStorage.setItem('live_pos_last_synced', nowTime);
@@ -1087,6 +1094,19 @@ const app = createApp({
           }
         } catch (settingsSyncErr) {
           console.warn('App settings sync notice:', settingsSyncErr);
+        }
+
+        // Sync saved custom label profiles from database
+        try {
+          const cloudLabelProfilesJson = await fetchLabelProfilesFromSupabase();
+          if (cloudLabelProfilesJson) {
+            const parsed = JSON.parse(cloudLabelProfilesJson);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              mergeCloudLabelProfiles(parsed);
+            }
+          }
+        } catch (labelSyncErr) {
+          console.warn('Label profiles cloud sync notice:', labelSyncErr);
         }
 
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -1795,6 +1815,36 @@ const app = createApp({
       ];
     }
 
+    function mergeCloudLabelProfiles(cloudProfiles: SavedLabelProfile[]) {
+      if (!Array.isArray(cloudProfiles) || cloudProfiles.length === 0) return;
+      const builtIns = getBuiltInLabelProfiles();
+      const currentCustom = savedLabelProfiles.value.filter(p => !p.isBuiltIn);
+      const profileMap = new Map<string, SavedLabelProfile>();
+
+      // Preserve local custom profiles
+      for (const p of currentCustom) {
+        profileMap.set(p.id, p);
+      }
+
+      // Merge in cloud profiles
+      for (const cp of cloudProfiles) {
+        if (!cp || !cp.id) continue;
+        if (Array.isArray(cp.elements)) {
+          for (const el of cp.elements) {
+            if (el.id === 'price' && (el.prefix === 'P' || el.prefix === 'PHP' || !el.prefix)) {
+              el.prefix = '₱';
+            }
+          }
+        }
+        profileMap.set(cp.id, cp);
+      }
+
+      const mergedCustom = Array.from(profileMap.values());
+      savedLabelProfiles.value = [...builtIns, ...mergedCustom];
+      const jsonStr = JSON.stringify(mergedCustom);
+      localStorage.setItem('pos_saved_label_profiles_v1', jsonStr);
+    }
+
     function initSavedLabelProfiles() {
       try {
         const raw = localStorage.getItem('pos_saved_label_profiles_v1');
@@ -1824,11 +1874,32 @@ const app = createApp({
         console.warn('Failed to load label profiles from localStorage:', err);
         savedLabelProfiles.value = getBuiltInLabelProfiles();
       }
+
+      // Automatically fetch and merge custom label profiles from Supabase database
+      fetchLabelProfilesFromSupabase().then(cloudJson => {
+        if (cloudJson) {
+          try {
+            const cloudProfiles = JSON.parse(cloudJson);
+            if (Array.isArray(cloudProfiles) && cloudProfiles.length > 0) {
+              mergeCloudLabelProfiles(cloudProfiles);
+            }
+          } catch (e) {
+            console.warn('Failed parsing cloud label profiles:', e);
+          }
+        }
+      }).catch(err => {
+        console.warn('Supabase label profile initial fetch notice:', err);
+      });
     }
 
     function persistUserLabelProfiles() {
       const customOnly = savedLabelProfiles.value.filter(p => !p.isBuiltIn);
-      localStorage.setItem('pos_saved_label_profiles_v1', JSON.stringify(customOnly));
+      const jsonStr = JSON.stringify(customOnly);
+      localStorage.setItem('pos_saved_label_profiles_v1', jsonStr);
+      // Persist to Supabase database so profiles are permanently saved in cloud
+      syncLabelProfilesToSupabase(jsonStr).catch(err => {
+        console.warn('Supabase label profile sync notice:', err);
+      });
     }
 
     function loadLabelProfile(profileId: string) {
@@ -1879,7 +1950,7 @@ const app = createApp({
       activeLabelProfileId.value = newProfile.id;
       persistUserLabelProfiles();
       showSaveProfileModal.value = false;
-      showToast(`Profile "${name}" saved! Ready for 1-click loading.`);
+      showToast(`Profile "${name}" saved to database & device! Ready for 1-click loading.`);
     }
 
     function deleteUserLabelProfile(profileId: string) {
@@ -1890,7 +1961,7 @@ const app = createApp({
       if (activeLabelProfileId.value === profileId) {
         activeLabelProfileId.value = 'reference_qr';
       }
-      showToast(`Profile "${prof.name}" removed.`);
+      showToast(`Profile "${prof.name}" deleted from database & device.`);
     }
 
     function downloadLabelCoordinates() {
@@ -3456,8 +3527,221 @@ const app = createApp({
       }
     }
 
+    // =========================================================================
+    // ANDROID HARDWARE / GESTURE BACK BUTTON & HISTORY NAVIGATION MANAGER
+    // =========================================================================
+    let isHandlingBackNav = false;
+    let lastRootBackPressTime = 0;
+    const tabHistory: string[] = [];
+    let pushedOverlayCount = 0;
+    let pushedTabCount = 0;
+
+    function finishBackNav() {
+      setTimeout(() => {
+        isHandlingBackNav = false;
+      }, 120);
+    }
+
+    function closeTopmostOverlay(): boolean {
+      if (zoomModalOpen.value) {
+        closePhotoZoom();
+        return true;
+      }
+      if (showSaveProfileModal.value) {
+        showSaveProfileModal.value = false;
+        return true;
+      }
+      if (showPasteCoordinatesModal.value) {
+        showPasteCoordinatesModal.value = false;
+        return true;
+      }
+      if (showIOSGuide.value) {
+        showIOSGuide.value = false;
+        return true;
+      }
+      if (r2GuideModalOpen.value) {
+        r2GuideModalOpen.value = false;
+        return true;
+      }
+      if (collageModalOpen.value) {
+        collageModalOpen.value = false;
+        return true;
+      }
+      if (printerLayoutModalOpen.value) {
+        printerLayoutModalOpen.value = false;
+        return true;
+      }
+      if (paymentModalOpen.value) {
+        paymentModalOpen.value = false;
+        return true;
+      }
+      if (invoiceModalOpen.value) {
+        invoiceModalOpen.value = false;
+        return true;
+      }
+      if (profileEditModalOpen.value) {
+        profileEditModalOpen.value = false;
+        return true;
+      }
+      if (profileModalOpen.value) {
+        profileModalOpen.value = false;
+        return true;
+      }
+      if (settingsModalOpen.value) {
+        settingsModalOpen.value = false;
+        return true;
+      }
+      if (appMenuOpen.value) {
+        appMenuOpen.value = false;
+        return true;
+      }
+      if (isCustomerCheckoutView.value) {
+        isCustomerCheckoutView.value = false;
+        return true;
+      }
+      return false;
+    }
+
+    const openOverlayCount = computed(() => {
+      let count = 0;
+      if (zoomModalOpen.value) count++;
+      if (showSaveProfileModal.value) count++;
+      if (showPasteCoordinatesModal.value) count++;
+      if (showIOSGuide.value) count++;
+      if (r2GuideModalOpen.value) count++;
+      if (collageModalOpen.value) count++;
+      if (printerLayoutModalOpen.value) count++;
+      if (paymentModalOpen.value) count++;
+      if (invoiceModalOpen.value) count++;
+      if (profileEditModalOpen.value) count++;
+      if (profileModalOpen.value) count++;
+      if (settingsModalOpen.value) count++;
+      if (appMenuOpen.value) count++;
+      if (isCustomerCheckoutView.value) count++;
+      return count;
+    });
+
+    function setupAndroidBackNavigation() {
+      if (typeof window === 'undefined' || !window.history || typeof window.history.pushState !== 'function') {
+        return;
+      }
+
+      // Initialize base history state so pressing Android back doesn't immediately close the webview/app
+      window.history.replaceState({ app: 'live_pos', isBase: true }, '');
+      window.history.pushState({ app: 'live_pos', root: true, tab: currentTab.value }, '');
+
+      // Watch modal overlays to push history entries or sync UI closes
+      watch(openOverlayCount, (newCount, oldCount) => {
+        if (isHandlingBackNav) return;
+        if (newCount > oldCount) {
+          const diff = newCount - oldCount;
+          for (let i = 0; i < diff; i++) {
+            pushedOverlayCount++;
+            window.history.pushState({ app: 'live_pos', overlayLevel: pushedOverlayCount }, '');
+          }
+        } else if (newCount < oldCount) {
+          // Overlays closed via UI buttons or backdrop clicks
+          const diff = oldCount - newCount;
+          const toPop = Math.min(diff, pushedOverlayCount);
+          if (toPop > 0) {
+            pushedOverlayCount -= toPop;
+            isHandlingBackNav = true;
+            for (let i = 0; i < toPop; i++) {
+              window.history.back();
+            }
+            finishBackNav();
+          }
+        }
+      });
+
+      // Watch tab changes to remember previous tab in navigation history
+      watch(currentTab, (newTab, oldTab) => {
+        if (isHandlingBackNav) return;
+        if (newTab !== oldTab) {
+          if (oldTab && oldTab !== newTab) {
+            if (tabHistory.length === 0 || tabHistory[tabHistory.length - 1] !== oldTab) {
+              tabHistory.push(oldTab);
+              if (tabHistory.length > 8) tabHistory.shift();
+            }
+          }
+          if (newTab === 'dashboard') {
+            tabHistory.length = 0;
+            pushedTabCount = 0;
+          } else {
+            pushedTabCount++;
+            window.history.pushState({ app: 'live_pos', tab: newTab }, '');
+          }
+        }
+      });
+
+      // Unified back button handler for Android popstate
+      function handleBackAction() {
+        if (isHandlingBackNav) {
+          isHandlingBackNav = false;
+          return;
+        }
+
+        isHandlingBackNav = true;
+
+        // 1. Close any open modal overlay or subview first
+        if (closeTopmostOverlay()) {
+          if (pushedOverlayCount > 0) pushedOverlayCount--;
+          finishBackNav();
+          return;
+        }
+
+        // 2. If in Visual Designer Studio, exit back to previous tab
+        if (currentTab.value === 'designer') {
+          exitDesigner();
+          if (pushedTabCount > 0) pushedTabCount--;
+          finishBackNav();
+          return;
+        }
+
+        // 3. Return to the previous tab if available
+        if (tabHistory.length > 0) {
+          const prev = tabHistory.pop();
+          if (prev && prev !== currentTab.value) {
+            currentTab.value = prev;
+            if (pushedTabCount > 0) pushedTabCount--;
+            finishBackNav();
+            return;
+          }
+        } else if (currentTab.value !== 'dashboard') {
+          currentTab.value = 'dashboard';
+          pushedTabCount = 0;
+          finishBackNav();
+          return;
+        }
+
+        // 4. Root Screen (Dashboard with all modals closed):
+        // Prevent accidental app closure: require double-tap back within 2 seconds
+        finishBackNav();
+        const now = Date.now();
+        if (now - lastRootBackPressTime < 2000) {
+          // Double-back confirmed: allow Android to exit app
+          window.history.back();
+        } else {
+          lastRootBackPressTime = now;
+          showToast('Press back again to exit LiveSeller POS');
+          window.history.pushState({ app: 'live_pos', root: true, tab: 'dashboard' }, '');
+        }
+      }
+
+      window.addEventListener('popstate', handleBackAction);
+
+      // Support Cordova / Capacitor / WebView hardware backbutton event if present
+      document.addEventListener('backbutton', (e: any) => {
+        if (e && typeof e.preventDefault === 'function') {
+          e.preventDefault();
+        }
+        handleBackAction();
+      }, false);
+    }
+
     onMounted(() => {
       initSavedLabelProfiles();
+      setupAndroidBackNavigation();
       checkAndApplyDailyRollover();
       syncActiveStoreForm();
       nextTick(() => {
