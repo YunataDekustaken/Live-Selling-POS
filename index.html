@@ -6071,17 +6071,30 @@
           <!-- ================= TAB 1: DIGITAL SCANNER ================= -->
           <div v-show="packingActiveTab === 'scanner'" class="space-y-4">
             <!-- Camera Viewfinder Box -->
-            <div class="relative bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-800 shadow-inner flex flex-col items-center justify-center min-h-[250px] p-2">
+            <div class="relative bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-800 shadow-inner flex flex-col items-center justify-center min-h-[260px] p-2">
               <!-- Live Video Container for Html5Qrcode -->
-              <div id="packing-qr-reader" class="w-full max-w-[320px] overflow-hidden rounded-xl"></div>
+              <div id="packing-qr-reader" class="w-full max-w-[340px] overflow-hidden rounded-xl"></div>
 
-              <!-- Camera Controls Overlay -->
-              <div class="absolute top-2.5 right-2.5 flex items-center space-x-1 z-10">
+              <!-- Camera Controls Overlay (Top Right) -->
+              <div class="absolute top-2.5 right-2.5 flex items-center space-x-1.5 z-10">
+                <!-- Flashlight / Torch Button -->
+                <button 
+                  v-if="packingScannerActive && scannerTorchSupported"
+                  @click="toggleScannerTorch" 
+                  type="button"
+                  :title="scannerTorchOn ? 'Turn Flashlight Off' : 'Turn Flashlight On'"
+                  class="px-2.5 py-1.5 rounded-lg font-bold text-[11px] shadow-sm flex items-center space-x-1 cursor-pointer transition-all border"
+                  :class="scannerTorchOn ? 'bg-amber-400 border-amber-300 text-zinc-950 shadow-amber-400/40' : 'bg-zinc-850/90 border-zinc-700 text-zinc-350 hover:bg-zinc-700 hover:text-white'">
+                  <span>{{ scannerTorchOn ? '🔦' : '⚡' }}</span>
+                  <span>{{ scannerTorchOn ? 'Flash On' : 'Flash' }}</span>
+                </button>
+
+                <!-- Start / Pause Scanner Button -->
                 <button 
                   v-if="!packingScannerActive"
                   @click="startPackingScanner" 
                   type="button"
-                  class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] shadow-sm flex items-center space-x-1 cursor-pointer">
+                  class="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-sm flex items-center space-x-1 cursor-pointer">
                   <span>▶</span>
                   <span>Start Camera</span>
                 </button>
@@ -6089,17 +6102,62 @@
                   v-else
                   @click="stopPackingScanner" 
                   type="button"
-                  class="px-2.5 py-1 rounded-lg bg-zinc-850/80 hover:bg-zinc-700 text-zinc-200 font-semibold text-[10px] shadow-sm flex items-center space-x-1 cursor-pointer">
+                  class="px-2.5 py-1.5 rounded-lg bg-zinc-850/90 hover:bg-zinc-700 text-zinc-200 font-semibold text-[11px] shadow-sm flex items-center space-x-1 cursor-pointer border border-zinc-700">
                   <span>⏹</span>
-                  <span>Pause Camera</span>
+                  <span>Pause</span>
                 </button>
+              </div>
+
+              <!-- Camera Hardware Zoom Control Bar (When Camera is Active & Zoom is Supported) -->
+              <div v-if="packingScannerActive && scannerZoomSupported && scannerZoomMax > 1" 
+                class="absolute bottom-10 inset-x-4 flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-zinc-950/85 backdrop-blur-md border border-zinc-800 text-zinc-200 z-10">
+                <span class="text-[10px] font-bold text-zinc-400 shrink-0">🔍 Zoom</span>
+                
+                <!-- Zoom Presets (1x, 2x, 3x) -->
+                <div class="flex items-center space-x-1">
+                  <button 
+                    @click="setScannerZoom(1)" 
+                    type="button"
+                    class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold cursor-pointer transition-all"
+                    :class="Math.abs(scannerCurrentZoom - 1) < 0.2 ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'">
+                    1x
+                  </button>
+                  <button 
+                    v-if="scannerZoomMax >= 2"
+                    @click="setScannerZoom(2)" 
+                    type="button"
+                    class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold cursor-pointer transition-all"
+                    :class="Math.abs(scannerCurrentZoom - 2) < 0.2 ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'">
+                    2x
+                  </button>
+                  <button 
+                    v-if="scannerZoomMax >= 3"
+                    @click="setScannerZoom(3)" 
+                    type="button"
+                    class="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold cursor-pointer transition-all"
+                    :class="Math.abs(scannerCurrentZoom - 3) < 0.2 ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'">
+                    3x
+                  </button>
+                </div>
+
+                <!-- Continuous Slider for Fine Zoom Control -->
+                <input 
+                  type="range"
+                  :min="scannerZoomMin"
+                  :max="scannerZoomMax"
+                  :step="scannerZoomStep || 0.1"
+                  :value="scannerCurrentZoom"
+                  @input="onZoomSliderInput($event)"
+                  class="w-24 accent-amber-500 cursor-pointer h-1.5 bg-zinc-700 rounded-lg"
+                />
+                <span class="text-[10px] font-mono font-bold text-amber-400 shrink-0">{{ scannerCurrentZoom.toFixed(1) }}x</span>
               </div>
 
               <!-- Camera Status Indicator -->
               <div class="absolute bottom-2 inset-x-0 flex justify-center pointer-events-none z-10">
                 <span class="px-2.5 py-1 rounded-full text-[10px] font-mono font-medium backdrop-blur-md"
                   :class="packingScannerActive ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40' : 'bg-zinc-900/80 text-zinc-400 border border-zinc-700'">
-                  {{ packingScannerActive ? '● Camera Active — Scan sticker QR or Barcode' : 'Camera paused' }}
+                  {{ packingScannerActive ? '● Camera Active — Ready to scan QR / Barcode' : 'Camera paused' }}
                 </span>
               </div>
             </div>

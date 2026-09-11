@@ -94,7 +94,7 @@ import {
 } from './utils/r2Storage';
 import QRCode from 'qrcode';
 import { playSuccessBeep, playErrorBuzz } from './utils/audioFeedback';
-import { LiveScannerController } from './utils/qrScanner';
+import { LiveScannerController, ScannerCapabilities } from './utils/qrScanner';
 
 const app = createApp({
   setup() {
@@ -2854,6 +2854,13 @@ const app = createApp({
     const packingScannerActive = ref(false);
     const packingManualCodeInput = ref('');
     const isPrintingPackingSlip = ref(false);
+    const scannerTorchSupported = ref(false);
+    const scannerTorchOn = ref(false);
+    const scannerZoomSupported = ref(false);
+    const scannerZoomMin = ref(1);
+    const scannerZoomMax = ref(1);
+    const scannerZoomStep = ref(0.1);
+    const scannerCurrentZoom = ref(1);
     let packingScannerInstance: LiveScannerController | null = null;
     let scanCooldownTimer: any = null;
 
@@ -2913,9 +2920,20 @@ const app = createApp({
         packingScannerInstance = new LiveScannerController('packing-qr-reader');
       }
       packingScannerActive.value = true;
-      const started = await packingScannerInstance.start((decodedText) => {
-        handlePackingScanCode(decodedText);
-      });
+      const started = await packingScannerInstance.start(
+        (decodedText) => {
+          handlePackingScanCode(decodedText);
+        },
+        (caps: ScannerCapabilities) => {
+          scannerTorchSupported.value = caps.hasTorch;
+          scannerTorchOn.value = caps.torchOn;
+          scannerZoomSupported.value = caps.hasZoom;
+          scannerZoomMin.value = caps.minZoom;
+          scannerZoomMax.value = caps.maxZoom;
+          scannerZoomStep.value = caps.stepZoom;
+          scannerCurrentZoom.value = caps.currentZoom;
+        }
+      );
       if (!started) {
         packingScannerActive.value = false;
       }
@@ -2926,6 +2944,28 @@ const app = createApp({
         await packingScannerInstance.stop();
       }
       packingScannerActive.value = false;
+      scannerTorchOn.value = false;
+      scannerCurrentZoom.value = 1;
+    }
+
+    async function toggleScannerTorch() {
+      if (!packingScannerInstance) return;
+      const state = await packingScannerInstance.toggleTorch();
+      scannerTorchOn.value = state;
+    }
+
+    async function setScannerZoom(zoomVal: number) {
+      if (!packingScannerInstance) return;
+      const applied = await packingScannerInstance.setZoom(zoomVal);
+      scannerCurrentZoom.value = applied;
+    }
+
+    function onZoomSliderInput(event: Event) {
+      const target = event.target as HTMLInputElement | null;
+      if (!target) return;
+      const val = parseFloat(target.value);
+      if (isNaN(val)) return;
+      setScannerZoom(val);
     }
 
     function handlePackingScanCode(rawCode: string) {
@@ -2933,19 +2973,44 @@ const app = createApp({
       if (scanCooldownTimer) return;
       scanCooldownTimer = setTimeout(() => { scanCooldownTimer = null; }, 900);
 
-      const cleanCode = rawCode.trim().toUpperCase().replace(/^#+/, '').replace(/^\[\s*|\s*\]$/g, '');
+      // Clean the scanned payload: strips brackets, quotes, hash signs, spaces
+      const cleanCode = rawCode.trim().toUpperCase()
+        .replace(/^\[\s*|\s*\]$/g, '')
+        .replace(/^#+/, '')
+        .replace(/"/g, '')
+        .trim();
+
       const buyerHandle = activePackingBuyer.value.handle;
       const buyerClean = buyerHandle.replace(/^@+/, '').toLowerCase();
 
-      // Normalize match helper
+      // Normalize match helper: matches either the full code (e.g. L0911-001),
+      // the trailing sequence (e.g. 001, 1), the numeric controlNum, or the Tag
       const matchesItem = (it: MinedItem) => {
-        const cCode = (it.controlCode || '').toUpperCase().replace(/^#+/, '').replace(/^\[\s*|\s*\]$/g, '');
+        const cCode = (it.controlCode || '').toUpperCase()
+          .replace(/^\[\s*|\s*\]$/g, '')
+          .replace(/^#+/, '')
+          .replace(/"/g, '')
+          .trim();
         const cNum = it.controlNum !== undefined ? String(it.controlNum).toUpperCase() : '';
-        const tag = (it.tag || '').toUpperCase().replace(/^#+/, '');
-        return cCode === cleanCode ||
-               cNum === cleanCode ||
-               (cCode && cCode.endsWith(cleanCode)) ||
-               (tag && tag === cleanCode);
+        const tag = (it.tag || '').toUpperCase().replace(/^#+/, '').trim();
+
+        if (cCode === cleanCode || cNum === cleanCode || tag === cleanCode) {
+          return true;
+        }
+
+        // Check if scanned code ends with or starts with the control code
+        if (cleanCode && cCode && (cCode.endsWith(cleanCode) || cleanCode.endsWith(cCode))) {
+          return true;
+        }
+
+        // Match numeric extraction (e.g. barcode "001" vs controlCode "L0911-001" or "#001")
+        const cleanDigits = cleanCode.replace(/\D/g, '');
+        const cCodeDigits = cCode.replace(/\D/g, '');
+        if (cleanDigits && cCodeDigits && (cleanDigits === cCodeDigits || cCodeDigits.endsWith(cleanDigits))) {
+          return true;
+        }
+
+        return false;
       };
 
       // 1. Check if the scanned code matches an item belonging to this active packing buyer
@@ -6565,6 +6630,15 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       packingScannerActive,
       packingManualCodeInput,
       isPrintingPackingSlip,
+      scannerTorchSupported,
+      scannerTorchOn,
+      scannerZoomSupported,
+      scannerZoomMin,
+      scannerZoomMax,
+      scannerCurrentZoom,
+      toggleScannerTorch,
+      setScannerZoom,
+      onZoomSliderInput,
       lastScannedResult,
       getBuyerPackedCount,
       isBuyerAllPacked,
