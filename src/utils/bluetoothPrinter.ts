@@ -4,6 +4,7 @@
  */
 
 import {
+  buildStickerCanvasRaster,
   buildStickerEscPos,
   buildStickerTSPL,
   buildFeedGapEscPos,
@@ -238,14 +239,17 @@ export async function printDirectSticker(
     currency?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 24,
+  paperCols: number = 16,
   layoutConfig?: LabelLayoutSettings
 ): Promise<boolean> {
   let bytes: Uint8Array;
-  if (layoutConfig && layoutConfig.protocol === 'tspl') {
+  if (layoutConfig?.renderMode === 'tspl_hardware' || (layoutConfig?.protocol === 'tspl' && layoutConfig?.renderMode !== 'canvas_bitmap' && layoutConfig?.renderMode !== 'escpos_compact')) {
     bytes = buildStickerTSPL(mine, profile, sessionDate, layoutConfig);
-  } else {
+  } else if (layoutConfig?.renderMode === 'escpos_compact') {
     bytes = buildStickerEscPos(mine, profile, sessionDate, paperCols, layoutConfig);
+  } else {
+    // Default & Recommended: Canvas Raster Graphic (Pixel-Perfect Designer Match, Zero Wide Error, Exact 1 Sticker)
+    bytes = await buildStickerCanvasRaster(mine, profile, sessionDate, layoutConfig);
   }
   return await sendEscPosBytes(bytes);
 }

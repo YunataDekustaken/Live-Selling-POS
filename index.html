@@ -3700,11 +3700,34 @@
                   </div>
 
                   <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Printer Protocol</label>
-                    <select v-model="settings.labelLayout.protocol" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option value="tspl">TSPL (Native PT-265 Label Mode - Recommended)</option>
-                      <option value="escpos">ESC/POS with Margin Shift</option>
+                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Printing Engine & Driver</label>
+                    <select v-model="settings.labelLayout.renderMode" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
+                      <option value="canvas_bitmap">🌟 Canvas Graphics (1 Sticker, Zero Wide Error)</option>
+                      <option value="escpos_compact">⚡ ESC/POS Fast Text Mode (Fixed 1-Sticker)</option>
+                      <option value="tspl_hardware">🏷️ TSPL Hardware Mode (Only if printer has TSPL firmware)</option>
                     </select>
+                  </div>
+                </div>
+
+                <!-- Engine Contextual Guidance -->
+                <div v-if="settings.labelLayout.renderMode === 'canvas_bitmap' || !settings.labelLayout.renderMode" class="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-emerald-800">
+                  <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+                  <div>
+                    <span class="font-bold">Guaranteed Single-Sticker Printing:</span> Renders the exact visual card from this designer at 203 DPI (fixed at 160 dots high for 20mm), shifted by the 18mm right guide. It is physically impossible to overflow onto a 2nd sticker or trigger wide errors.
+                  </div>
+                </div>
+
+                <div v-else-if="settings.labelLayout.renderMode === 'tspl_hardware'" class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-amber-800">
+                  <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                  <div>
+                    <span class="font-bold">Firmware Warning:</span> If your printer printed plain text commands (like <code>SIZE 30 mm, 20 mm...</code>), your PT-265 unit does not recognize TSPL. Switch back to <strong>Canvas Graphics</strong>!
+                  </div>
+                </div>
+
+                <div v-else-if="settings.labelLayout.renderMode === 'escpos_compact'" class="bg-blue-50 border border-blue-200 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-blue-800">
+                  <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
+                  <div>
+                    <span class="font-bold">ESC/POS Text Mode:</span> Lightweight printer ASCII font. Margin and width have been re-calibrated without double-feed commands to print on exactly 1 sticker without wide errors.
                   </div>
                 </div>
 

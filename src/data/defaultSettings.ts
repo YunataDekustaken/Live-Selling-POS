@@ -2,8 +2,8 @@ import type { AppSettings, LabelLayoutSettings, ReceiptLayoutSettings } from '..
 
 export const defaultLabelLayout: LabelLayoutSettings = {
   labelSize: '30x20mm',
-  protocol: 'escpos', // ESC/POS with gap advance for PT-265 & 58mm label printers
-  renderMode: 'escpos_compact',
+  protocol: 'escpos', // Standard ESC/POS for PT-265 & 58mm label printers
+  renderMode: 'canvas_bitmap', // Pixel-perfect 1-sticker Canvas Graphics (zero wide error, guaranteed 1 sticker)
   paperGuidePosition: 'right', // PT-265 guide pushes roll to right side
   horizontalOffsetMm: 18, // 18mm (~144 dots) right-side offset on 58mm printhead
   verticalOffsetMm: 0,

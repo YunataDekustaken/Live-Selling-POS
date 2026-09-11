@@ -1558,7 +1558,7 @@ const app = createApp({
       try {
         const item = samplePreviewItem.value;
         const is30x20 = settings.value.labelLayout?.labelSize === '30x20mm';
-        const cols = is30x20 ? 24 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
+        const cols = is30x20 ? 16 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
         await printDirectSticker(item, activeProfile.value, sessionDate.value, cols, settings.value.labelLayout);
         showToast(`Label test sent to ${btPrinterName.value || 'PT-265'}`);
       } catch (e: any) {
@@ -1575,7 +1575,7 @@ const app = createApp({
         }
       }
       try {
-        const protocol = settings.value.labelLayout?.protocol === 'tspl' ? 'tspl' : 'escpos';
+        const protocol = (settings.value.labelLayout?.renderMode === 'tspl_hardware' || settings.value.labelLayout?.protocol === 'tspl') ? 'tspl' : 'escpos';
         await feedToNextLabelGap(protocol, settings.value.labelLayout);
         showToast('PT-265: Fed precisely to sticker cutoff gap!');
       } catch (e: any) {
@@ -1620,7 +1620,7 @@ const app = createApp({
       }
       try {
         const is30x20 = settings.value.labelLayout?.labelSize === '30x20mm';
-        const cols = is30x20 ? 24 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
+        const cols = is30x20 ? 16 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
         await printDirectSticker(mine, activeProfile.value, sessionDate.value, cols, settings.value.labelLayout);
         showToast(`Sticker printed to ${btPrinterName.value || 'PT-265'}`);
       } catch (err: any) {
@@ -1822,7 +1822,7 @@ const app = createApp({
       if (settings.value.escPosDirectPrint && btPrinterConnected.value) {
         try {
           const is30x20 = settings.value.labelLayout?.labelSize === '30x20mm';
-          const cols = is30x20 ? 24 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
+          const cols = is30x20 ? 16 : (settings.value.printerPaperWidth === '80mm' ? 48 : 32);
           await printDirectSticker(mine, activeProfile.value, sessionDate.value, cols, settings.value.labelLayout);
           showToast(`Sticker printed to ${btPrinterName.value || 'PT-265'}`);
           return;

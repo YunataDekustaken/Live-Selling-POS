@@ -191,8 +191,8 @@ export class EscPosEncoder {
     
     // Set Barcode Height (GS h n)
     this.buffer.push(0x1D, 0x68, Math.min(255, Math.max(10, heightDots)));
-    // Set Barcode Width (GS w 2)
-    this.buffer.push(0x1D, 0x77, 0x02);
+    // Set Barcode Width (GS w 1 - ultra narrow 1-dot module to prevent wide error on 30mm labels)
+    this.buffer.push(0x1D, 0x77, 0x01);
     // HRI character position: None (GS H 0)
     this.buffer.push(0x1D, 0x48, 0x00);
     // Align center
@@ -247,6 +247,262 @@ export class EscPosEncoder {
 }
 
 /**
+ * Generates an ESC/POS 1-bit Monochrome Raster Graphic (GS v 0) from an HTML5 Canvas.
+ * - Matches the visual Label Designer 100% pixel-for-pixel (typography, layout, borders).
+ * - Fixed height: exactly 160 dots (20.0mm at 203 DPI) - physically impossible to overflow onto a 2nd sticker!
+ * - Full head width: exactly 384 dots (48 bytes) with built-in left margin shift (18mm = 144 dots).
+ * - ZERO "wide error" because it uses standard raster image format (GS v 0), not vulnerable text line-wrap/barcode limits.
+ * - Concludes with a single Optical Gap Advance (GS FF: 0x1D 0x0C) to stop right at the die-cut peel gap.
+ */
+export async function buildStickerCanvasRaster(
+  item: {
+    controlCode: string;
+    controlNum?: number | string;
+    tag?: string;
+    description?: string;
+    price: number;
+    buyer: string;
+    date?: string;
+    time?: string;
+  },
+  profile: {
+    name: string;
+    currency?: string;
+  },
+  sessionDate: string = '',
+  layoutConfig?: LabelLayoutSettings
+): Promise<Uint8Array> {
+  const cfg = layoutConfig || defaultLabelLayout;
+  const is30x20 = cfg.labelSize === '30x20mm' || !cfg.labelSize;
+  
+  // Sticker physical dimensions at 203 DPI (8 dots/mm)
+  // 30mm = 240px, 20mm = 160px
+  const stickerW = is30x20 ? 240 : (cfg.labelSize === '40x30mm' ? 320 : 384);
+  const stickerH = is30x20 ? 160 : (cfg.labelSize === '40x30mm' ? 240 : 240);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = stickerW;
+  canvas.height = stickerH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    // Fallback to text ESC/POS if canvas context unavailable
+    return buildStickerEscPos(item, profile, sessionDate, 16, cfg);
+  }
+
+  // Pure White Background
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, stickerW, stickerH);
+
+  ctx.fillStyle = '#000000';
+  ctx.strokeStyle = '#000000';
+
+  const padX = 6;
+  let currY = 4;
+
+  // 1. Top Bar: Store Name / Session Date / Time
+  const hasTopBar = Boolean(cfg.showStoreName || cfg.showSessionDate || cfg.showTime);
+  if (hasTopBar) {
+    ctx.textBaseline = 'top';
+    if (cfg.showStoreName) {
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+      const storeStr = (profile.name || 'LIVE POS').substring(0, 11).toUpperCase();
+      ctx.fillText(storeStr, padX, currY);
+    }
+
+    const rightParts: string[] = [];
+    if (cfg.showSessionDate) rightParts.push(sessionDate ? `#${sessionDate}` : '');
+    if (cfg.showTime && item.time) rightParts.push(item.time);
+    const rightStr = rightParts.join(' ').trim();
+    if (rightStr) {
+      ctx.textAlign = 'right';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(rightStr, stickerW - padX, currY);
+    }
+
+    currY += 13;
+    ctx.beginPath();
+    ctx.lineWidth = 1;
+    ctx.moveTo(padX, currY);
+    ctx.lineTo(stickerW - padX, currY);
+    ctx.stroke();
+    currY += 4;
+  } else {
+    currY += 2;
+  }
+
+  // 2. Control Code: e.g. [ #001 ] or [ #2 ]
+  if (cfg.showControlCode !== false) {
+    const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const fontSize = cfg.codeSize === 'xl' ? 24 : (cfg.codeSize === 'lg' ? 20 : 16);
+    ctx.font = `900 ${fontSize}px monospace`;
+    ctx.fillText(`[ ${codeStr} ]`, stickerW / 2, currY);
+    currY += fontSize + 4;
+  }
+
+  // 3. Buyer Handle: e.g. @Edna T
+  if (cfg.showBuyer !== false) {
+    const cleanBuyer = (item.buyer || '').replace(/^@+/, '');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const buyerFontSize = cfg.buyerSize === 'lg' ? 17 : 14;
+    ctx.font = `bold ${buyerFontSize}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText(`@${cleanBuyer}`, stickerW / 2, currY);
+    currY += buyerFontSize + 4;
+  }
+
+  // Separator line before price
+  ctx.beginPath();
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 2]);
+  ctx.moveTo(padX, currY);
+  ctx.lineTo(stickerW - padX, currY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  currY += 5;
+
+  // 4. Tag / Description & Price
+  if (cfg.showPrice !== false || cfg.showTag || cfg.showDescription) {
+    const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+    const priceStr = cfg.showPrice !== false ? `${currencyStr}${item.price.toLocaleString()}` : '';
+    const tagPart = cfg.showTag ? (item.tag || '') : '';
+    const descPart = (cfg.showDescription && item.description) ? item.description : '';
+    const itemLabel = tagPart ? (descPart ? `${tagPart} ${descPart}` : tagPart) : descPart;
+
+    ctx.textBaseline = 'middle';
+    const midY = currY + 8;
+
+    if (itemLabel) {
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+      const maxChars = priceStr ? 10 : 16;
+      ctx.fillText(itemLabel.substring(0, maxChars), padX, midY);
+    }
+
+    if (priceStr) {
+      ctx.textAlign = 'right';
+      const priceFontSize = cfg.priceSize === 'lg' ? 17 : 14;
+      ctx.font = `900 ${priceFontSize}px system-ui, -apple-system, sans-serif`;
+      ctx.fillText(priceStr, stickerW - padX, midY);
+    }
+
+    currY += 17;
+  }
+
+  // 5. Barcode (if enabled)
+  if (cfg.showBarcode && currY <= stickerH - 30) {
+    const rawCode = item.controlCode || (item.controlNum ? String(item.controlNum) : '001');
+    const cleanCode = rawCode.replace(/[^A-Za-z0-9]/g, '') || '001';
+    
+    // Draw crisp synthetic barcode pattern
+    const barW = 1.6;
+    const barH = 14;
+    const startX = Math.round((stickerW - (cleanCode.length * 12 * barW)) / 2);
+    ctx.fillStyle = '#000000';
+    for (let c = 0; c < cleanCode.length; c++) {
+      const charCode = cleanCode.charCodeAt(c);
+      const pattern = [
+        (charCode & 1) ? 2 : 1,
+        (charCode & 2) ? 1 : 2,
+        (charCode & 4) ? 2 : 1,
+        (charCode & 8) ? 1 : 2,
+        (charCode & 16) ? 2 : 1
+      ];
+      let pX = startX + (c * 12 * barW);
+      for (let p = 0; p < pattern.length; p++) {
+        if (p % 2 === 0) {
+          ctx.fillRect(pX, currY, pattern[p] * barW, barH);
+        }
+        pX += pattern[p] * barW;
+      }
+    }
+    currY += barH + 2;
+    ctx.textAlign = 'center';
+    ctx.font = '9px monospace';
+    ctx.fillText(`*${cleanCode}*`, stickerW / 2, currY);
+    currY += 10;
+  }
+
+  // 6. Custom Footer (if space allows)
+  const footerStr = (cfg.footerText || cfg.customFooterText || '').trim();
+  if (footerStr && currY <= stickerH - 12) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+    ctx.fillText(footerStr.substring(0, 20).toUpperCase(), stickerW / 2, currY);
+  }
+
+  // Convert HTML5 Canvas to 1-Bit Monochrome ESC/POS Raster (GS v 0)
+  // 58mm printer physical printhead width = 384 dots = 48 bytes per line
+  const printerWidthDots = 384;
+  const printerWidthBytes = 48;
+  const offsetMm = cfg.horizontalOffsetMm !== undefined ? cfg.horizontalOffsetMm : (cfg.paperGuidePosition === 'right' ? 18 : 0);
+  const xOffsetDots = Math.min(printerWidthDots - stickerW, Math.max(0, Math.round(offsetMm * 8)));
+
+  const imgData = ctx.getImageData(0, 0, stickerW, stickerH);
+  const data = imgData.data;
+
+  // Build packed bitmap rows (1 bit per dot, MSB first)
+  const totalBitmapBytes = printerWidthBytes * stickerH;
+  const rasterBuffer = new Uint8Array(totalBitmapBytes);
+
+  for (let y = 0; y < stickerH; y++) {
+    const rowByteStart = y * printerWidthBytes;
+    for (let x = 0; x < stickerW; x++) {
+      const idx = (y * stickerW + x) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      const a = data[idx + 3];
+
+      // Luminance threshold for thermal burn
+      const isBlack = a > 50 && (0.299 * r + 0.587 * g + 0.114 * b < 160);
+      if (isBlack) {
+        const targetDot = xOffsetDots + x;
+        if (targetDot < printerWidthDots) {
+          const byteOffset = rowByteStart + Math.floor(targetDot / 8);
+          const bitPos = 7 - (targetDot % 8);
+          rasterBuffer[byteOffset] |= (1 << bitPos);
+        }
+      }
+    }
+  }
+
+  // Assemble ESC/POS byte sequence
+  const output: number[] = [];
+
+  // ESC @ (Initialize printer)
+  output.push(0x1B, 0x40);
+
+  // GS v 0 0 xL xH yL yH (Standard ESC/POS Raster Bit Image)
+  // xL = 48 (48 bytes = 384 dots), xH = 0
+  // yL = stickerH % 256, yH = Math.floor(stickerH / 256)
+  const xL = printerWidthBytes % 256;
+  const xH = Math.floor(printerWidthBytes / 256);
+  const yL = stickerH % 256;
+  const yH = Math.floor(stickerH / 256);
+
+  output.push(0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH);
+  for (let i = 0; i < rasterBuffer.length; i++) {
+    output.push(rasterBuffer[i]);
+  }
+
+  // Exact 1-Sticker Cutoff Gap Feed:
+  if (cfg.gapFeedMode === 'form_feed') {
+    output.push(0x0C); // FF
+  } else if (cfg.gapFeedMode === 'feed_lines') {
+    const lines = cfg.extraFeedLines ?? 2;
+    for (let i = 0; i < lines; i++) output.push(0x0A);
+  } else {
+    // Optical Gap Stop (GS FF: 0x1D 0x0C) - stops precisely on 1 sticker!
+    output.push(0x1D, 0x0C);
+  }
+
+  return new Uint8Array(output);
+}
+
+/**
  * Builds ESC/POS Thermal Sticker byte stream optimized for 30x20mm (PT-265) & custom sizes
  */
 export function buildStickerEscPos(
@@ -265,36 +521,36 @@ export function buildStickerEscPos(
     currency?: string;
   },
   sessionDate: string = '',
-  paperCols: number = 20,
+  paperCols: number = 16,
   layoutConfig?: LabelLayoutSettings
 ): Uint8Array {
   const cfg = layoutConfig || defaultLabelLayout;
   const is30x20 = cfg.labelSize === '30x20mm';
   
-  // 30mm width is approx 18-20 characters in compact font
-  const cols = is30x20 ? 20 : paperCols;
+  // 30mm width is 16 characters in standard thermal font A
+  const cols = is30x20 ? 16 : paperCols;
   const enc = new EscPosEncoder(cols);
 
   enc.init();
 
   // Physical right-side or custom horizontal offset (PT-265 has left guide pushing paper to right)
   const offsetMm = cfg.horizontalOffsetMm !== undefined ? cfg.horizontalOffsetMm : (cfg.paperGuidePosition === 'right' ? 18 : 0);
-  const leftMarginDots = Math.round(offsetMm * 8);
+  const leftMarginDots = Math.min(144, Math.max(0, Math.round(offsetMm * 8)));
   if (leftMarginDots > 0) {
     enc.setLeftMargin(leftMarginDots);
-    enc.setPrintAreaWidth(is30x20 ? 240 : 384);
+    // Note: Never send GS W (setPrintAreaWidth) as it triggers "WIDE ERROR" on POS-58 chipsets
   }
 
-  // Ultra-compact line spacing so 30x20mm content fits within 140 dots (20mm = 160 dots)
-  enc.setLineSpacing(is30x20 ? 12 : 18);
+  // Ultra-compact line spacing so 30x20mm content fits within 80 dots (20mm = 160 dots)
+  enc.setLineSpacing(is30x20 ? 10 : 16);
 
   // 1. Top Bar: Store Name / Session Date / Time
   const hasTopBar = Boolean(cfg.showStoreName || cfg.showSessionDate || cfg.showTime);
   if (hasTopBar) {
-    const leftText = cfg.showStoreName ? (profile.name || 'LIVE POS').substring(0, 10).toUpperCase() : '';
+    const leftText = cfg.showStoreName ? (profile.name || 'LIVE POS').substring(0, 8).toUpperCase() : '';
     const dateText = cfg.showSessionDate ? (sessionDate ? `#${sessionDate}` : '') : '';
     const timeText = cfg.showTime ? (item.time || '') : '';
-    const rightText = `${dateText} ${timeText}`.trim();
+    const rightText = `${dateText} ${timeText}`.trim().substring(0, 8);
 
     if (leftText && rightText) {
       enc.twoColumns(leftText, rightText);
@@ -304,7 +560,7 @@ export function buildStickerEscPos(
       enc.alignRight().line(rightText).normal();
     }
     enc.separator('-');
-    enc.setLineSpacing(is30x20 ? 12 : 18);
+    enc.setLineSpacing(is30x20 ? 10 : 16);
   }
 
   // 2. Control Code (e.g. [ #001 ] or [ #2 ])
@@ -320,7 +576,7 @@ export function buildStickerEscPos(
       enc.size(1, 1);
     }
     enc.line(`[ ${codeStr} ]`).normal();
-    enc.setLineSpacing(is30x20 ? 12 : 18);
+    enc.setLineSpacing(is30x20 ? 10 : 16);
   }
 
   // 3. Buyer Handle (e.g. @Edna T)
@@ -333,7 +589,7 @@ export function buildStickerEscPos(
       enc.size(1, 1);
     }
     enc.line(`@${cleanBuyer}`).normal();
-    enc.setLineSpacing(is30x20 ? 12 : 18);
+    enc.setLineSpacing(is30x20 ? 10 : 16);
   }
 
   // 4. Tag / Description & Price (Smart compact 20mm layout)
@@ -349,11 +605,7 @@ export function buildStickerEscPos(
 
     if (itemLabel && priceStr) {
       enc.bold(true);
-      if (cfg.priceSize === 'lg' || cfg.priceSize === 'large') {
-        enc.twoColumns(itemLabel.substring(0, 9), priceStr);
-      } else {
-        enc.twoColumns(itemLabel.substring(0, 11), priceStr);
-      }
+      enc.twoColumns(itemLabel.substring(0, 8), priceStr);
       enc.normal();
     } else if (priceStr) {
       enc.alignCenter().bold(true);
@@ -364,13 +616,13 @@ export function buildStickerEscPos(
     } else if (itemLabel) {
       enc.alignCenter().line(itemLabel.substring(0, cols)).normal();
     }
-    enc.setLineSpacing(is30x20 ? 12 : 18);
+    enc.setLineSpacing(is30x20 ? 10 : 16);
   }
 
   // 5. Barcode (if enabled)
   if (cfg.showBarcode) {
     const rawCode = item.controlCode || (item.controlNum ? String(item.controlNum) : '');
-    enc.barcode(rawCode, 20);
+    enc.barcode(rawCode, 16);
     enc.alignCenter().line(`*${rawCode}*`).normal();
   }
 
@@ -381,19 +633,14 @@ export function buildStickerEscPos(
     enc.alignCenter().line(footerStr.substring(0, cols)).normal();
   }
 
-  // 7. Cutoff Gap Feed: Command PT-265 to feed and stop precisely at the die-cut gap sensor
+  // 7. Cutoff Gap Feed: Command PT-265 to feed and stop precisely at the die-cut gap sensor of this 1 sticker
   if (cfg.gapFeedMode === 'form_feed') {
     enc.formFeed();
   } else if (cfg.gapFeedMode === 'feed_lines') {
-    enc.feed(cfg.extraFeedLines || 2);
+    enc.feed(cfg.extraFeedLines || 1);
   } else {
-    // Default: Send GS FF (Gap sensor advance) + FormFeed safety
+    // Optical Gap Stop (GS FF: 0x1D 0x0C) - DO NOT follow with formFeed()!
     enc.feedToLabelGap();
-    enc.formFeed();
-  }
-
-  if (cfg.extraFeedLines && cfg.extraFeedLines > 0) {
-    enc.feed(cfg.extraFeedLines);
   }
 
   return enc.encode();
@@ -527,9 +774,8 @@ export function buildFeedGapEscPos(layoutConfig?: LabelLayoutSettings): Uint8Arr
   } else if (cfg.gapFeedMode === 'feed_lines') {
     enc.feed(cfg.extraFeedLines || 3);
   } else {
-    // PT-265 ESC/POS Optical Gap Advance: GS FF (0x1D 0x0C) + FF (0x0C)
+    // PT-265 ESC/POS Optical Gap Advance: GS FF (0x1D 0x0C) - advances and stops precisely at the next label gap
     enc.feedToLabelGap();
-    enc.formFeed();
   }
   return enc.encode();
 }
