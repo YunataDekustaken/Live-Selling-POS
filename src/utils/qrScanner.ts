@@ -153,15 +153,24 @@ export class LiveScannerController {
         const hasTorch = Boolean(caps && caps.torch);
         const hasZoom = Boolean(caps && caps.zoom && typeof caps.zoom.max === 'number');
 
+        const minZ = hasZoom ? (caps.zoom.min || 1) : 1;
+        const maxZ = hasZoom ? (caps.zoom.max || 1) : 1;
+        // Default zoom to 5x or max available
+        const defaultZoom = hasZoom ? Math.min(maxZ, Math.max(minZ, 5)) : 1;
+
         this.capabilities = {
           hasTorch,
           hasZoom,
-          minZoom: hasZoom ? (caps.zoom.min || 1) : 1,
-          maxZoom: hasZoom ? (caps.zoom.max || 1) : 1,
+          minZoom: minZ,
+          maxZoom: maxZ,
           stepZoom: hasZoom ? (caps.zoom.step || 0.1) : 0.1,
-          currentZoom: hasZoom ? (settings.zoom || caps.zoom.min || 1) : 1,
+          currentZoom: defaultZoom,
           torchOn: Boolean(settings.torch)
         };
+
+        if (hasZoom && defaultZoom > minZ) {
+          this.setZoom(defaultZoom).catch(() => {});
+        }
       } else {
         this.capabilities = {
           hasTorch: false,

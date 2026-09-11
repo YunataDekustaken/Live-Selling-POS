@@ -24,8 +24,12 @@ export interface MinedItem {
   timestamp?: number;
   verified?: boolean;
   verifiedAt?: string;
+  auditVerified?: boolean;
+  auditVerifiedAt?: string;
   packed?: boolean;
   packedAt?: string;
+  packVerified?: boolean;
+  packVerifiedAt?: string;
   packedBy?: string;
 }
 

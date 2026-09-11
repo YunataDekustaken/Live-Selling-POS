@@ -1637,6 +1637,30 @@
                 :class="buyerFilterStatus === 'credit' ? 'bg-blue-700 text-white font-semibold' : 'bg-white text-blue-700 border border-zinc-200 hover:bg-zinc-50'">
                 Credit ({{ creditBuyersCount }})
               </button>
+              <button 
+                @click="buyerFilterStatus = 'needs_storage_audit'"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+                :class="buyerFilterStatus === 'needs_storage_audit' ? 'bg-purple-700 text-white font-semibold' : 'bg-white text-purple-700 border border-zinc-200 hover:bg-zinc-50'">
+                📥 Needs Storage Audit
+              </button>
+              <button 
+                @click="buyerFilterStatus = 'ready_to_invoice'"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+                :class="buyerFilterStatus === 'ready_to_invoice' ? 'bg-emerald-700 text-white font-semibold' : 'bg-white text-emerald-700 border border-zinc-200 hover:bg-zinc-50'">
+                🧾 Ready to Invoice
+              </button>
+              <button 
+                @click="buyerFilterStatus = 'ready_to_pack'"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+                :class="buyerFilterStatus === 'ready_to_pack' ? 'bg-amber-700 text-white font-semibold' : 'bg-white text-amber-700 border border-zinc-200 hover:bg-zinc-50'">
+                📦 Ready to Pack
+              </button>
+              <button 
+                @click="buyerFilterStatus = 'shipped'"
+                class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
+                :class="buyerFilterStatus === 'shipped' ? 'bg-zinc-800 text-white font-semibold' : 'bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50'">
+                🚚 Shipped
+              </button>
             </div>
 
             <!-- Bulk Selection Mode Toggle Button -->
@@ -1829,15 +1853,24 @@
                         🖼️
                       </button>
 
-                      <!-- Pack & Verify Workflow Button -->
+                      <!-- Stage 1: Storage Audit Button -->
                       <button 
-                        @click="openPackingModal(b)" 
-                        :title="'Pack & Verify Items (' + getBuyerPackedCount(b) + '/' + b.items.length + ' verified)'"
+                        @click="openPackingModal(b, 'scanner', 'stage1')" 
+                        :title="'Stage 1 Storage Audit (' + getBuyerStage1AuditedCount(b) + '/' + b.items.length + ' audited)'"
                         class="px-2 py-1 rounded text-[11px] font-bold transition-all flex items-center space-x-1 border cursor-pointer"
-                        :class="isBuyerAllPacked(b) ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' : (getBuyerPackedCount(b) > 0 ? 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100' : 'bg-zinc-100 text-zinc-700 border-zinc-200 hover:bg-zinc-200')">
+                        :class="isBuyerAllStage1Audited(b) ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' : 'bg-purple-50 text-purple-900 border-purple-200 hover:bg-purple-100'">
+                        <span>📥</span>
+                        <span>{{ getBuyerStage1AuditedCount(b) }}/{{ b.items.length }}</span>
+                      </button>
+
+                      <!-- Stage 2: Parcel Pack Button -->
+                      <button 
+                        @click="openPackingModal(b, 'scanner', 'stage2')" 
+                        :title="'Stage 2 Parcel Pack (' + getBuyerStage2PackedCount(b) + '/' + b.items.length + ' packed)'"
+                        class="px-2 py-1 rounded text-[11px] font-bold transition-all flex items-center space-x-1 border cursor-pointer"
+                        :class="isBuyerAllStage2Packed(b) ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100' : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'">
                         <span>📦</span>
-                        <span v-if="isBuyerAllPacked(b)">Packed</span>
-                        <span v-else>{{ getBuyerPackedCount(b) }}/{{ b.items.length }}</span>
+                        <span>{{ getBuyerStage2PackedCount(b) }}/{{ b.items.length }}</span>
                       </button>
 
                       <!-- Invoice Modal Button -->
@@ -1955,10 +1988,16 @@
                 <span>Copy Link</span>
               </button>
               <button 
-                @click="openPackingModal(b)"
+                @click="openPackingModal(b, 'scanner', 'stage1')"
+                type="button"
+                class="py-2 px-2 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold text-xs flex items-center justify-center space-x-1 border border-purple-200 transition-colors cursor-pointer">
+                <span>📥 Audit ({{ getBuyerStage1AuditedCount(b) }}/{{ b.items.length }})</span>
+              </button>
+              <button 
+                @click="openPackingModal(b, 'scanner', 'stage2')"
                 type="button"
                 class="py-2 px-2 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs flex items-center justify-center space-x-1 border border-amber-200 transition-colors cursor-pointer">
-                <span>📦 Pack</span>
+                <span>📦 Pack ({{ getBuyerStage2PackedCount(b) }}/{{ b.items.length }})</span>
               </button>
               <button 
                 @click="generatePhotoCollage(b)"
@@ -6023,7 +6062,7 @@
                 <span 
                   class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider shrink-0"
                   :class="isBuyerAllPacked(activePackingBuyer) ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">
-                  {{ isBuyerAllPacked(activePackingBuyer) ? '✓ Fully Verified' : 'Packing in Progress' }}
+                  {{ isBuyerAllPacked(activePackingBuyer) ? '✓ Fully Verified' : 'In Progress' }}
                 </span>
               </div>
               <div class="text-[11px] text-zinc-500 flex items-center space-x-2 truncate">
@@ -6034,6 +6073,35 @@
             </div>
           </div>
           <button @click="closePackingModal" class="text-zinc-400 hover:text-zinc-700 p-1.5 text-lg leading-none cursor-pointer shrink-0">✕</button>
+        </div>
+
+        <!-- 2-Stage Workflow Switcher Bar -->
+        <div class="bg-zinc-900 text-white px-4 py-2.5 flex items-center justify-between shrink-0">
+          <div class="flex items-center space-x-2">
+            <span class="text-base">{{ packingWorkflowStage === 'stage1' ? '📥' : '📦' }}</span>
+            <div>
+              <div class="text-[10px] uppercase font-bold text-zinc-400 tracking-wider">Fulfillment Stage</div>
+              <div class="font-bold text-xs">
+                {{ packingWorkflowStage === 'stage1' ? 'Stage 1: Storage Inbound Audit' : 'Stage 2: Warehouse Parcel Pack' }}
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center space-x-1.5">
+            <button 
+              @click="setPackingWorkflowStage('stage1')"
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+              :class="packingWorkflowStage === 'stage1' ? 'bg-amber-500 text-black shadow-xs' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'">
+              Stage 1 (Audit)
+            </button>
+            <button 
+              @click="setPackingWorkflowStage('stage2')"
+              type="button"
+              class="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer"
+              :class="packingWorkflowStage === 'stage2' ? 'bg-amber-500 text-black shadow-xs' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'">
+              Stage 2 (Pack)
+            </button>
+          </div>
         </div>
 
         <!-- Progress Bar -->
@@ -6073,7 +6141,15 @@
             <!-- Camera Viewfinder Box -->
             <div class="relative bg-zinc-950 rounded-2xl overflow-hidden border border-zinc-800 shadow-inner flex flex-col items-center justify-center min-h-[260px] p-2">
               <!-- Live Video Container for Html5Qrcode -->
-              <div id="packing-qr-reader" class="w-full max-w-[340px] overflow-hidden rounded-xl"></div>
+              <div id="packing-qr-reader" class="w-full max-w-[320px] aspect-square overflow-hidden rounded-xl relative"></div>
+              <style>
+                #packing-qr-reader video {
+                  width: 100% !important;
+                  height: 100% !important;
+                  object-fit: cover !important;
+                  aspect-ratio: 1 / 1 !important;
+                }
+              </style>
 
               <!-- Camera Controls Overlay (Top Right) -->
               <div class="absolute top-2.5 right-2.5 flex items-center space-x-1.5 z-10">

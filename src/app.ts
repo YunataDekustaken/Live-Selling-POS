@@ -2846,10 +2846,13 @@ const app = createApp({
     }
 
     // =========================================================================
-    // 2-STAGE VERIFICATION & PACKING WORKFLOW STATE & METHODS
+    // 2-STAGE SCANNING WORKFLOW STATE & METHODS
+    // STAGE 1: Storage Room Audit & Verify (Confirmation before printing invoice)
+    // STAGE 2: Warehouse Packing for Customer (Verification before printing packing slip)
     // =========================================================================
     const showPackingModal = ref(false);
     const activePackingBuyer = ref<BuyerBasket | null>(null);
+    const packingWorkflowStage = ref<'stage1' | 'stage2'>('stage1');
     const packingActiveTab = ref<'scanner' | 'checklist'>('scanner');
     const packingScannerActive = ref(false);
     const packingManualCodeInput = ref('');
@@ -2873,18 +2876,63 @@ const app = createApp({
       timestamp: number;
     } | null>(null);
 
-    function getBuyerPackedCount(basket?: BuyerBasket | null): number {
+    // Helpers to check Stage 1 (Storage Audit) status
+    function isItemStage1Audited(item: MinedItem): boolean {
+      if (item.auditVerified !== undefined) return item.auditVerified;
+      return !!item.verified;
+    }
+
+    function getBuyerStage1AuditedCount(basket?: BuyerBasket | null): number {
       if (!basket || !basket.items) return 0;
-      return basket.items.filter(it => it.verified || it.packed).length;
+      return basket.items.filter(it => isItemStage1Audited(it)).length;
+    }
+
+    function isBuyerAllStage1Audited(basket?: BuyerBasket | null): boolean {
+      if (!basket || !basket.items || basket.items.length === 0) return false;
+      return basket.items.every(it => isItemStage1Audited(it));
+    }
+
+    // Helpers to check Stage 2 (Customer Packing) status
+    function isItemStage2Packed(item: MinedItem): boolean {
+      if (item.packVerified !== undefined) return item.packVerified;
+      return !!item.packed;
+    }
+
+    function getBuyerStage2PackedCount(basket?: BuyerBasket | null): number {
+      if (!basket || !basket.items) return 0;
+      return basket.items.filter(it => isItemStage2Packed(it)).length;
+    }
+
+    function isBuyerAllStage2Packed(basket?: BuyerBasket | null): boolean {
+      if (!basket || !basket.items || basket.items.length === 0) return false;
+      return basket.items.every(it => isItemStage2Packed(it));
+    }
+
+    // Active stage-aware helpers
+    function getBuyerPackedCount(basket?: BuyerBasket | null): number {
+      if (packingWorkflowStage.value === 'stage1') {
+        return getBuyerStage1AuditedCount(basket);
+      }
+      return getBuyerStage2PackedCount(basket);
     }
 
     function isBuyerAllPacked(basket?: BuyerBasket | null): boolean {
-      if (!basket || !basket.items || basket.items.length === 0) return false;
-      return basket.items.every(it => it.verified || it.packed);
+      if (packingWorkflowStage.value === 'stage1') {
+        return isBuyerAllStage1Audited(basket);
+      }
+      return isBuyerAllStage2Packed(basket);
     }
 
-    function openPackingModal(buyer: BuyerBasket, defaultTab: 'scanner' | 'checklist' = 'scanner') {
+    function isItemVerifiedForActiveStage(item: MinedItem): boolean {
+      if (packingWorkflowStage.value === 'stage1') {
+        return isItemStage1Audited(item);
+      }
+      return isItemStage2Packed(item);
+    }
+
+    function openPackingModal(buyer: BuyerBasket, defaultTab: 'scanner' | 'checklist' = 'scanner', stage: 'stage1' | 'stage2' = 'stage1') {
       activePackingBuyer.value = buyer;
+      packingWorkflowStage.value = stage;
       packingActiveTab.value = defaultTab;
       packingManualCodeInput.value = '';
       lastScannedResult.value = null;
@@ -2895,6 +2943,11 @@ const app = createApp({
           startPackingScanner();
         }, 350);
       }
+    }
+
+    function setPackingWorkflowStage(stage: 'stage1' | 'stage2') {
+      packingWorkflowStage.value = stage;
+      lastScannedResult.value = null;
     }
 
     function closePackingModal() {
@@ -3023,24 +3076,34 @@ const app = createApp({
 
       if (matchedItem) {
         // Item belongs to this buyer!
-        if (matchedItem.verified || matchedItem.packed) {
+        const isStage1 = packingWorkflowStage.value === 'stage1';
+        const alreadyDone = isStage1 ? isItemStage1Audited(matchedItem) : isItemStage2Packed(matchedItem);
+
+        if (alreadyDone) {
           playSuccessBeep();
           lastScannedResult.value = {
             text: rawCode,
             status: 'already_scanned',
-            message: `Already Verified: ${matchedItem.controlCode || '#' + matchedItem.controlNum}`,
+            message: `${isStage1 ? 'Stage 1 Already Audited' : 'Stage 2 Already Packed'}: ${matchedItem.controlCode || '#' + matchedItem.controlNum}`,
             item: matchedItem,
             timestamp: Date.now()
           };
           return;
         }
 
-        // Mark verified and packed
+        // Mark verified according to active stage
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        matchedItem.verified = true;
-        matchedItem.verifiedAt = nowTime;
-        matchedItem.packed = true;
-        matchedItem.packedAt = nowTime;
+        if (isStage1) {
+          matchedItem.auditVerified = true;
+          matchedItem.auditVerifiedAt = nowTime;
+          matchedItem.verified = true;
+          matchedItem.verifiedAt = nowTime;
+        } else {
+          matchedItem.packVerified = true;
+          matchedItem.packVerifiedAt = nowTime;
+          matchedItem.packed = true;
+          matchedItem.packedAt = nowTime;
+        }
 
         saveAll();
         pushSingleMineToSupabase(matchedItem, activeProfileId.value, sessionDate.value);
@@ -3049,15 +3112,19 @@ const app = createApp({
         lastScannedResult.value = {
           text: rawCode,
           status: 'success',
-          message: `✓ Verified: ${matchedItem.controlCode || '#' + matchedItem.controlNum} • ${matchedItem.description || matchedItem.tag || 'Item'} (${activeProfile.value.currency}${matchedItem.price})`,
+          message: `✓ ${isStage1 ? 'Stage 1 Audited (Storage In)' : 'Stage 2 Packed (Warehouse Out)'}: ${matchedItem.controlCode || '#' + matchedItem.controlNum} • ${matchedItem.description || matchedItem.tag || 'Item'} (${activeProfile.value.currency}${matchedItem.price})`,
           item: matchedItem,
           timestamp: Date.now()
         };
 
-        // Check if all items are now verified
-        const remaining = currentBuyerItems.filter(m => !m.verified && !m.packed);
+        // Check if all items are now verified for this stage
+        const remaining = currentBuyerItems.filter(m => isStage1 ? !isItemStage1Audited(m) : !isItemStage2Packed(m));
         if (remaining.length === 0) {
-          showToast(`🎉 All ${currentBuyerItems.length} items verified for @${buyerClean}! Ready to seal.`);
+          if (isStage1) {
+            showToast(`🎉 Stage 1 Complete! All ${currentBuyerItems.length} items audited for @${buyerClean}. Ready to print invoice!`);
+          } else {
+            showToast(`🎉 Stage 2 Complete! All ${currentBuyerItems.length} items packed for @${buyerClean}. Ready to seal & print packing slip!`);
+          }
         }
         return;
       }
@@ -3096,52 +3163,81 @@ const app = createApp({
     }
 
     function toggleItemVerification(item: MinedItem) {
-      const isNow = !(item.verified || item.packed);
+      const isStage1 = packingWorkflowStage.value === 'stage1';
       const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      item.verified = isNow;
-      item.verifiedAt = isNow ? nowTime : undefined;
-      item.packed = isNow;
-      item.packedAt = isNow ? nowTime : undefined;
-      if (isNow) {
-        playSuccessBeep();
+
+      if (isStage1) {
+        const isNow = !isItemStage1Audited(item);
+        item.auditVerified = isNow;
+        item.auditVerifiedAt = isNow ? nowTime : undefined;
+        item.verified = isNow;
+        item.verifiedAt = isNow ? nowTime : undefined;
+        if (isNow) playSuccessBeep();
+      } else {
+        const isNow = !isItemStage2Packed(item);
+        item.packVerified = isNow;
+        item.packVerifiedAt = isNow ? nowTime : undefined;
+        item.packed = isNow;
+        item.packedAt = isNow ? nowTime : undefined;
+        if (isNow) playSuccessBeep();
       }
+
       saveAll();
       pushSingleMineToSupabase(item, activeProfileId.value, sessionDate.value);
     }
 
     function verifyAllItemsForBuyer(buyer: BuyerBasket) {
       if (!buyer) return;
+      const isStage1 = packingWorkflowStage.value === 'stage1';
       const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
+
       allMines.value.forEach(m => {
         if ((m.buyer || '').replace(/^@+/, '').toLowerCase() === buyerClean) {
-          m.verified = true;
-          m.verifiedAt = nowTime;
-          m.packed = true;
-          m.packedAt = nowTime;
+          if (isStage1) {
+            m.auditVerified = true;
+            m.auditVerifiedAt = nowTime;
+            m.verified = true;
+            m.verifiedAt = nowTime;
+          } else {
+            m.packVerified = true;
+            m.packVerifiedAt = nowTime;
+            m.packed = true;
+            m.packedAt = nowTime;
+          }
           pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
         }
       });
       saveAll();
       playSuccessBeep();
-      showToast(`Marked all ${buyer.items.length} items as verified & packed!`);
+      showToast(isStage1 ? `Marked all ${buyer.items.length} items as Stage 1 Audited!` : `Marked all ${buyer.items.length} items as Stage 2 Packed!`);
     }
 
     function resetVerificationForBuyer(buyer: BuyerBasket) {
       if (!buyer) return;
-      if (!confirm(`Reset verification for @${buyer.displayName}?`)) return;
+      const isStage1 = packingWorkflowStage.value === 'stage1';
+      const stageName = isStage1 ? 'Stage 1 Storage Audit' : 'Stage 2 Customer Packing';
+      if (!confirm(`Reset ${stageName} for @${buyer.displayName}?`)) return;
       const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
+
       allMines.value.forEach(m => {
         if ((m.buyer || '').replace(/^@+/, '').toLowerCase() === buyerClean) {
-          m.verified = false;
-          m.verifiedAt = undefined;
-          m.packed = false;
-          m.packedAt = undefined;
+          if (isStage1) {
+            m.auditVerified = false;
+            m.auditVerifiedAt = undefined;
+            m.verified = false;
+            m.verifiedAt = undefined;
+          } else {
+            m.packVerified = false;
+            m.packVerifiedAt = undefined;
+            m.packed = false;
+            m.packedAt = undefined;
+          }
           pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
         }
       });
       saveAll();
-      showToast(`Verification reset for @${buyer.displayName}`);
+      showToast(`${stageName} reset for @${buyer.displayName}`);
     }
 
     async function printThermalPackingSlip(buyer: BuyerBasket) {
@@ -3164,7 +3260,11 @@ const app = createApp({
 
     async function markBuyerAsPackedAndPrint(buyer: BuyerBasket) {
       verifyAllItemsForBuyer(buyer);
-      await printThermalPackingSlip(buyer);
+      if (packingWorkflowStage.value === 'stage1') {
+        await triggerInvoicePrint(buyer);
+      } else {
+        await printThermalPackingSlip(buyer);
+      }
     }
 
     function logMine() {
@@ -3487,7 +3587,7 @@ const app = createApp({
     }
 
     const buyerSearchQuery = ref('');
-    const buyerFilterStatus = ref('all'); // 'all', 'owing', 'settled', 'credit'
+    const buyerFilterStatus = ref('all'); // 'all', 'owing', 'settled', 'credit', 'needs_storage_audit', 'ready_to_invoice', 'ready_to_pack', 'shipped'
 
     const buyerBasketsList = computed<BuyerBasket[]>(() => {
       const map: Record<string, BuyerBasket> = {};
@@ -3564,6 +3664,14 @@ const app = createApp({
         list = list.filter(b => b.balance === 0);
       } else if (buyerFilterStatus.value === 'credit') {
         list = list.filter(b => b.balance < 0);
+      } else if (buyerFilterStatus.value === 'needs_storage_audit') {
+        list = list.filter(b => !isBuyerAllStage1Audited(b));
+      } else if (buyerFilterStatus.value === 'ready_to_invoice') {
+        list = list.filter(b => isBuyerAllStage1Audited(b));
+      } else if (buyerFilterStatus.value === 'ready_to_pack') {
+        list = list.filter(b => b.balance <= 0 && !isBuyerAllStage2Packed(b));
+      } else if (buyerFilterStatus.value === 'shipped') {
+        list = list.filter(b => isBuyerAllStage2Packed(b));
       }
       return list;
     });
@@ -6626,6 +6734,15 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       buildCompleteBackupPayload,
       showPackingModal,
       activePackingBuyer,
+      packingWorkflowStage,
+      setPackingWorkflowStage,
+      isItemStage1Audited,
+      getBuyerStage1AuditedCount,
+      isBuyerAllStage1Audited,
+      isItemStage2Packed,
+      getBuyerStage2PackedCount,
+      isBuyerAllStage2Packed,
+      isItemVerifiedForActiveStage,
       packingActiveTab,
       packingScannerActive,
       packingManualCodeInput,

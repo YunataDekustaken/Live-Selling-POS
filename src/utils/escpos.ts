@@ -1189,7 +1189,7 @@ export function buildPackingSlipEscPos(
         enc.twoColumns('CHECK / ITEM / CODE', `AMT (${currencyStr})`);
         enc.separator('-');
         basket.items.forEach((it, idx) => {
-          const isV = !!((it as any).verified || (it as any).packed);
+          const isV = !!((it as any).packVerified ?? (it as any).packed ?? (it as any).auditVerified ?? (it as any).verified);
           const checkMark = isV ? '[V] ' : '[ ] ';
           const numPart = `${idx + 1}. `;
           const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
@@ -1208,10 +1208,10 @@ export function buildPackingSlipEscPos(
         enc.normal();
       } else if (sec.id === 'qcCheckbox') {
         setAlign();
-        const vCount = basket.items.filter((it: any) => it.verified || it.packed).length;
+        const vCount = basket.items.filter((it: any) => (it.packVerified ?? it.packed ?? it.auditVerified ?? it.verified)).length;
         const tCount = basket.items.length;
         const allV = tCount > 0 && vCount === tCount;
-        enc.line(`QC / PACKING: [${allV ? 'V' : ' '}] ${vCount}/${tCount} VERIFIED`);
+        enc.line(`STAGE 2 PACKING: [${allV ? 'V' : ' '}] ${vCount}/${tCount} PACKED`);
         enc.line('Packer Signature: ________________');
       } else if (sec.id === 'paymentDetails') {
         if (profile.paymentDetails && profile.paymentDetails.trim()) {
@@ -1273,7 +1273,7 @@ export function buildPackingSlipEscPos(
     if (cfg.showDividers) enc.separator('-');
 
     basket.items.forEach((it, idx) => {
-      const isV = !!((it as any).verified || (it as any).packed);
+      const isV = !!((it as any).packVerified ?? (it as any).packed ?? (it as any).auditVerified ?? (it as any).verified);
       const checkMark = isV ? '[V] ' : '[ ] ';
       const numPart = cfg.showItemNumber ? `${idx + 1}. ` : '';
       const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
@@ -1303,10 +1303,10 @@ export function buildPackingSlipEscPos(
     if (cfg.showDividers) enc.doubleSeparator();
 
     if (cfg.showQcCheckbox) {
-      const vCount = basket.items.filter((it: any) => it.verified || it.packed).length;
+      const vCount = basket.items.filter((it: any) => (it.packVerified ?? it.packed ?? it.auditVerified ?? it.verified)).length;
       const tCount = basket.items.length;
       const allV = tCount > 0 && vCount === tCount;
-      enc.alignCenter().line(`QC / PACKING: [${allV ? 'V' : ' '}] ${vCount}/${tCount} VERIFIED`);
+      enc.alignCenter().line(`STAGE 2 PACKING: [${allV ? 'V' : ' '}] ${vCount}/${tCount} PACKED`);
       enc.alignCenter().line('Packer Signature: ________________');
     }
 
