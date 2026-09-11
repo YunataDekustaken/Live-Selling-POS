@@ -72,6 +72,9 @@ export interface LabelLayoutSettings {
   showBuyer?: boolean;
   buyerSize?: 'md' | 'lg' | 'normal' | 'large' | string;
   showBarcode?: boolean;
+  showQrCode?: boolean;
+  qrPosition?: 'right' | 'left';
+  qrSize?: 'sm' | 'md' | 'lg';
   customFooterText?: string;
   footerText?: string;
   gapFeedMode?: 'gs_ff' | 'form_feed' | 'feed_lines' | 'none' | string;

@@ -6,6 +6,7 @@
 
 import type { LabelLayoutSettings, ReceiptLayoutSettings } from '../types';
 import { defaultLabelLayout, defaultReceiptLayout } from '../data/defaultSettings';
+import QRCode from 'qrcode';
 
 export class EscPosEncoder {
   private buffer: number[] = [];
@@ -296,141 +297,298 @@ export async function buildStickerCanvasRaster(
   ctx.fillStyle = '#000000';
   ctx.strokeStyle = '#000000';
 
-  const padX = 6;
-  let currY = 4;
+  const useQrLayout = cfg.showQrCode !== false; // Default true: 2D QR Code on the side
 
-  // 1. Top Bar: Store Name / Session Date / Time
-  const hasTopBar = Boolean(cfg.showStoreName || cfg.showSessionDate || cfg.showTime);
-  if (hasTopBar) {
+  if (useQrLayout) {
+    // -------------------------------------------------------------------------
+    // SIDE-BY-SIDE LAYOUT: QR Code on One Side + Info Column on Opposite Side
+    // -------------------------------------------------------------------------
+    const qrText = item.controlCode || (item.controlNum ? `#${item.controlNum}` : '001');
+    const qr = QRCode.create(qrText, { errorCorrectionLevel: 'M' });
+    const moduleCount = qr.modules.size; // e.g. 21
+    const modulePixel = cfg.qrSize === 'lg' ? 4 : (cfg.qrSize === 'sm' ? 3 : 4);
+    const actualQrSize = (moduleCount + 2) * modulePixel; // ~92px
+    
+    const isQrRight = cfg.qrPosition !== 'left'; // Default: QR on right side
+
+    let qrX: number;
+    let infoX: number;
+    let infoW: number;
+    let sepX: number;
+
+    if (isQrRight) {
+      // Info on Left (Name, Price, Control #), QR on Right
+      infoX = 6;
+      infoW = stickerW - actualQrSize - 20; // ~128px
+      sepX = infoX + infoW + 5;
+      qrX = sepX + 6;
+    } else {
+      // QR on Left, Info on Right
+      qrX = 6;
+      sepX = qrX + actualQrSize + 5;
+      infoX = sepX + 6;
+      infoW = stickerW - infoX - 6;
+    }
+
+    const qrY = Math.max(6, Math.round((stickerH - actualQrSize) / 2) - 6);
+
+    // 1. Draw QR Code
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(qrX, qrY, actualQrSize, actualQrSize);
+    ctx.fillStyle = '#000000';
+    for (let r = 0; r < moduleCount; r++) {
+      for (let c = 0; c < moduleCount; c++) {
+        if (qr.modules.get(r, c)) {
+          ctx.fillRect(
+            qrX + ((c + 1) * modulePixel),
+            qrY + ((r + 1) * modulePixel),
+            modulePixel,
+            modulePixel
+          );
+        }
+      }
+    }
+
+    // Label under QR Code
+    ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    if (cfg.showStoreName) {
-      ctx.textAlign = 'left';
-      ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
-      const storeStr = (profile.name || 'LIVE POS').substring(0, 11).toUpperCase();
-      ctx.fillText(storeStr, padX, currY);
-    }
+    ctx.font = '900 10px monospace';
+    ctx.fillText(qrText, qrX + (actualQrSize / 2), qrY + actualQrSize + 4);
 
-    const rightParts: string[] = [];
-    if (cfg.showSessionDate) rightParts.push(sessionDate ? `#${sessionDate}` : '');
-    if (cfg.showTime && item.time) rightParts.push(item.time);
-    const rightStr = rightParts.join(' ').trim();
-    if (rightStr) {
-      ctx.textAlign = 'right';
-      ctx.font = 'bold 10px monospace';
-      ctx.fillText(rightStr, stickerW - padX, currY);
-    }
-
-    currY += 13;
+    // 2. Vertical Divider Line between Info and QR
     ctx.beginPath();
     ctx.lineWidth = 1;
-    ctx.moveTo(padX, currY);
-    ctx.lineTo(stickerW - padX, currY);
+    ctx.setLineDash([4, 2]);
+    ctx.moveTo(sepX, 8);
+    ctx.lineTo(sepX, stickerH - 8);
     ctx.stroke();
-    currY += 4;
-  } else {
-    currY += 2;
-  }
+    ctx.setLineDash([]);
 
-  // 2. Control Code: e.g. [ #001 ] or [ #2 ]
-  if (cfg.showControlCode !== false) {
-    const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
-    ctx.textAlign = 'center';
+    // 3. Info Column: Name, Control #, Price, Tag
+    let infoY = 5;
     ctx.textBaseline = 'top';
-    const fontSize = cfg.codeSize === 'xl' ? 24 : (cfg.codeSize === 'lg' ? 20 : 16);
-    ctx.font = `900 ${fontSize}px monospace`;
-    ctx.fillText(`[ ${codeStr} ]`, stickerW / 2, currY);
-    currY += fontSize + 4;
-  }
 
-  // 3. Buyer Handle: e.g. @Edna T
-  if (cfg.showBuyer !== false) {
-    const cleanBuyer = (item.buyer || '').replace(/^@+/, '');
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    const buyerFontSize = cfg.buyerSize === 'lg' ? 17 : 14;
-    ctx.font = `bold ${buyerFontSize}px system-ui, -apple-system, sans-serif`;
-    ctx.fillText(`@${cleanBuyer}`, stickerW / 2, currY);
-    currY += buyerFontSize + 4;
-  }
+    // Store Name / Session Date (Top of info column)
+    if (cfg.showStoreName || cfg.showSessionDate) {
+      if (cfg.showStoreName) {
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
+        const storeStr = (profile.name || 'LIVE POS').substring(0, 10).toUpperCase();
+        ctx.fillText(storeStr, infoX, infoY);
+      }
+      if (cfg.showSessionDate && sessionDate) {
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 9px monospace';
+        ctx.fillText(`#${sessionDate}`, infoX + infoW, infoY);
+      }
+      infoY += 13;
+      ctx.beginPath();
+      ctx.lineWidth = 1;
+      ctx.moveTo(infoX, infoY);
+      ctx.lineTo(infoX + infoW, infoY);
+      ctx.stroke();
+      infoY += 4;
+    }
 
-  // Separator line before price
-  ctx.beginPath();
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 2]);
-  ctx.moveTo(padX, currY);
-  ctx.lineTo(stickerW - padX, currY);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  currY += 5;
+    // Control Code: [ #001 ]
+    if (cfg.showControlCode !== false) {
+      const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
+      ctx.textAlign = 'center';
+      const fontSize = cfg.codeSize === 'xl' ? 22 : (cfg.codeSize === 'lg' ? 19 : 16);
+      ctx.font = `900 ${fontSize}px monospace`;
+      ctx.fillText(`[ ${codeStr} ]`, infoX + (infoW / 2), infoY);
+      infoY += fontSize + 3;
+    }
 
-  // 4. Tag / Description & Price
-  if (cfg.showPrice !== false || cfg.showTag || cfg.showDescription) {
-    const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
-    const priceStr = cfg.showPrice !== false ? `${currencyStr}${item.price.toLocaleString()}` : '';
+    // Buyer Handle: @username
+    if (cfg.showBuyer !== false) {
+      const cleanBuyer = (item.buyer || '').replace(/^@+/, '');
+      ctx.textAlign = 'center';
+      const buyerFontSize = cfg.buyerSize === 'lg' ? 14 : 12;
+      ctx.font = `bold ${buyerFontSize}px system-ui, -apple-system, sans-serif`;
+      ctx.fillText(`@${cleanBuyer.substring(0, 13)}`, infoX + (infoW / 2), infoY);
+      infoY += buyerFontSize + 4;
+    }
+
+    // Horizontal dashed divider
+    ctx.beginPath();
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 2]);
+    ctx.moveTo(infoX, infoY);
+    ctx.lineTo(infoX + infoW, infoY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    infoY += 4;
+
+    // Item Tag / Description
     const tagPart = cfg.showTag ? (item.tag || '') : '';
     const descPart = (cfg.showDescription && item.description) ? item.description : '';
     const itemLabel = tagPart ? (descPart ? `${tagPart} ${descPart}` : tagPart) : descPart;
-
-    ctx.textBaseline = 'middle';
-    const midY = currY + 8;
-
     if (itemLabel) {
-      ctx.textAlign = 'left';
-      ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
-      const maxChars = priceStr ? 10 : 16;
-      ctx.fillText(itemLabel.substring(0, maxChars), padX, midY);
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 10px system-ui, -apple-system, sans-serif';
+      ctx.fillText(itemLabel.substring(0, 13), infoX + (infoW / 2), infoY);
+      infoY += 13;
     }
 
-    if (priceStr) {
-      ctx.textAlign = 'right';
+    // Price
+    if (cfg.showPrice !== false) {
+      const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+      const priceStr = `${currencyStr}${item.price.toLocaleString()}`;
+      ctx.textAlign = 'center';
       const priceFontSize = cfg.priceSize === 'lg' ? 17 : 14;
       ctx.font = `900 ${priceFontSize}px system-ui, -apple-system, sans-serif`;
-      ctx.fillText(priceStr, stickerW - padX, midY);
+      ctx.fillText(priceStr, infoX + (infoW / 2), infoY);
+      infoY += priceFontSize + 2;
     }
 
-    currY += 17;
-  }
+    // Custom Footer (if space allows)
+    const footerStr = (cfg.footerText || cfg.customFooterText || '').trim();
+    if (footerStr && infoY <= stickerH - 12) {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 8px system-ui, -apple-system, sans-serif';
+      ctx.fillText(footerStr.substring(0, 13).toUpperCase(), infoX + (infoW / 2), infoY);
+    }
 
-  // 5. Barcode (if enabled)
-  if (cfg.showBarcode && currY <= stickerH - 30) {
-    const rawCode = item.controlCode || (item.controlNum ? String(item.controlNum) : '001');
-    const cleanCode = rawCode.replace(/[^A-Za-z0-9]/g, '') || '001';
-    
-    // Draw crisp synthetic barcode pattern
-    const barW = 1.6;
-    const barH = 14;
-    const startX = Math.round((stickerW - (cleanCode.length * 12 * barW)) / 2);
-    ctx.fillStyle = '#000000';
-    for (let c = 0; c < cleanCode.length; c++) {
-      const charCode = cleanCode.charCodeAt(c);
-      const pattern = [
-        (charCode & 1) ? 2 : 1,
-        (charCode & 2) ? 1 : 2,
-        (charCode & 4) ? 2 : 1,
-        (charCode & 8) ? 1 : 2,
-        (charCode & 16) ? 2 : 1
-      ];
-      let pX = startX + (c * 12 * barW);
-      for (let p = 0; p < pattern.length; p++) {
-        if (p % 2 === 0) {
-          ctx.fillRect(pX, currY, pattern[p] * barW, barH);
-        }
-        pX += pattern[p] * barW;
+  } else {
+    // -------------------------------------------------------------------------
+    // FULL-WIDTH STACKED LAYOUT (Standard Text / Optional Barcode)
+    // -------------------------------------------------------------------------
+    const padX = 6;
+    let currY = 4;
+
+    // 1. Top Bar: Store Name / Session Date / Time
+    const hasTopBar = Boolean(cfg.showStoreName || cfg.showSessionDate || cfg.showTime);
+    if (hasTopBar) {
+      ctx.textBaseline = 'top';
+      if (cfg.showStoreName) {
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+        const storeStr = (profile.name || 'LIVE POS').substring(0, 11).toUpperCase();
+        ctx.fillText(storeStr, padX, currY);
       }
-    }
-    currY += barH + 2;
-    ctx.textAlign = 'center';
-    ctx.font = '9px monospace';
-    ctx.fillText(`*${cleanCode}*`, stickerW / 2, currY);
-    currY += 10;
-  }
 
-  // 6. Custom Footer (if space allows)
-  const footerStr = (cfg.footerText || cfg.customFooterText || '').trim();
-  if (footerStr && currY <= stickerH - 12) {
-    ctx.textAlign = 'center';
-    ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
-    ctx.fillText(footerStr.substring(0, 20).toUpperCase(), stickerW / 2, currY);
+      const rightParts: string[] = [];
+      if (cfg.showSessionDate) rightParts.push(sessionDate ? `#${sessionDate}` : '');
+      if (cfg.showTime && item.time) rightParts.push(item.time);
+      const rightStr = rightParts.join(' ').trim();
+      if (rightStr) {
+        ctx.textAlign = 'right';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText(rightStr, stickerW - padX, currY);
+      }
+
+      currY += 13;
+      ctx.beginPath();
+      ctx.lineWidth = 1;
+      ctx.moveTo(padX, currY);
+      ctx.lineTo(stickerW - padX, currY);
+      ctx.stroke();
+      currY += 4;
+    } else {
+      currY += 2;
+    }
+
+    // 2. Control Code: e.g. [ #001 ] or [ #2 ]
+    if (cfg.showControlCode !== false) {
+      const codeStr = item.controlNum ? `#${item.controlNum}` : item.controlCode;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const fontSize = cfg.codeSize === 'xl' ? 24 : (cfg.codeSize === 'lg' ? 20 : 16);
+      ctx.font = `900 ${fontSize}px monospace`;
+      ctx.fillText(`[ ${codeStr} ]`, stickerW / 2, currY);
+      currY += fontSize + 4;
+    }
+
+    // 3. Buyer Handle: e.g. @Edna T
+    if (cfg.showBuyer !== false) {
+      const cleanBuyer = (item.buyer || '').replace(/^@+/, '');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const buyerFontSize = cfg.buyerSize === 'lg' ? 17 : 14;
+      ctx.font = `bold ${buyerFontSize}px system-ui, -apple-system, sans-serif`;
+      ctx.fillText(`@${cleanBuyer}`, stickerW / 2, currY);
+      currY += buyerFontSize + 4;
+    }
+
+    // Separator line before price
+    ctx.beginPath();
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 2]);
+    ctx.moveTo(padX, currY);
+    ctx.lineTo(stickerW - padX, currY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    currY += 5;
+
+    // 4. Tag / Description & Price
+    if (cfg.showPrice !== false || cfg.showTag || cfg.showDescription) {
+      const currencyStr = (profile.currency || 'P').replace(/₱/g, 'P').replace(/PHP/g, 'P');
+      const priceStr = cfg.showPrice !== false ? `${currencyStr}${item.price.toLocaleString()}` : '';
+      const tagPart = cfg.showTag ? (item.tag || '') : '';
+      const descPart = (cfg.showDescription && item.description) ? item.description : '';
+      const itemLabel = tagPart ? (descPart ? `${tagPart} ${descPart}` : tagPart) : descPart;
+
+      ctx.textBaseline = 'middle';
+      const midY = currY + 8;
+
+      if (itemLabel) {
+        ctx.textAlign = 'left';
+        ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+        const maxChars = priceStr ? 10 : 16;
+        ctx.fillText(itemLabel.substring(0, maxChars), padX, midY);
+      }
+
+      if (priceStr) {
+        ctx.textAlign = 'right';
+        const priceFontSize = cfg.priceSize === 'lg' ? 17 : 14;
+        ctx.font = `900 ${priceFontSize}px system-ui, -apple-system, sans-serif`;
+        ctx.fillText(priceStr, stickerW - padX, midY);
+      }
+
+      currY += 17;
+    }
+
+    // 5. Barcode (if enabled)
+    if (cfg.showBarcode && currY <= stickerH - 30) {
+      const rawCode = item.controlCode || (item.controlNum ? String(item.controlNum) : '001');
+      const cleanCode = rawCode.replace(/[^A-Za-z0-9]/g, '') || '001';
+      
+      const barW = 1.6;
+      const barH = 14;
+      const startX = Math.round((stickerW - (cleanCode.length * 12 * barW)) / 2);
+      ctx.fillStyle = '#000000';
+      for (let c = 0; c < cleanCode.length; c++) {
+        const charCode = cleanCode.charCodeAt(c);
+        const pattern = [
+          (charCode & 1) ? 2 : 1,
+          (charCode & 2) ? 1 : 2,
+          (charCode & 4) ? 2 : 1,
+          (charCode & 8) ? 1 : 2,
+          (charCode & 16) ? 2 : 1
+        ];
+        let pX = startX + (c * 12 * barW);
+        for (let p = 0; p < pattern.length; p++) {
+          if (p % 2 === 0) {
+            ctx.fillRect(pX, currY, pattern[p] * barW, barH);
+          }
+          pX += pattern[p] * barW;
+        }
+      }
+      currY += barH + 2;
+      ctx.textAlign = 'center';
+      ctx.font = '9px monospace';
+      ctx.fillText(`*${cleanCode}*`, stickerW / 2, currY);
+      currY += 10;
+    }
+
+    // 6. Custom Footer (if space allows)
+    const footerStr = (cfg.footerText || cfg.customFooterText || '').trim();
+    if (footerStr && currY <= stickerH - 12) {
+      ctx.textAlign = 'center';
+      ctx.font = 'bold 9px system-ui, -apple-system, sans-serif';
+      ctx.fillText(footerStr.substring(0, 20).toUpperCase(), stickerW / 2, currY);
+    }
   }
 
   // Convert HTML5 Canvas to 1-Bit Monochrome ESC/POS Raster (GS v 0)

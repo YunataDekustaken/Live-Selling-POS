@@ -1,4 +1,4 @@
-import { createApp, ref, reactive, computed, onMounted, nextTick } from 'vue';
+import { createApp, ref, reactive, computed, onMounted, nextTick, watch } from 'vue';
 import type {
   Profile,
   MinedItem,
@@ -65,6 +65,7 @@ import {
   checkServerR2Status,
   R2Config
 } from './utils/r2Storage';
+import QRCode from 'qrcode';
 
 const app = createApp({
   setup() {
@@ -1510,6 +1511,25 @@ const app = createApp({
         timestamp: Date.now()
       };
     });
+
+    const samplePreviewQrDataUrl = ref('');
+    async function updateSamplePreviewQr() {
+      try {
+        const item = samplePreviewItem.value;
+        const text = item.controlCode || (item.controlNum ? `#${item.controlNum}` : '001');
+        samplePreviewQrDataUrl.value = await QRCode.toDataURL(text, {
+          width: 140,
+          margin: 1,
+          color: { dark: '#000000', light: '#FFFFFF' }
+        });
+      } catch (err) {
+        console.warn('QR preview generation error:', err);
+      }
+    }
+
+    watch(() => [samplePreviewItem.value.controlCode, settings.value.labelLayout?.qrSize, settings.value.labelLayout?.showQrCode], () => {
+      updateSamplePreviewQr();
+    }, { immediate: true });
 
     const samplePreviewBasket = computed(() => {
       if (buyerBasketsList.value.length > 0) {
@@ -3049,7 +3069,9 @@ const app = createApp({
       autoMigrateBase64Photos,
       photoRetentionDays,
       oldPhotosCount,
-      cleanupOldPhotos
+      cleanupOldPhotos,
+      samplePreviewQrDataUrl,
+      updateSamplePreviewQr
     };
   }
 });

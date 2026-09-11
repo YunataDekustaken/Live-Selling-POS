@@ -23,6 +23,9 @@ export const defaultLabelLayout: LabelLayoutSettings = {
   showBuyer: true,
   buyerSize: 'lg',
   showBarcode: false,
+  showQrCode: true, // Replace barcode with 2D QR Code on the side
+  qrPosition: 'right', // QR on right side, info (name, price, control #) on the opposite side
+  qrSize: 'md',
   customFooterText: '',
   footerText: '',
   gapFeedMode: 'gs_ff', // GS FF (0x1D 0x0C) advances PT-265 to the die-cut gap
