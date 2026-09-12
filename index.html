@@ -6323,9 +6323,9 @@
                   :key="it.id"
                   @click="toggleItemVerification(it)"
                   class="p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-colors"
-                  :class="it.verified || it.packed ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950' : 'bg-zinc-50 border-zinc-200 text-zinc-700 hover:bg-zinc-100'">
+                  :class="(packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)) ? 'bg-emerald-50/80 border-emerald-300 text-emerald-950' : 'bg-zinc-50 border-zinc-200 text-zinc-700 hover:bg-zinc-100'">
                   <div class="flex items-center space-x-2 min-w-0">
-                    <span class="text-sm font-bold">{{ (it.verified || it.packed) ? '✓' : '○' }}</span>
+                    <span class="text-sm font-bold">{{ (packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)) ? '✓' : '○' }}</span>
                     <div class="min-w-0">
                       <div class="font-bold font-mono text-xs truncate">
                         {{ it.controlCode || (it.controlNum ? '#' + it.controlNum : '') }}

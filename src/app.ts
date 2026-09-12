@@ -3221,7 +3221,7 @@ const app = createApp({
         const handle = activePackingBuyer.value.handle;
         const fresh = buyerBasketsList.value.find(b => b.handle === handle || b.displayName === activePackingBuyer.value?.displayName);
         if (fresh) {
-          activePackingBuyer.value = fresh;
+          activePackingBuyer.value = { ...fresh, items: [...fresh.items] };
         }
       }
     }
@@ -3297,30 +3297,25 @@ const app = createApp({
 
     function resetVerificationForBuyer(buyer: BuyerBasket) {
       if (!buyer) return;
-      const isStage1 = packingWorkflowStage.value === 'stage1';
-      const stageName = isStage1 ? 'Stage 1 Storage Audit' : 'Stage 2 Customer Packing';
-      if (!confirm(`Reset ${stageName} for @${buyer.displayName}?`)) return;
+      if (!confirm(`Reset all audit and packing verification for @${buyer.displayName}?`)) return;
       const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
 
       allMines.value.forEach(m => {
         if ((m.buyer || '').replace(/^@+/, '').toLowerCase() === buyerClean) {
-          if (isStage1) {
-            m.auditVerified = false;
-            m.auditVerifiedAt = undefined;
-            m.verified = false;
-            m.verifiedAt = undefined;
-          } else {
-            m.packVerified = false;
-            m.packVerifiedAt = undefined;
-            m.packed = false;
-            m.packedAt = undefined;
-          }
+          m.auditVerified = false;
+          m.auditVerifiedAt = undefined;
+          m.verified = false;
+          m.verifiedAt = undefined;
+          m.packVerified = false;
+          m.packVerifiedAt = undefined;
+          m.packed = false;
+          m.packedAt = undefined;
           pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
         }
       });
       saveAll();
       refreshActivePackingBuyer();
-      showToast(`${stageName} reset for @${buyer.displayName}`);
+      showToast(`All verifications reset for @${buyer.displayName}`);
     }
 
     async function printThermalPackingSlip(buyer: BuyerBasket) {
