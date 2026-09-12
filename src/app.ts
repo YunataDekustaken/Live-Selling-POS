@@ -3161,7 +3161,6 @@ const app = createApp({
         saveAll();
         pushSingleMineToSupabase(matchedItem, activeProfileId.value, sessionDate.value);
         refreshActivePackingBuyer();
-        triggerScanAnimation(matchedItem.id);
         playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
 
         lastScannedResult.value = {
@@ -3217,16 +3216,6 @@ const app = createApp({
       packingManualCodeInput.value = '';
     }
 
-    const recentlyScannedItemId = ref<string | null>(null);
-    function triggerScanAnimation(itemId: string) {
-      recentlyScannedItemId.value = itemId;
-      setTimeout(() => {
-        if (recentlyScannedItemId.value === itemId) {
-          recentlyScannedItemId.value = null;
-        }
-      }, 700);
-    }
-
     function refreshActivePackingBuyer() {
       if (activePackingBuyer.value) {
         const handle = activePackingBuyer.value.handle;
@@ -3243,6 +3232,11 @@ const app = createApp({
 
       if (isStage1) {
         const isNow = !isItemStage1Audited(item);
+        if (!isNow && isItemStage2Packed(item)) {
+          showToast(`⚠️ Cannot uncheck Stage 1 Audit: This item is already packed in Stage 2! Unpack in Stage 2 first.`);
+          playBeep('error', settings.value.soundEnabled);
+          return;
+        }
         item.auditVerified = isNow;
         item.auditVerifiedAt = isNow ? nowTime : undefined;
         item.verified = isNow;
@@ -3265,7 +3259,6 @@ const app = createApp({
       saveAll();
       pushSingleMineToSupabase(item, activeProfileId.value, sessionDate.value);
       refreshActivePackingBuyer();
-      triggerScanAnimation(item.id);
     }
 
     function verifyAllItemsForBuyer(buyer: BuyerBasket) {
@@ -3354,10 +3347,21 @@ const app = createApp({
     }
 
     async function markBuyerAsPackedAndPrint(buyer: BuyerBasket) {
-      verifyAllItemsForBuyer(buyer);
-      if (packingWorkflowStage.value === 'stage1') {
+      if (!buyer) return;
+      const isStage1 = packingWorkflowStage.value === 'stage1';
+      if (isStage1) {
+        if (!isBuyerAllStage1Audited(buyer)) {
+          showToast(`⚠️ Cannot print invoice: Please scan & audit all items in Stage 1 first!`);
+          playBeep('error', settings.value.soundEnabled);
+          return;
+        }
         await triggerInvoicePrint(buyer);
       } else {
+        if (!isBuyerAllStage2Packed(buyer)) {
+          showToast(`⚠️ Cannot print packing slip: Please pack & scan all items in Stage 2 first!`);
+          playBeep('error', settings.value.soundEnabled);
+          return;
+        }
         await printThermalPackingSlip(buyer);
       }
     }
@@ -6874,8 +6878,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       verifyAllItemsForBuyer,
       resetVerificationForBuyer,
       printThermalPackingSlip,
-      markBuyerAsPackedAndPrint,
-      recentlyScannedItemId
+      markBuyerAsPackedAndPrint
     };
   }
 });

@@ -6377,10 +6377,7 @@
                     @click="toggleItemVerification(it)"
                     type="button" 
                     class="w-6 h-6 rounded-md flex items-center justify-center text-sm font-bold transition-colors cursor-pointer shrink-0 border"
-                    :class="[
-                      (packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)) ? 'bg-emerald-600 border-emerald-700 text-white shadow-xs' : 'bg-white border-zinc-300 text-transparent hover:border-zinc-500',
-                      recentlyScannedItemId === it.id ? 'scale-125 ring-4 ring-emerald-300 animate-bounce transition-all duration-300' : 'transition-transform duration-300'
-                    ]">
+                    :class="(packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)) ? 'bg-emerald-600 border-emerald-700 text-white shadow-xs' : 'bg-white border-zinc-300 text-transparent hover:border-zinc-500'">
                     ✓
                   </button>
 
@@ -6426,27 +6423,19 @@
         <!-- Action Footer (Thermal Packing Slip & Quick Actions) -->
         <div class="border-t border-zinc-200 p-3 bg-zinc-50 space-y-2 shrink-0">
           
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <!-- 1. Print PT-210 Packing Slip -->
-            <button 
-              @click="printThermalPackingSlip(activePackingBuyer)"
-              :disabled="isPrintingPackingSlip"
-              type="button"
-              class="py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50">
-              <span v-if="isPrintingPackingSlip">⏳ Printing Slip...</span>
-              <span v-else class="flex items-center space-x-1.5">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                <span>🖨️ Print Packing Slip (PT-210)</span>
-              </span>
-            </button>
-
-            <!-- 2. Mark All Verified & Print in 1 Tap -->
+          <!-- Unified Action Button -->
+          <div>
             <button 
               @click="markBuyerAsPackedAndPrint(activePackingBuyer)"
               :disabled="isPrintingPackingSlip"
               type="button"
-              class="py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition-colors cursor-pointer disabled:opacity-50">
-              <span>⚡ Mark Verified & Print</span>
+              class="w-full py-3 px-4 rounded-xl text-white font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm transition-colors cursor-pointer disabled:opacity-50"
+              :class="packingWorkflowStage === 'stage1' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-zinc-900 hover:bg-black'">
+              <span v-if="isPrintingPackingSlip">⏳ Printing...</span>
+              <span v-else class="flex items-center space-x-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                <span>{{ packingWorkflowStage === 'stage1' ? '🖨️ Print Invoice (PT-210)' : '🖨️ Print Packing Slip (PT-210)' }}</span>
+              </span>
             </button>
           </div>
 
