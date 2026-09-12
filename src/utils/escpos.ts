@@ -5,7 +5,7 @@
  */
 
 import type { LabelLayoutSettings, ReceiptLayoutSettings } from '../types';
-import { defaultLabelLayout, defaultReceiptLayout } from '../data/defaultSettings';
+import { defaultLabelLayout, defaultReceiptLayout, defaultInvoiceLayout } from '../data/defaultSettings';
 import QRCode from 'qrcode';
 
 export class EscPosEncoder {
@@ -1347,7 +1347,7 @@ export function buildInvoiceEscPos(
   paperCols: number = 32,
   layoutConfig?: ReceiptLayoutSettings
 ): Uint8Array {
-  const cfg = layoutConfig || defaultReceiptLayout;
+  const cfg = layoutConfig || defaultInvoiceLayout;
   const cols = cfg.paperWidth === '80mm' ? 48 : paperCols;
   const enc = new EscPosEncoder(cols);
   const currencyStr = (profile.currency || 'PHP').replace(/₱/g, 'PHP');
@@ -1355,78 +1355,155 @@ export function buildInvoiceEscPos(
 
   enc.init();
 
-  if (cfg.showStoreName || cfg.showTitle) {
-    enc.alignCenter().bold(true);
-    if (cfg.showStoreName) {
-      enc.line(profile.name || 'LIVE SELLING POS');
+  if (cfg.customSections && cfg.customSections.length > 0) {
+    const sorted = [...cfg.customSections].sort((a, b) => (a.order || 0) - (b.order || 0));
+    for (const sec of sorted) {
+      if (!sec.visible) continue;
+
+      const setAlign = () => {
+        if (sec.align === 'left') enc.alignLeft();
+        else if (sec.align === 'right') enc.alignRight();
+        else enc.alignCenter();
+      };
+
+      if (sec.id === 'storeName') {
+        setAlign();
+        if (sec.fontWeight !== 'normal') enc.bold(true);
+        if (sec.fontSize >= 16) enc.size(2, 2);
+        enc.line(profile.name || 'LIVE SELLING POS');
+        enc.normal();
+      } else if (sec.id === 'title') {
+        setAlign();
+        if (sec.fontWeight !== 'normal') enc.bold(true);
+        enc.line(sec.customText || 'OFFICIAL SALES INVOICE');
+        enc.normal();
+      } else if (sec.id === 'sessionDate') {
+        setAlign();
+        enc.line(`#INV-${sessionDate}-${cleanName.toUpperCase()}`);
+        enc.line(`Date: ${sessionDate} - ${new Date().toLocaleDateString()}`);
+      } else if (sec.id === 'buyer') {
+        setAlign();
+        enc.bold(true);
+        if (sec.fontSize >= 18) enc.size(2, 2);
+        enc.line(`@${cleanName}`);
+        enc.normal();
+      } else if (sec.id === 'status') {
+        setAlign();
+        enc.line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
+      } else if (sec.id === 'itemsTable') {
+        enc.twoColumns('ITEM', `PRICE (${currencyStr})`);
+        enc.separator('-');
+        basket.items.forEach((it, idx) => {
+          const numPart = `${idx + 1}. `;
+          const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
+          const desc = (it.description && it.description !== it.controlCode && it.description !== 'Decor') ? ` • ${it.description}` : '';
+          enc.twoColumns(`${numPart}${code}${desc}`, `${it.price.toLocaleString()}`);
+        });
+      } else if (sec.id === 'totals') {
+        enc.bold(true);
+        enc.twoColumns(`Total Items:`, `${basket.items.length} pcs`);
+        enc.twoColumns(`Subtotal:`, `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
+        if (basket.totalPaid > 0) {
+          enc.twoColumns(`Paid:`, `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
+        }
+        if (sec.fontSize >= 16) enc.size(1, 2);
+        enc.twoColumns(`TOTAL DUE:`, `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`);
+        enc.normal();
+      } else if (sec.id === 'qcCheckbox') {
+        setAlign();
+        enc.line(`QC Verified: [ ] Checked`);
+      } else if (sec.id === 'paymentDetails') {
+        if (profile.paymentDetails && profile.paymentDetails.trim()) {
+          setAlign();
+          enc.line('PAYMENT ACCOUNTS:');
+          const lines = profile.paymentDetails.split('\n');
+          lines.forEach(l => { if (l.trim()) enc.line(l.trim()); });
+        }
+      } else if (sec.id === 'footer') {
+        setAlign();
+        const note = sec.customText || cfg.customFooterNote || 'Thank you for mining with us!';
+        if (note.trim()) enc.line(note.trim());
+        enc.line(`*${basket.handle}*`);
+      }
+
+      if (sec.showDividerBelow) {
+        enc.separator('-');
+      }
     }
-    if (cfg.showTitle) {
-      enc.line('OFFICIAL SALES INVOICE');
+  } else {
+    if (cfg.showStoreName || cfg.showTitle) {
+      enc.alignCenter().bold(true);
+      if (cfg.showStoreName) {
+        enc.line(profile.name || 'LIVE SELLING POS');
+      }
+      if (cfg.showTitle) {
+        enc.line('OFFICIAL SALES INVOICE');
+      }
+      enc.normal();
     }
-    enc.normal();
-  }
 
-  enc.alignCenter().line(`#INV-${sessionDate}-${cleanName.toUpperCase()}`);
-  if (cfg.showDividers) enc.separator('-');
-
-  if (cfg.showBuyerName) {
-    enc.alignCenter()
-      .size(2, 2)
-      .bold(true)
-      .line(`@${cleanName}`)
-      .normal();
-  }
-
-  if (cfg.showSessionDate || cfg.showDateTime) {
-    enc.alignCenter().line(`Date: ${sessionDate} - ${new Date().toLocaleDateString()}`);
-  }
-
-  if (cfg.showDividers) enc.separator('-');
-
-  enc.twoColumns('ITEM', `PRICE`);
-  if (cfg.showDividers) enc.separator('-');
-
-  basket.items.forEach((it, i) => {
-    const numPart = cfg.showItemNumber ? `${i + 1}. ` : '';
-    const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
-    const desc = (cfg.showItemDescription && it.description) ? ` (${it.description})` : '';
-    enc.twoColumns(`${numPart}${code}${desc}`, `${it.price.toLocaleString()}`);
-  });
-
-  if (cfg.showDividers) enc.separator('-');
-
-  if (cfg.showSubtotal) {
-    enc.twoColumns('Subtotal:', `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
-  }
-  if (cfg.showTotalPaid && basket.totalPaid > 0) {
-    enc.twoColumns('Paid:', `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
-  }
-  if (cfg.showBalanceDue) {
-    enc.size(1, 2)
-      .bold(true)
-      .twoColumns('TOTAL DUE:', `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`)
-      .normal();
-  }
-
-  if (cfg.showDividers) enc.separator('-');
-
-  if (cfg.showPaymentAccounts && profile.paymentDetails) {
-    enc.alignLeft()
-      .bold(true)
-      .line('PAYMENT ACCOUNTS:')
-      .normal();
-    const lines = profile.paymentDetails.split('\n');
-    lines.forEach(l => {
-      if (l.trim()) enc.line(l.trim());
-    });
+    enc.alignCenter().line(`#INV-${sessionDate}-${cleanName.toUpperCase()}`);
     if (cfg.showDividers) enc.separator('-');
-  }
 
-  if (cfg.customFooterNote && cfg.customFooterNote.trim()) {
-    enc.alignCenter().line(cfg.customFooterNote.trim());
-  }
+    if (cfg.showBuyerName) {
+      enc.alignCenter()
+        .size(2, 2)
+        .bold(true)
+        .line(`@${cleanName}`)
+        .normal();
+    }
 
-  enc.alignCenter().line(`*${basket.handle}*`);
+    if (cfg.showSessionDate || cfg.showDateTime) {
+      enc.alignCenter().line(`Date: ${sessionDate} - ${new Date().toLocaleDateString()}`);
+    }
+
+    if (cfg.showDividers) enc.separator('-');
+
+    enc.twoColumns('ITEM', `PRICE`);
+    if (cfg.showDividers) enc.separator('-');
+
+    basket.items.forEach((it, i) => {
+      const numPart = cfg.showItemNumber ? `${i + 1}. ` : '';
+      const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
+      const desc = (cfg.showItemDescription && it.description) ? ` (${it.description})` : '';
+      enc.twoColumns(`${numPart}${code}${desc}`, `${it.price.toLocaleString()}`);
+    });
+
+    if (cfg.showDividers) enc.separator('-');
+
+    if (cfg.showSubtotal) {
+      enc.twoColumns('Subtotal:', `${currencyStr} ${basket.totalAmount.toLocaleString()}`);
+    }
+    if (cfg.showTotalPaid && basket.totalPaid > 0) {
+      enc.twoColumns('Paid:', `${currencyStr} ${basket.totalPaid.toLocaleString()}`);
+    }
+    if (cfg.showBalanceDue) {
+      enc.size(1, 2)
+        .bold(true)
+        .twoColumns('TOTAL DUE:', `${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`)
+        .normal();
+    }
+
+    if (cfg.showDividers) enc.separator('-');
+
+    if (cfg.showPaymentAccounts && profile.paymentDetails) {
+      enc.alignLeft()
+        .bold(true)
+        .line('PAYMENT ACCOUNTS:')
+        .normal();
+      const lines = profile.paymentDetails.split('\n');
+      lines.forEach(l => {
+        if (l.trim()) enc.line(l.trim());
+      });
+      if (cfg.showDividers) enc.separator('-');
+    }
+
+    if (cfg.customFooterNote && cfg.customFooterNote.trim()) {
+      enc.alignCenter().line(cfg.customFooterNote.trim());
+    }
+
+    enc.alignCenter().line(`*${basket.handle}*`);
+  }
 
   const lines = cfg.feedLines !== undefined ? cfg.feedLines : 3;
   if (lines > 0) {

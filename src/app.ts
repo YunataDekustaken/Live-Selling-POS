@@ -14,7 +14,7 @@ import type {
   ImportBackupSnapshot
 } from './types';
 import { defaultProfiles } from './data/defaultProfiles';
-import { defaultSettings, defaultLabelLayout, defaultReceiptLayout, defaultLabelElements, defaultReceiptSections } from './data/defaultSettings';
+import { defaultSettings, defaultLabelLayout, defaultReceiptLayout, defaultInvoiceLayout, defaultLabelElements, defaultReceiptSections, defaultInvoiceSections } from './data/defaultSettings';
 import { getSampleMines, getSamplePayments, sampleCustomerNotes } from './data/sampleData';
 import { playBeep } from './utils/audio';
 import { safeGetItem, safeSetItem, safeParseJson } from './utils/storage';
@@ -367,6 +367,14 @@ const app = createApp({
     }
     if (!initialSettings.receiptLayout.customSections || initialSettings.receiptLayout.customSections.length === 0) {
       initialSettings.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
+    }
+    if (!initialSettings.invoiceLayout) {
+      initialSettings.invoiceLayout = JSON.parse(JSON.stringify(defaultInvoiceLayout));
+    } else {
+      initialSettings.invoiceLayout = { ...defaultInvoiceLayout, ...initialSettings.invoiceLayout };
+    }
+    if (!initialSettings.invoiceLayout.customSections || initialSettings.invoiceLayout.customSections.length === 0) {
+      initialSettings.invoiceLayout.customSections = JSON.parse(JSON.stringify(defaultInvoiceSections));
     }
     if (!initialSettings.labelPrinterName) {
       initialSettings.labelPrinterName = 'PT-265';
@@ -1389,6 +1397,10 @@ const app = createApp({
                 settings.value.receiptLayout = { ...defaultReceiptLayout, ...parsed.receiptLayout };
                 changed = true;
               }
+              if (parsed.invoiceLayout && typeof parsed.invoiceLayout === 'object') {
+                settings.value.invoiceLayout = { ...defaultInvoiceLayout, ...parsed.invoiceLayout };
+                changed = true;
+              }
               if (parsed.labelPrinterName && parsed.labelPrinterName !== settings.value.labelPrinterName) {
                 settings.value.labelPrinterName = parsed.labelPrinterName;
                 changed = true;
@@ -2040,9 +2052,15 @@ const app = createApp({
       }
       try {
         const basket = samplePreviewBasket.value;
-        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
-        await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
-        showToast(`Receipt test sent to ${btPrinterName.value || 'PT-210'}`);
+        const isPacking = designerReceiptSubMode.value === 'packing';
+        const layout = isPacking ? settings.value.receiptLayout : settings.value.invoiceLayout;
+        const cols = layout?.paperWidth === '80mm' ? 48 : 32;
+        if (isPacking) {
+          await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, layout);
+        } else {
+          await printDirectInvoice(basket, activeProfile.value, sessionDate.value, cols, layout);
+        }
+        showToast(`${isPacking ? 'Packing slip' : 'Invoice'} test sent to ${btPrinterName.value || 'PT-210'}`);
       } catch (e: any) {
         showToast(`Receipt print error: ${e.message || e}`);
       }
@@ -2056,14 +2074,16 @@ const app = createApp({
 
     function resetReceiptLayout() {
       settings.value.receiptLayout = { ...defaultReceiptLayout };
+      settings.value.invoiceLayout = JSON.parse(JSON.stringify(defaultInvoiceLayout));
       saveSettings(true);
-      showToast('Receipt layout reset to PT-210 (58mm) default');
+      showToast('All PT-210 (58mm) layout configurations reset to default');
     }
 
     // =========================================================================
     // INTERACTIVE VISUAL DESIGNER STATE & HANDLERS (PT-265 & PT-210)
     // =========================================================================
     const designerMode = ref<'label' | 'receipt'>('label');
+    const designerReceiptSubMode = ref<'packing' | 'invoice'>('packing');
     const designerSelectedId = ref<string>('controlCode');
     const designerCanvasZoom = ref<number>(200); // 100, 150, 200, 250, 300%
     const designerShowGrid = ref<boolean>(true);
@@ -2102,13 +2122,24 @@ const app = createApp({
     });
 
     const receiptSectionsList = computed(() => {
-      if (!settings.value.receiptLayout) {
-        settings.value.receiptLayout = { ...defaultReceiptLayout };
+      const isPacking = designerReceiptSubMode.value === 'packing';
+      if (isPacking) {
+        if (!settings.value.receiptLayout) {
+          settings.value.receiptLayout = { ...defaultReceiptLayout };
+        }
+        if (!settings.value.receiptLayout.customSections || settings.value.receiptLayout.customSections.length === 0) {
+          settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
+        }
+        return settings.value.receiptLayout.customSections;
+      } else {
+        if (!settings.value.invoiceLayout) {
+          settings.value.invoiceLayout = { ...defaultInvoiceLayout };
+        }
+        if (!settings.value.invoiceLayout.customSections || settings.value.invoiceLayout.customSections.length === 0) {
+          settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(defaultInvoiceSections));
+        }
+        return settings.value.invoiceLayout.customSections;
       }
-      if (!settings.value.receiptLayout.customSections || settings.value.receiptLayout.customSections.length === 0) {
-        settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
-      }
-      return settings.value.receiptLayout.customSections;
     });
 
     const selectedReceiptSection = computed(() => {
@@ -2794,10 +2825,18 @@ const app = createApp({
     }
 
     function resetReceiptDesigner() {
-      if (settings.value.receiptLayout) {
-        settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
-        saveSettings(true);
-        showToast('Receipt layout reset to default sections');
+      if (designerReceiptSubMode.value === 'packing') {
+        if (settings.value.receiptLayout) {
+          settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
+          saveSettings(true);
+          showToast('Packing slip layout reset to default sections');
+        }
+      } else {
+        if (settings.value.invoiceLayout) {
+          settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(defaultInvoiceSections));
+          saveSettings(true);
+          showToast('Invoice layout reset to default sections');
+        }
       }
     }
 
@@ -2836,8 +2875,9 @@ const app = createApp({
         if (!btPrinterConnected.value) return;
       }
       try {
-        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
-        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+        const layout = settings.value.invoiceLayout || defaultInvoiceLayout;
+        const cols = layout?.paperWidth === '80mm' ? 48 : 32;
+        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, layout);
         showToast(`Invoice printed to ${btPrinterName.value || 'PT-210'}`);
       } catch (err: any) {
         showToast(`Print failed: ${err.message || err}`);
@@ -2884,8 +2924,9 @@ const app = createApp({
         if (!btPrinterConnected.value) return;
       }
       try {
-        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
-        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
+        const layout = settings.value.invoiceLayout || defaultInvoiceLayout;
+        const cols = layout?.paperWidth === '80mm' ? 48 : 32;
+        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, layout);
         showToast(`Invoice printed to ${btPrinterName.value || 'PT-210'}`);
       } catch (err: any) {
         showToast(`Print failed: ${err.message || err}`);
@@ -6801,6 +6842,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       updateSamplePreviewQr,
       applyReferenceLabelPreset,
       designerMode,
+      designerReceiptSubMode,
       designerSelectedId,
       designerCanvasZoom,
       designerShowGrid,

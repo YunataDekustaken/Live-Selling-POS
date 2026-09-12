@@ -84,6 +84,42 @@ export const defaultReceiptLayout: ReceiptLayoutSettings = {
   customSections: defaultReceiptSections
 };
 
+export const defaultInvoiceSections: VisualReceiptSection[] = [
+  { id: 'storeName', name: 'Store Name / Header', visible: true, order: 1, fontSize: 18, fontWeight: 'bold', align: 'center', showDividerBelow: false, paddingY: 4 },
+  { id: 'title', name: 'Slip Title (Invoice)', visible: true, order: 2, fontSize: 14, fontWeight: 'bold', align: 'center', showDividerBelow: false, paddingY: 2 },
+  { id: 'sessionDate', name: 'Session & Date / Time', visible: true, order: 3, fontSize: 11, fontWeight: 'normal', align: 'center', showDividerBelow: true, paddingY: 2 },
+  { id: 'buyer', name: 'Customer Handle Banner', visible: true, order: 4, fontSize: 22, fontWeight: 'black', align: 'center', showDividerBelow: false, paddingY: 6 },
+  { id: 'status', name: 'Payment Status Badge', visible: true, order: 5, fontSize: 12, fontWeight: 'bold', align: 'center', showDividerBelow: true, paddingY: 2 },
+  { id: 'itemsTable', name: 'Items List Table', visible: true, order: 6, fontSize: 12, fontWeight: 'normal', align: 'left', showDividerBelow: true, paddingY: 4 },
+  { id: 'totals', name: 'Totals & Balance Due', visible: true, order: 7, fontSize: 15, fontWeight: 'bold', align: 'left', showDividerBelow: true, paddingY: 4 },
+  { id: 'qcCheckbox', name: 'QC Verification Checkbox', visible: false, order: 8, fontSize: 11, fontWeight: 'normal', align: 'center', showDividerBelow: false, paddingY: 4 },
+  { id: 'paymentDetails', name: 'Payment Accounts / GCash Details', visible: true, order: 9, fontSize: 10, fontWeight: 'normal', align: 'left', showDividerBelow: false, paddingY: 4 },
+  { id: 'footer', name: 'Thank You Note & Handle', visible: true, order: 10, fontSize: 11, fontWeight: 'normal', align: 'center', showDividerBelow: false, paddingY: 6 }
+];
+
+export const defaultInvoiceLayout: ReceiptLayoutSettings = {
+  paperWidth: '58mm',
+  showStoreName: true,
+  showTitle: true,
+  showSessionDate: true,
+  showDateTime: true,
+  showBuyerName: true,
+  showPaymentStatus: true,
+  showItemNumber: true,
+  showItemTag: true,
+  showItemDescription: true,
+  showDividers: true,
+  showItemCount: true,
+  showSubtotal: true,
+  showTotalPaid: true,
+  showBalanceDue: true,
+  showPaymentAccounts: true,
+  showQcCheckbox: false,
+  customFooterNote: 'Thank you for mining with us!',
+  feedLines: 3,
+  customSections: defaultInvoiceSections
+};
+
 export const defaultSettings: AppSettings = {
   autoPrint: true,
   soundEnabled: true,
@@ -97,6 +133,7 @@ export const defaultSettings: AppSettings = {
   autoCleanOldPhotos: false,
   labelLayout: defaultLabelLayout,
   receiptLayout: defaultReceiptLayout,
+  invoiceLayout: defaultInvoiceLayout,
   receiptPrinterName: 'PT-210',
   labelPrinterName: 'PT-265',
   activePrinterType: 'auto',

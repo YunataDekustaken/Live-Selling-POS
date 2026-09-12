@@ -170,6 +170,7 @@ export interface AppSettings {
   autoCleanOldPhotos?: boolean;
   labelLayout?: LabelLayoutSettings;
   receiptLayout?: ReceiptLayoutSettings;
+  invoiceLayout?: ReceiptLayoutSettings;
   receiptPrinterName?: string;
   labelPrinterName?: string;
   activePrinterType?: 'receipt_pt210' | 'label_pt265' | 'auto';
