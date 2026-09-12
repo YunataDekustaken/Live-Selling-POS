@@ -2363,58 +2363,68 @@
       <div v-if="!isCustomerCheckoutView && currentTab === 'designer'" id="visual-designer-screen" class="space-y-4 animate-fadeIn">
 
         <!-- Dedicated Full-Page Studio Navigation & Exit Bar -->
-        <div class="bg-zinc-950 text-white rounded-2xl p-3 sm:p-4 shadow-sm border border-zinc-800/80 flex items-center justify-between gap-3">
-          <!-- Back / Exit Button -->
-          <button 
-            type="button" 
-            id="exit-designer-top-btn"
-            @click="exitDesigner"
-            class="flex items-center space-x-2 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer border border-zinc-700/80 shrink-0 shadow-xs group">
-            <svg class="w-4 h-4 text-indigo-400 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            <span>Exit Studio</span>
-            <span class="text-[10px] text-zinc-400 font-normal hidden sm:inline">
-              ({{ previousTab === 'mining' ? 'Return to Mining' : previousTab === 'balances' ? 'Return to Balances' : previousTab === 'mined_items' ? 'Return to Items' : 'Return to Dashboard' }})
-            </span>
-          </button>
+        <div class="bg-zinc-950 text-white rounded-2xl p-3 sm:p-4 shadow-sm border border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 overflow-hidden">
+          <!-- Back / Exit Button & Studio Title -->
+          <div class="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto min-w-0">
+            <button 
+              type="button" 
+              id="exit-designer-top-btn"
+              @click="exitDesigner"
+              class="flex items-center space-x-2 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer border border-zinc-700/80 shrink-0 shadow-xs group">
+              <svg class="w-4 h-4 text-indigo-400 group-hover:-translate-x-0.5 transition-transform shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+              <span>Exit Studio</span>
+              <span class="text-[10px] text-zinc-400 font-normal hidden lg:inline">
+                ({{ previousTab === 'mining' ? 'Return to Mining' : previousTab === 'balances' ? 'Return to Balances' : previousTab === 'mined_items' ? 'Return to Items' : 'Return to Dashboard' }})
+              </span>
+            </button>
 
-          <!-- Studio Title / Badge -->
-          <div class="flex items-center space-x-2 min-w-0">
-            <div class="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-            </div>
-            <div class="min-w-0 hidden md:block">
-              <span class="text-xs font-bold text-white tracking-tight">Full-Page Visual Designer</span>
-              <span class="text-[10px] text-zinc-400 ml-1.5">• Independent Studio Mode</span>
+            <div class="flex items-center space-x-2 min-w-0">
+              <div class="w-7 h-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center border border-indigo-500/30 shrink-0">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+              </div>
+              <div class="min-w-0 hidden md:block">
+                <span class="text-xs font-bold text-white tracking-tight">Full-Page Visual Designer</span>
+              </div>
             </div>
           </div>
 
-          <!-- Printer Target Switcher (PT-265 vs PT-210) -->
-          <div class="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800 shrink-0">
+          <!-- Printer Target Switcher (PT-265 vs PT-210 vs Printer Setup) -->
+          <div class="flex items-center bg-zinc-900 p-1 rounded-xl border border-zinc-800 w-full sm:w-auto justify-between sm:justify-start overflow-x-auto no-scrollbar shrink-0">
             <button 
               type="button"
               id="designer-tab-label-btn"
               @click="designerMode = 'label'"
-              class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              class="flex-1 sm:flex-none flex items-center justify-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
               :class="designerMode === 'label' ? 'bg-indigo-600 text-white shadow-xs' : 'text-zinc-400 hover:text-white'">
               <span>🏷️ PT-265</span>
-              <span class="text-[10px] font-mono px-1 py-0.2 rounded bg-black/20 hidden xs:inline">30×20mm</span>
+              <span class="text-[10px] font-mono px-1 py-0.2 rounded bg-black/20 hidden md:inline">30×20mm</span>
             </button>
 
             <button 
               type="button"
               id="designer-tab-receipt-btn"
               @click="designerMode = 'receipt'"
-              class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer"
+              class="flex-1 sm:flex-none flex items-center justify-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
               :class="designerMode === 'receipt' ? 'bg-indigo-600 text-white shadow-xs' : 'text-zinc-400 hover:text-white'">
               <span>🧾 PT-210</span>
-              <span class="text-[10px] font-mono px-1 py-0.2 rounded bg-black/20 hidden xs:inline">58mm</span>
+              <span class="text-[10px] font-mono px-1 py-0.2 rounded bg-black/20 hidden md:inline">58mm</span>
+            </button>
+
+            <button 
+              type="button"
+              id="designer-tab-printers-btn"
+              @click="designerMode = 'printers'"
+              class="flex-1 sm:flex-none flex items-center justify-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
+              :class="designerMode === 'printers' ? 'bg-indigo-600 text-white shadow-xs' : 'text-zinc-400 hover:text-white'">
+              <span>🖨️ Printer Setup</span>
+              <span class="text-[10px] font-mono px-1 py-0.2 rounded bg-black/20 hidden md:inline">BLE</span>
             </button>
           </div>
         </div>
 
         <!-- Top Designer Control Banner -->
-        <div class="bg-zinc-900 text-white rounded-2xl p-4 sm:p-5 shadow-sm border border-zinc-800 space-y-3">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="bg-zinc-900 text-white rounded-2xl p-3.5 sm:p-5 shadow-sm border border-zinc-800 space-y-3 overflow-hidden">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
             <div>
               <div class="flex items-center space-x-2">
                 <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
@@ -2426,39 +2436,41 @@
           </div>
 
           <!-- Action bar with Direct Bluetooth Print & Gap Calibrate -->
-          <div class="pt-2 border-t border-zinc-800 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div class="flex items-center space-x-2">
-              <span class="w-2 h-2 rounded-full" :class="btPrinterConnected ? 'bg-emerald-400' : 'bg-zinc-600'"></span>
-              <span class="text-zinc-300 font-mono text-[11px]">
-                Printer: <strong class="text-white">{{ btPrinterName || (designerMode === 'label' ? 'PT-265 (Label)' : 'PT-210 (Receipt)') }}</strong>
-                ({{ btPrinterConnected ? 'Connected' : 'Offline' }})
-              </span>
+          <div class="pt-2.5 border-t border-zinc-800/80 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs">
+            <div class="flex items-center justify-between sm:justify-start space-x-2">
+              <div class="flex items-center space-x-1.5 min-w-0">
+                <span class="w-2 h-2 rounded-full shrink-0" :class="btPrinterConnected ? 'bg-emerald-400' : 'bg-zinc-600'"></span>
+                <span class="text-zinc-300 font-mono text-[11px] truncate">
+                  Printer: <strong class="text-white">{{ btPrinterName || (designerMode === 'label' ? 'PT-265 (Label)' : 'PT-210 (Receipt)') }}</strong>
+                  ({{ btPrinterConnected ? 'Connected' : 'Offline' }})
+                </span>
+              </div>
               <button 
                 v-if="!btPrinterConnected"
                 type="button" 
                 @click="connectBluetooth" 
-                class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 text-[10px] font-mono cursor-pointer transition-colors">
-                Connect Bluetooth
+                class="px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 text-[10px] font-mono cursor-pointer transition-colors shrink-0">
+                Connect BLE
               </button>
             </div>
 
-            <div class="flex items-center space-x-2">
+            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
               <button 
                 v-if="designerMode === 'label'"
                 type="button"
                 id="designer-calibrate-gap-btn"
                 @click="calibratePt265Gap"
                 title="Feed sticker precisely to the die-cut cutoff gap"
-                class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer">
-                <span>⚡ Feed to Gap</span>
+                class="flex-1 sm:flex-none px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center justify-center space-x-1 transition-colors cursor-pointer">
+                <span>⚡ Feed Gap</span>
               </button>
 
               <button 
                 type="button"
                 id="designer-test-print-btn"
                 @click="designerMode === 'label' ? testLabelPrint() : testReceiptPrint()"
-                class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                class="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer whitespace-nowrap">
+                <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                 <span>Print Test {{ designerMode === 'label' ? 'Label (PT-265)' : 'Slip (PT-210)' }}</span>
               </button>
 
@@ -2469,8 +2481,8 @@
                   id="designer-save-profile-btn"
                   @click="openSaveProfileModal"
                   title="Save current layout and coordinates as a custom profile"
-                  class="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                  class="px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center space-x-1.5 shadow-xs transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
                   <span>Save Profile</span>
                 </button>
 
@@ -2479,8 +2491,8 @@
                   id="designer-download-coords-btn"
                   @click="downloadLabelCoordinates"
                   title="Download layout coordinates as JSON file"
-                  class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center justify-center space-x-1 transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                   <span>Download Coords</span>
                 </button>
 
@@ -2489,8 +2501,8 @@
                   id="designer-load-coords-btn"
                   @click="$refs.labelCoordsHeaderFileInput && $refs.labelCoordsHeaderFileInput.click()"
                   title="Load label coordinates from a JSON file"
-                  class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center space-x-1 transition-colors cursor-pointer">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" /></svg>
+                  class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-medium flex items-center justify-center space-x-1 transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" /></svg>
                   <span>Load File</span>
                 </button>
                 <input 
@@ -3346,6 +3358,394 @@
 
         </div> <!-- Closes Grid Container grid-cols-1 lg:grid-cols-12 -->
       </div> <!-- Closes wrapper div v-if="designerMode === 'receipt'" -->
+
+        <!-- ============================================================= -->
+        <!-- MODE 3: DUAL BLUETOOTH PRINTER PAIRING & HARDWARE CONFIG       -->
+        <!-- ============================================================= -->
+        <div v-if="designerMode === 'printers'" class="space-y-4 w-full">
+          <!-- Overview Header -->
+          <div class="bg-white p-4 rounded-2xl border border-zinc-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xl shadow-xs shrink-0">
+                🖨️
+              </div>
+              <div>
+                <h3 class="font-bold text-sm text-zinc-900">Dual Bluetooth Printer Setup &amp; Hardware Control</h3>
+                <p class="text-xs text-zinc-500">Pair wireless printers, configure paper roll widths, print density, speed, and gap sensor feed</p>
+              </div>
+            </div>
+            <div class="flex items-center space-x-2 shrink-0">
+              <span class="w-2.5 h-2.5 rounded-full" :class="btPrinterConnected ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'"></span>
+              <span class="text-xs font-mono font-bold" :class="btPrinterConnected ? 'text-emerald-700' : 'text-zinc-500'">
+                {{ btPrinterConnected ? (btPrinterName || 'Printer Connected') : 'Offline / Unpaired' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+            <!-- Left Column (6 cols): Connection & Live Hardware Status -->
+            <div class="lg:col-span-6 space-y-4">
+              
+              <!-- Connection Card -->
+              <div class="bg-white p-4 sm:p-4.5 rounded-2xl border border-zinc-200 shadow-2xs space-y-4 overflow-hidden">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-100 pb-3">
+                  <div class="font-bold text-xs text-zinc-900 uppercase tracking-wider flex items-center space-x-2">
+                    <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                    <span>Bluetooth Printer Pair &amp; Connect</span>
+                  </div>
+                  <span 
+                    class="self-start sm:self-auto px-2.5 py-1 rounded-full text-[10px] font-mono font-bold border shrink-0"
+                    :class="btPrinterConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-zinc-100 text-zinc-600 border-zinc-200'">
+                    {{ btPrinterConnected ? 'ACTIVE' : 'DISCONNECTED' }}
+                  </span>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs space-y-2">
+                  <div class="flex justify-between font-mono text-[11px]">
+                    <span class="text-zinc-500">Connected Device:</span>
+                    <strong class="text-zinc-900 truncate ml-2">{{ btPrinterName || 'None paired' }}</strong>
+                  </div>
+                  <div class="flex justify-between font-mono text-[11px]">
+                    <span class="text-zinc-500">Supported Devices:</span>
+                    <span class="text-indigo-700 font-bold truncate ml-2">PT-265, PT-210, MPT-II</span>
+                  </div>
+                  <div class="flex justify-between font-mono text-[11px]">
+                    <span class="text-zinc-500">Output Protocol:</span>
+                    <span class="text-zinc-900 font-bold truncate ml-2">ESC/POS BLE Direct</span>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <button 
+                    type="button"
+                    @click="connectBluetooth"
+                    :disabled="btPrinterConnecting"
+                    class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5">
+                    <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                    <span>{{ btPrinterConnecting ? 'Scanning...' : (btPrinterConnected ? 'Re-pair Device' : 'Pair Printer') }}</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    @click="disconnectBluetooth"
+                    :disabled="!btPrinterConnected"
+                    class="w-full py-2.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 disabled:opacity-40 text-zinc-700 font-bold text-xs border border-zinc-200 transition-all cursor-pointer">
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+
+              <!-- Test Print & Calibration Actions -->
+              <div class="bg-white p-4 sm:p-4.5 rounded-2xl border border-zinc-200 shadow-2xs space-y-3 overflow-hidden">
+                <div class="font-bold text-xs text-zinc-900 uppercase tracking-wider flex items-center space-x-2">
+                  <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                  <span>Hardware Test &amp; Feed Calibration</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <button 
+                    type="button"
+                    @click="testLabelPrint()"
+                    class="p-3 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs transition-colors cursor-pointer flex flex-col items-center justify-center space-y-1 text-center shadow-xs">
+                    <span>🏷️ Test PT-265</span>
+                    <span class="text-[10px] text-zinc-400 font-normal">30x20mm Sticker</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    @click="testReceiptPrint()"
+                    class="p-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer flex flex-col items-center justify-center space-y-1 text-center shadow-xs">
+                    <span>🧾 Test PT-210</span>
+                    <span class="text-[10px] text-emerald-100 font-normal">58mm Receipt</span>
+                  </button>
+
+                  <button 
+                    type="button"
+                    @click="calibratePt265Gap"
+                    class="p-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-900 font-bold text-xs transition-colors cursor-pointer flex flex-col items-center justify-center space-y-1 text-center shadow-xs">
+                    <span>⚡ Feed to Gap</span>
+                    <span class="text-[10px] text-indigo-600 font-normal">Die-Cut Sensor</span>
+                  </button>
+                </div>
+              </div>
+
+            </div> <!-- Closes Left Column -->
+
+            <!-- Right Column (6 cols): Hardware Parameters & Driver Protocols -->
+            <div class="lg:col-span-6 space-y-4">
+              
+              <!-- Physical Paper Guide & Head Offset Card (Matching User Screenshot 1) -->
+              <div class="bg-white p-4 sm:p-4.5 rounded-2xl border border-zinc-200 shadow-2xs space-y-4 overflow-hidden">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-100 pb-3">
+                  <div class="flex items-center space-x-2 min-w-0">
+                    <span class="text-indigo-600 font-bold text-base shrink-0">⇄</span>
+                    <h4 class="font-bold text-xs text-zinc-900 uppercase tracking-wider leading-snug">Physical Paper Guide &amp; Head Offset (PT-265)</h4>
+                  </div>
+                  <span class="self-start sm:self-auto px-2.5 py-1 rounded-full text-[11px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                    Current: {{ (settings.labelLayout?.horizontalOffsetMm !== undefined ? settings.labelLayout.horizontalOffsetMm : 18) }}mm offset
+                  </span>
+                </div>
+
+                <p class="text-xs text-zinc-500 leading-relaxed">
+                  Because the PT-265 guide is on the left, your 30mm sticker sits toward the right side. Select your roll position or fine-tune the offset in millimeters:
+                </p>
+
+                <!-- 3 Preset Position Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button 
+                    type="button"
+                    @click="setPaperGuide('right')"
+                    class="p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between"
+                    :class="settings.labelLayout?.paperGuidePosition === 'right' || (!settings.labelLayout?.paperGuidePosition && settings.labelLayout?.horizontalOffsetMm === 18)
+                      ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-600/20' 
+                      : 'border-zinc-200 bg-white hover:border-zinc-300'">
+                    <div>
+                      <div class="font-bold text-xs text-zinc-900 flex items-center space-x-1.5">
+                        <span>👉 Right Guide</span>
+                      </div>
+                      <div class="text-[11px] text-zinc-500 mt-1">18mm offset</div>
+                    </div>
+                    <div class="text-[10px] font-semibold text-indigo-700 mt-2">(PT-265 Default)</div>
+                  </button>
+
+                  <button 
+                    type="button"
+                    @click="setPaperGuide('center')"
+                    class="p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between"
+                    :class="settings.labelLayout?.paperGuidePosition === 'center' || settings.labelLayout?.horizontalOffsetMm === 9
+                      ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-600/20' 
+                      : 'border-zinc-200 bg-white hover:border-zinc-300'">
+                    <div>
+                      <div class="font-bold text-xs text-zinc-900 flex items-center space-x-1.5">
+                        <span>↔️ Centered Roll</span>
+                      </div>
+                      <div class="text-[11px] text-zinc-500 mt-1">9mm margin</div>
+                    </div>
+                  </button>
+
+                  <button 
+                    type="button"
+                    @click="setPaperGuide('left')"
+                    class="p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between"
+                    :class="settings.labelLayout?.paperGuidePosition === 'left' || settings.labelLayout?.horizontalOffsetMm === 0
+                      ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-600/20' 
+                      : 'border-zinc-200 bg-white hover:border-zinc-300'">
+                    <div>
+                      <div class="font-bold text-xs text-zinc-900 flex items-center space-x-1.5">
+                        <span>👈 Left Guide</span>
+                      </div>
+                      <div class="text-[11px] text-zinc-500 mt-1">0mm (Edge align)</div>
+                    </div>
+                  </button>
+                </div>
+
+                <!-- Fine-tune Slider -->
+                <div class="pt-2 space-y-2">
+                  <div class="flex items-center justify-between text-xs">
+                    <label class="font-semibold text-zinc-700">Fine-tune Horizontal Offset (mm):</label>
+                    <span class="px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-mono font-bold border border-indigo-200">
+                      {{ (settings.labelLayout?.horizontalOffsetMm !== undefined ? settings.labelLayout.horizontalOffsetMm : 18) }} mm
+                    </span>
+                  </div>
+                  
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="28" 
+                    step="1"
+                    v-model.number="settings.labelLayout.horizontalOffsetMm"
+                    @change="saveSettings(false)"
+                    class="w-full accent-indigo-600 cursor-pointer h-2 bg-zinc-200 rounded-lg"
+                  />
+                  
+                  <div class="flex justify-between text-[10px] font-mono text-zinc-400">
+                    <span>0mm</span>
+                    <span>14mm</span>
+                    <span>18mm (Default)</span>
+                    <span>28mm</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sticker Roll Dimensions & Driver Protocol Card (Matching User Screenshot 2) -->
+              <div class="bg-white p-4 sm:p-4.5 rounded-2xl border border-zinc-200 shadow-2xs space-y-4 overflow-hidden">
+                <div class="font-bold text-xs text-zinc-900 uppercase tracking-wider flex items-center space-x-2 border-b border-zinc-100 pb-3">
+                  <svg class="w-4 h-4 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+                  <span>Sticker Roll Dimensions &amp; Driver Protocol</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label class="block font-semibold text-zinc-700 mb-1">Sticker Size Preset</label>
+                    <select 
+                      v-model="settings.labelLayout.labelSize" 
+                      @change="saveSettings(false)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 font-bold text-zinc-900 focus:bg-white focus:outline-none focus:border-indigo-600 cursor-pointer">
+                      <option value="30x20mm">30mm x 20mm (PT-265 Standard Die-Cut)</option>
+                      <option value="40x30mm">40mm x 30mm (Medium Thermal Sticker)</option>
+                      <option value="50x30mm">50mm x 30mm (Large Thermal Sticker)</option>
+                      <option value="58mm_roll">58mm Continuous Roll (No Gap)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block font-semibold text-zinc-700 mb-1">Printing Engine &amp; Driver</label>
+                    <select 
+                      v-model="settings.labelLayout.renderMode" 
+                      @change="saveSettings(false)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 font-bold text-zinc-900 focus:bg-white focus:outline-none focus:border-indigo-600 cursor-pointer">
+                      <option value="canvas_bitmap">🌟 Canvas Graphics (1 Sticker, Zero Wide Error)</option>
+                      <option value="escpos_compact">⚡ ESC/POS Compact Text Mode</option>
+                      <option value="tspl_hardware">🏷️ TSPL Hardware Vector (Direct TSPL)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Dynamic Single-Sticker Guarantee Banner -->
+                <div 
+                  v-if="!settings.labelLayout?.renderMode || settings.labelLayout?.renderMode === 'canvas_bitmap'"
+                  class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs leading-relaxed space-y-1">
+                  <div class="font-bold text-emerald-900 flex items-center space-x-1.5">
+                    <span>🌟 Guaranteed Single-Sticker Printing:</span>
+                  </div>
+                  <p class="text-[11px] text-emerald-800">
+                    Renders the exact visual card from this designer at 203 DPI (fixed at 160 dots high for 20mm), shifted by the {{ (settings.labelLayout?.horizontalOffsetMm !== undefined ? settings.labelLayout.horizontalOffsetMm : 18) }}mm right guide. It is physically impossible to overflow onto a 2nd sticker or trigger wide errors.
+                  </p>
+                </div>
+                <div 
+                  v-else-if="settings.labelLayout?.renderMode === 'escpos_compact'"
+                  class="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 text-xs leading-relaxed space-y-1">
+                  <div class="font-bold text-blue-900 flex items-center space-x-1.5">
+                    <span>⚡ ESC/POS Compact Text Mode:</span>
+                  </div>
+                  <p class="text-[11px] text-blue-800">
+                    Outputs high-speed ESC/POS text character streams directly to the thermal head. Best for rapid continuous listing.
+                  </p>
+                </div>
+                <div 
+                  v-else-if="settings.labelLayout?.renderMode === 'tspl_hardware'"
+                  class="p-3.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-950 text-xs leading-relaxed space-y-1">
+                  <div class="font-bold text-purple-900 flex items-center space-x-1.5">
+                    <span>🏷️ TSPL Direct Commands:</span>
+                  </div>
+                  <p class="text-[11px] text-purple-800">
+                    Sends hardware TSPL vector commands (SIZE 30 mm, 20 mm / GAP 2 mm) directly to TSPL-supported label printers.
+                  </p>
+                </div>
+
+                <!-- 3 Bottom Dropdowns -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pt-1">
+                  <div>
+                    <label class="block font-semibold text-zinc-700 mb-1">Gap Height</label>
+                    <select 
+                      v-model.number="settings.labelLayout.gapHeightMm" 
+                      @change="saveSettings(false)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 font-bold text-zinc-900 focus:bg-white focus:outline-none cursor-pointer">
+                      <option :value="1">1 mm</option>
+                      <option :value="2">2 mm (Standard)</option>
+                      <option :value="3">3 mm</option>
+                      <option :value="4">4 mm</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block font-semibold text-zinc-700 mb-1">Print Density / Dark</label>
+                    <select 
+                      v-model.number="settings.labelLayout.printDensity" 
+                      @change="saveSettings(false)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 font-bold text-zinc-900 focus:bg-white focus:outline-none cursor-pointer">
+                      <option :value="1">1 (Lightest)</option>
+                      <option :value="5">5 (Medium)</option>
+                      <option :value="10">10 (Dark)</option>
+                      <option :value="15">15 (Max Darkness)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block font-semibold text-zinc-700 mb-1">Vertical Offset</label>
+                    <select 
+                      v-model.number="settings.labelLayout.verticalOffsetMm" 
+                      @change="saveSettings(false)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 font-bold text-zinc-900 focus:bg-white focus:outline-none cursor-pointer">
+                      <option :value="-2">-2 mm</option>
+                      <option :value="-1">-1 mm</option>
+                      <option :value="0">0 mm (Normal)</option>
+                      <option :value="1">1 mm</option>
+                      <option :value="2">2 mm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Receipt & Invoice Parameters Card (PT-210) -->
+              <div class="bg-white p-4 sm:p-4.5 rounded-2xl border border-zinc-200 shadow-2xs space-y-4 overflow-hidden">
+                <div class="font-bold text-xs text-zinc-900 uppercase tracking-wider flex items-center space-x-2 border-b border-zinc-100 pb-3">
+                  <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <span>Receipt &amp; Invoice Printer Mode &amp; Size (PT-210)</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <label class="block font-semibold text-zinc-700 mb-1">Receipt Paper Roll Width</label>
+                    <select 
+                      v-model="settings.receiptLayout.paperWidth" 
+                      @change="saveSettings(false)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 font-bold text-zinc-900 focus:bg-white focus:outline-none cursor-pointer">
+                      <option value="58mm">58mm (PT-210 / 32 Cols)</option>
+                      <option value="80mm">80mm Desktop (48 Cols)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block font-semibold text-zinc-700 mb-1">Receipt Output Driver Mode</label>
+                    <select 
+                      v-model="settings.receiptLayout.printMode" 
+                      @change="saveSettings(false)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 font-bold text-zinc-900 focus:bg-white focus:outline-none cursor-pointer">
+                      <option value="direct_bt">⚡ Direct ESC/POS BLE</option>
+                      <option value="browser_dialog">🖥️ Browser System Print</option>
+                      <option value="canvas_raster">🖼️ Canvas Raster Bitmap</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label class="block font-semibold text-zinc-700 mb-1">Extra Feed Cut Clearance</label>
+                    <select 
+                      v-model.number="settings.receiptLayout.feedLines" 
+                      @change="saveSettings(false)"
+                      class="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 font-bold text-zinc-900 focus:bg-white focus:outline-none cursor-pointer">
+                      <option :value="0">0 Lines (Flush)</option>
+                      <option :value="1">1 Line</option>
+                      <option :value="2">2 Lines (Standard)</option>
+                      <option :value="3">3 Lines</option>
+                      <option :value="4">4 Lines (Tear-off clearance)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Automation Switches -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+                  <label class="flex items-center space-x-2 bg-zinc-50 p-3 rounded-xl border border-zinc-200 cursor-pointer hover:bg-zinc-100">
+                    <input type="checkbox" v-model="settings.escPosDirectPrint" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer" />
+                    <span class="font-bold text-zinc-800">Direct ESC/POS Mode</span>
+                  </label>
+
+                  <label class="flex items-center space-x-2 bg-zinc-50 p-3 rounded-xl border border-zinc-200 cursor-pointer hover:bg-zinc-100">
+                    <input type="checkbox" v-model="settings.autoPrint" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer" />
+                    <span class="font-bold text-zinc-800">Auto-Print on Log Mine</span>
+                  </label>
+
+                  <label class="flex items-center space-x-2 bg-zinc-50 p-3 rounded-xl border border-zinc-200 cursor-pointer hover:bg-zinc-100">
+                    <input type="checkbox" v-model="settings.soundEnabled" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer" />
+                    <span class="font-bold text-zinc-800">Sound &amp; Audio Beep</span>
+                  </label>
+                </div>
+              </div>
+
+            </div> <!-- Closes Right Column -->
+
+          </div>
+        </div> <!-- Closes wrapper div v-if="designerMode === 'printers'" -->
 
         <!-- Bottom Studio Exit & Quick Return Banner -->
         <div class="bg-zinc-950 text-white rounded-2xl p-3.5 sm:p-4 border border-zinc-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs shadow-sm">
@@ -6485,1147 +6885,24 @@
     </div>
 
     <!-- =============================================================== -->
-    <!-- MODAL 3: PRINTER & LAYOUT DESIGNER (PT-265 30x20mm & PT-210)     -->
+    <!-- MODAL 3: UNIFIED DESIGNER REDIRECT                               -->
     <!-- =============================================================== -->
-    <div v-if="printerLayoutModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn overflow-y-auto">
-      <div class="bg-white border border-zinc-200 rounded-2xl max-w-4xl w-full shadow-2xl max-h-[92vh] flex flex-col my-auto overflow-hidden">
-        
-        <!-- Pinned Header -->
-        <div class="flex items-center justify-between border-b border-zinc-100 px-4 py-3 shrink-0 bg-white">
-          <div class="flex items-center space-x-2.5">
-            <div class="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
-              <svg class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-            </div>
-            <div>
-              <div class="flex items-center space-x-2">
-                <h3 class="font-bold text-sm sm:text-base text-zinc-900 leading-tight">Printer & Layout Designer</h3>
-                <span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  PT-265 + PT-210
-                </span>
-              </div>
-              <p class="text-[11px] text-zinc-500">Customize output layouts, font sizes, element visibility, and sticker gap cutoff</p>
-            </div>
-          </div>
-          <button @click="closePrinterLayoutModal" class="text-zinc-400 hover:text-zinc-700 p-1.5 rounded-lg hover:bg-zinc-100 text-base leading-none cursor-pointer transition-colors">✕</button>
+    <div v-if="printerLayoutModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-md w-full p-6 shadow-2xl text-center space-y-4">
+        <div class="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-2xl mx-auto shadow-xs">
+          🖨️
         </div>
-
-        <!-- Navigation Tabs -->
-        <div class="flex border-b border-zinc-200 bg-zinc-50/90 px-3 pt-2 gap-1.5 shrink-0 overflow-x-auto">
-          <button 
-            type="button"
-            @click="activeLayoutTab = 'label'"
-            class="pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            :class="activeLayoutTab === 'label' 
-              ? 'border-indigo-600 text-indigo-700' 
-              : 'border-transparent text-zinc-500 hover:text-zinc-800'">
-            <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-            <span>🏷️ PT-265 Label Sticker (30x20mm)</span>
-          </button>
-
-          <button 
-            type="button"
-            @click="activeLayoutTab = 'receipt'"
-            class="pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            :class="activeLayoutTab === 'receipt' 
-              ? 'border-indigo-600 text-indigo-700' 
-              : 'border-transparent text-zinc-500 hover:text-zinc-800'">
-            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-            <span>🧾 PT-210 Receipt & Packing Slip (58mm)</span>
-          </button>
-
-          <button 
-            type="button"
-            @click="activeLayoutTab = 'printers'"
-            class="pb-2.5 px-3 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors cursor-pointer whitespace-nowrap"
-            :class="activeLayoutTab === 'printers' 
-              ? 'border-indigo-600 text-indigo-700' 
-              : 'border-transparent text-zinc-500 hover:text-zinc-800'">
-            <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-            <span>🖨️ Dual Bluetooth Pairing</span>
-          </button>
+        <div>
+          <h3 class="font-bold text-base text-zinc-900">Unified Visual Studio</h3>
+          <p class="text-xs text-zinc-500 mt-1">Printer settings and layout customization are now unified in the interactive Visual Designer.</p>
         </div>
-
-        <!-- Scrollable Content Area -->
-        <div class="p-4 overflow-y-auto flex-1 overscroll-contain">
-          
-          <!-- ========================================================= -->
-          <!-- ========================================================= -->
-          <!-- TAB 1: PT-265 LABEL STICKER (30mm x 20mm) DESIGNER        -->
-          <!-- ========================================================= -->
-          <div v-if="activeLayoutTab === 'label'" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            
-            <!-- Left 7 Cols: Customization Controls -->
-            <div class="lg:col-span-7 space-y-4">
-              
-              <!-- Hardware Specs & Gap Cutoff Advisory Card -->
-              <div class="p-3.5 rounded-xl bg-indigo-50/80 border border-indigo-200 text-xs space-y-2.5">
-                <div class="flex items-center justify-between">
-                  <span class="font-bold text-indigo-950 flex items-center space-x-1.5 text-xs">
-                    <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                    <span>🎯 PT-265 Label & Sticker System</span>
-                  </span>
-                  <span class="font-mono text-[10px] bg-indigo-200/90 text-indigo-900 px-2 py-0.5 rounded-full font-bold">
-                    30mm × 20mm Die-Cut
-                  </span>
-                </div>
-                <p class="text-[11px] text-indigo-900 leading-relaxed">
-                  Your PT-265 sticker roll is <strong>30mm wide by 20mm high</strong> with an adjustable guide on the left pushing the roll to the <strong>right side of the 58mm printhead</strong>. Native <strong>TSPL</strong> commands align text precisely over the label and auto-stop at the die-cut gap sensor.
-                </p>
-                <div class="flex flex-wrap gap-2 pt-0.5">
-                  <button 
-                    type="button" 
-                    @click="testLabelPrint"
-                    class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                    <span>Print Test Sticker</span>
-                  </button>
-                  <button 
-                    type="button" 
-                    @click="calibratePt265Gap"
-                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-indigo-50 text-indigo-900 border border-indigo-300 font-bold text-[11px] flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer">
-                    <svg class="w-3.5 h-3.5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                    <span>Feed to Gap Cutoff</span>
-                  </button>
-                  <button 
-                    type="button" 
-                    @click="resetLabelLayout"
-                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-zinc-100 text-zinc-600 border border-zinc-300 font-medium text-[11px] transition-colors cursor-pointer ml-auto">
-                    Reset Defaults
-                  </button>
-                </div>
-              </div>
-
-              <!-- Physical Paper Guide Alignment Card -->
-              <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-3">
-                <div class="flex items-center justify-between">
-                  <div class="font-bold text-zinc-900 text-xs flex items-center space-x-1.5">
-                    <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                    <span>Physical Paper Guide & Head Offset (PT-265)</span>
-                  </div>
-                  <span class="text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded">
-                    Current: {{ settings.labelLayout.horizontalOffsetMm || 18 }}mm offset
-                  </span>
-                </div>
-
-                <p class="text-[11px] text-zinc-600">
-                  Because the PT-265 guide is on the left, your 30mm sticker sits toward the right side. Select your roll position or fine-tune the offset in millimeters:
-                </p>
-
-                <!-- Alignment Presets -->
-                <div class="grid grid-cols-3 gap-2">
-                  <button 
-                    type="button"
-                    @click="settings.labelLayout.paperGuidePosition = 'right'; settings.labelLayout.horizontalOffsetMm = 18; saveSettings(false)"
-                    class="p-2.5 rounded-lg border text-left transition-all cursor-pointer"
-                    :class="(settings.labelLayout.paperGuidePosition === 'right' || settings.labelLayout.horizontalOffsetMm === 18) ? 'border-indigo-600 bg-indigo-50/60 ring-2 ring-indigo-200' : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100'">
-                    <div class="text-[11px] font-bold text-zinc-900">👉 Right Guide (PT-265)</div>
-                    <div class="text-[10px] text-zinc-500 mt-0.5">18mm offset (Recommended)</div>
-                  </button>
-
-                  <button 
-                    type="button"
-                    @click="settings.labelLayout.paperGuidePosition = 'center'; settings.labelLayout.horizontalOffsetMm = 9; saveSettings(false)"
-                    class="p-2.5 rounded-lg border text-left transition-all cursor-pointer"
-                    :class="(settings.labelLayout.paperGuidePosition === 'center' && settings.labelLayout.horizontalOffsetMm === 9) ? 'border-indigo-600 bg-indigo-50/60 ring-2 ring-indigo-200' : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100'">
-                    <div class="text-[11px] font-bold text-zinc-900">↔️ Centered Roll</div>
-                    <div class="text-[10px] text-zinc-500 mt-0.5">9mm margin</div>
-                  </button>
-
-                  <button 
-                    type="button"
-                    @click="settings.labelLayout.paperGuidePosition = 'left'; settings.labelLayout.horizontalOffsetMm = 0; saveSettings(false)"
-                    class="p-2.5 rounded-lg border text-left transition-all cursor-pointer"
-                    :class="(settings.labelLayout.paperGuidePosition === 'left' && settings.labelLayout.horizontalOffsetMm === 0) ? 'border-indigo-600 bg-indigo-50/60 ring-2 ring-indigo-200' : 'border-zinc-200 bg-zinc-50 hover:bg-zinc-100'">
-                    <div class="text-[11px] font-bold text-zinc-900">👈 Left Guide</div>
-                    <div class="text-[10px] text-zinc-500 mt-0.5">0mm (Edge align)</div>
-                  </button>
-                </div>
-
-                <!-- Custom Millimeter Offset Slider -->
-                <div class="pt-2 border-t border-zinc-100 space-y-1.5">
-                  <div class="flex justify-between items-center text-[11px]">
-                    <span class="font-semibold text-zinc-700">Fine-tune Horizontal Offset (mm):</span>
-                    <span class="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">{{ settings.labelLayout.horizontalOffsetMm ?? 18 }} mm</span>
-                  </div>
-                  <input 
-                    type="range" 
-                    min="0" 
-                    max="28" 
-                    step="1"
-                    v-model.number="settings.labelLayout.horizontalOffsetMm" 
-                    @input="saveSettings(false)"
-                    class="w-full accent-indigo-600 cursor-pointer"
-                  />
-                  <div class="flex justify-between text-[9px] text-zinc-400 font-mono">
-                    <span>0mm (Left edge)</span>
-                    <span>14mm (Mid)</span>
-                    <span>18mm (PT-265 Default)</span>
-                    <span>28mm (Far right)</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- General Settings & Protocol -->
-              <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-3">
-                <div class="font-bold text-zinc-900 text-xs flex items-center justify-between">
-                  <span>Sticker Roll Dimensions & Driver Protocol</span>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Sticker Size Preset</label>
-                    <select v-model="settings.labelLayout.labelSize" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option value="30x20mm">30mm x 20mm (PT-265 Standard)</option>
-                      <option value="40x30mm">40mm x 30mm</option>
-                      <option value="50x30mm">50mm x 30mm (Larger Roll)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Printing Engine & Driver</label>
-                    <select v-model="settings.labelLayout.renderMode" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option value="canvas_bitmap">🌟 Canvas Graphics (1 Sticker, Zero Wide Error)</option>
-                      <option value="escpos_compact">⚡ ESC/POS Fast Text Mode (Fixed 1-Sticker)</option>
-                      <option value="tspl_hardware">🏷️ TSPL Hardware Mode (Only if printer has TSPL firmware)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <!-- Engine Contextual Guidance -->
-                <div v-if="settings.labelLayout.renderMode === 'canvas_bitmap' || !settings.labelLayout.renderMode" class="bg-emerald-50 border border-emerald-200 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-emerald-800">
-                  <i data-lucide="check-circle" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
-                  <div>
-                    <span class="font-bold">Guaranteed Single-Sticker Printing:</span> Renders the exact visual card from this designer at 203 DPI (fixed at 160 dots high for 20mm), shifted by the 18mm right guide. It is physically impossible to overflow onto a 2nd sticker or trigger wide errors.
-                  </div>
-                </div>
-
-                <div v-else-if="settings.labelLayout.renderMode === 'tspl_hardware'" class="bg-amber-50 border border-amber-200 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-amber-800">
-                  <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
-                  <div>
-                    <span class="font-bold">Firmware Warning:</span> If your printer printed plain text commands (like <code>SIZE 30 mm, 20 mm...</code>), your PT-265 unit does not recognize TSPL. Switch back to <strong>Canvas Graphics</strong>!
-                  </div>
-                </div>
-
-                <div v-else-if="settings.labelLayout.renderMode === 'escpos_compact'" class="bg-blue-50 border border-blue-200 rounded-lg p-2.5 flex items-start gap-2 text-[11px] text-blue-800">
-                  <i data-lucide="info" class="w-4 h-4 text-blue-600 shrink-0 mt-0.5"></i>
-                  <div>
-                    <span class="font-bold">ESC/POS Text Mode:</span> Lightweight printer ASCII font. Margin and width have been re-calibrated without double-feed commands to print on exactly 1 sticker without wide errors.
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs pt-1 border-t border-zinc-100">
-                  <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Gap Height</label>
-                    <select v-model.number="settings.labelLayout.gapHeightMm" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option :value="2">2 mm (Standard)</option>
-                      <option :value="3">3 mm</option>
-                      <option :value="4">4 mm</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Print Density / Dark</label>
-                    <select v-model.number="settings.labelLayout.printDensity" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option :value="8">8 (Normal)</option>
-                      <option :value="10">10 (Dark)</option>
-                      <option :value="12">12 (Extra Crisp)</option>
-                      <option :value="15">15 (Max Contrast)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Vertical Offset</label>
-                    <select v-model.number="settings.labelLayout.verticalOffsetMm" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                       <option :value="-1">-1 mm (Up)</option>
-                       <option :value="0">0 mm (Normal)</option>
-                       <option :value="1">+1 mm (Down)</option>
-                       <option :value="2">+2 mm</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Visual Designer Link Banner -->
-              <div class="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between gap-2 text-xs">
-                <div class="flex items-center space-x-2">
-                  <span class="text-base">🎨</span>
-                  <div>
-                    <div class="font-bold text-indigo-950">Drag & Drop Visual Designer</div>
-                    <div class="text-[10px] text-indigo-700">Freely drag coordinates, test print, and tweak sizes visually</div>
-                  </div>
-                </div>
-                <button 
-                  type="button" 
-                  @click="openDesigner('label'); printerLayoutModalOpen = false" 
-                  class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition-colors">
-                  Open Studio →
-                </button>
-              </div>
-
-              <!-- Element Toggles & Sizes -->
-              <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-3">
-                <div class="font-bold text-zinc-900 text-xs">Elements to Print on 30x20mm Sticker</div>
-
-                <!-- 1. Store Name -->
-                <div class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200">
-                  <div class="flex items-center space-x-2">
-                    <input type="checkbox" id="lbl_storeName" v-model="settings.labelLayout.showStoreName" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer">
-                    <label for="lbl_storeName" class="text-xs font-semibold text-zinc-800 cursor-pointer">Store / Brand Name</label>
-                  </div>
-                  <select v-if="settings.labelLayout.showStoreName" v-model="settings.labelLayout.storeNameSize" @change="saveSettings(false)" class="text-xs bg-white border border-zinc-300 rounded px-2 py-1 font-semibold text-zinc-800">
-                    <option value="xs">Small (Compact)</option>
-                    <option value="sm">Medium</option>
-                  </select>
-                </div>
-
-                <!-- 2. Control Number -->
-                <div class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200">
-                  <div class="flex items-center space-x-2">
-                    <input type="checkbox" id="lbl_ctrlCode" v-model="settings.labelLayout.showControlCode" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer">
-                    <div>
-                      <label for="lbl_ctrlCode" class="text-xs font-bold text-zinc-900 cursor-pointer">Control Code (#0907-01)</label>
-                      <div class="text-[10px] text-zinc-500">Essential for inventory matching</div>
-                    </div>
-                  </div>
-                  <select v-model="settings.labelLayout.codeSize" @change="saveSettings(false)" class="text-xs bg-white border border-zinc-300 rounded px-2 py-1 font-semibold text-zinc-800">
-                    <option value="md">Normal (1x)</option>
-                    <option value="lg">Large (2x Width)</option>
-                    <option value="xl">Extra Large (2x W+H)</option>
-                  </select>
-                </div>
-
-                <!-- 3. Customer Handle -->
-                <div class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200">
-                  <div class="flex items-center space-x-2">
-                    <input type="checkbox" id="lbl_buyer" v-model="settings.labelLayout.showBuyer" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer">
-                    <div>
-                      <label for="lbl_buyer" class="text-xs font-bold text-zinc-900 cursor-pointer">Buyer Handle (@username)</label>
-                      <div class="text-[10px] text-zinc-500">Printed in high contrast</div>
-                    </div>
-                  </div>
-                  <select v-model="settings.labelLayout.buyerSize" @change="saveSettings(false)" class="text-xs bg-white border border-zinc-300 rounded px-2 py-1 font-semibold text-zinc-800">
-                    <option value="md">Normal (1x)</option>
-                    <option value="lg">Large (2x Width/Height)</option>
-                  </select>
-                </div>
-
-                <!-- 4. Price -->
-                <div class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200">
-                  <div class="flex items-center space-x-2">
-                    <input type="checkbox" id="lbl_price" v-model="settings.labelLayout.showPrice" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer">
-                    <label for="lbl_price" class="text-xs font-semibold text-zinc-800 cursor-pointer">Item Price ({{ activeProfile.currency }})</label>
-                  </div>
-                  <select v-if="settings.labelLayout.showPrice" v-model="settings.labelLayout.priceSize" @change="saveSettings(false)" class="text-xs bg-white border border-zinc-300 rounded px-2 py-1 font-semibold text-zinc-800">
-                    <option value="md">Normal</option>
-                    <option value="lg">Bold & Large</option>
-                  </select>
-                </div>
-
-                <!-- 5. Tag / Description / Time -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.labelLayout.showTag" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Item Tag</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.labelLayout.showDescription" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Description</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.labelLayout.showTime" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Time Stamp</span>
-                  </label>
-                </div>
-
-                <!-- 6. 2D QR Code & Barcode Options -->
-                <div class="p-3 rounded-xl bg-indigo-50/60 border border-indigo-200 space-y-2.5">
-                  <div class="flex items-center justify-between flex-wrap gap-2">
-                    <div class="flex items-center space-x-2">
-                      <input type="checkbox" id="lbl_qrcode" v-model="settings.labelLayout.showQrCode" @change="saveSettings(false); updateSamplePreviewQr()" class="rounded text-indigo-600 focus:ring-0 w-4 h-4 cursor-pointer">
-                      <div>
-                        <label for="lbl_qrcode" class="text-xs font-bold text-indigo-950 cursor-pointer flex items-center gap-1.5">
-                          <span>📱 2D QR Code (Side-by-Side Layout)</span>
-                          <span class="text-[9px] bg-indigo-600 text-white font-mono px-1.5 py-0.2 rounded">Recommended</span>
-                        </label>
-                        <div class="text-[10px] text-indigo-800">Scannable phone camera code placed alongside item details</div>
-                      </div>
-                    </div>
-                    <button type="button" @click="applyReferenceLabelPreset()" class="px-2.5 py-1 text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors flex items-center gap-1 shadow-xs shrink-0 cursor-pointer">
-                      ✨ Reset to Reference Layout
-                    </button>
-                  </div>
-
-                  <!-- QR Code Placement & Size Settings (when enabled) -->
-                  <div v-if="settings.labelLayout.showQrCode !== false" class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-indigo-200/60 text-xs">
-                    <div>
-                      <label class="block text-[11px] font-semibold text-zinc-700 mb-1">QR Placement</label>
-                      <select v-model="settings.labelLayout.qrPosition" @change="saveSettings(false)" class="w-full bg-white border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:outline-none">
-                        <option value="right">👉 Right Side (Info on Left)</option>
-                        <option value="left">👈 Left Side (Info on Right)</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label class="block text-[11px] font-semibold text-zinc-700 mb-1">QR Code Density</label>
-                      <select v-model="settings.labelLayout.qrSize" @change="saveSettings(false); updateSamplePreviewQr()" class="w-full bg-white border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:outline-none">
-                        <option value="md">Medium (Optimal 203 DPI Sharpness)</option>
-                        <option value="lg">Large (Maximum Scan Distance)</option>
-                        <option value="sm">Compact (Extra room for item text)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <!-- Alternative: 1D Linear Barcode -->
-                  <div class="pt-1.5 border-t border-indigo-200/60 flex items-center justify-between text-xs">
-                    <label class="flex items-center space-x-2 cursor-pointer">
-                      <input type="checkbox" v-model="settings.labelLayout.showBarcode" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5">
-                      <span class="text-[11px] font-medium text-zinc-700">Show 1D Barcode (Stacked at bottom)</span>
-                    </label>
-                    <label class="flex items-center space-x-2 cursor-pointer">
-                      <input type="checkbox" v-model="settings.labelLayout.showSessionDate" @change="saveSettings(false)" class="rounded text-indigo-600 focus:ring-0 w-3.5 h-3.5">
-                      <span class="text-[11px] font-medium text-zinc-700">Session Date (#0907)</span>
-                    </label>
-                  </div>
-                </div>
-
-                <!-- Custom Footer Text -->
-                <div class="space-y-1 pt-1">
-                  <label class="block text-[11px] font-semibold text-zinc-700">Custom Sticker Footer Text (Optional)</label>
-                  <input 
-                    v-model="settings.labelLayout.footerText" 
-                    @input="saveSettings(false)"
-                    type="text" 
-                    placeholder="e.g. *QC PASS* or No Return No Exchange"
-                    class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 focus:bg-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-            </div>
-
-            <!-- Right 5 Cols: Live Dynamic Sticker Preview & Physical Chamber Visualizer -->
-            <div class="lg:col-span-5 flex flex-col items-center">
-              <div class="sticky top-2 w-full space-y-3">
-                <div class="flex items-center justify-between px-1">
-                  <span class="font-bold text-zinc-900 text-xs flex items-center space-x-1.5">
-                    <svg class="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    <span>PT-265 Printhead & 30x20mm Preview</span>
-                  </span>
-                  <span class="text-[10px] font-mono text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">Scale ~2.5x</span>
-                </div>
-
-                <!-- 58mm Thermal Chamber & Right-Side Guide Diagram -->
-                <div class="bg-zinc-900 p-4 rounded-2xl flex flex-col items-center justify-center shadow-inner border border-zinc-800">
-                  <div class="w-full mb-2 flex items-center justify-between text-[10px] font-mono text-zinc-400 border-b border-zinc-700 pb-1">
-                    <span class="flex items-center space-x-1">
-                      <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                      <span>Left Guide: {{ settings.labelLayout.horizontalOffsetMm ?? 18 }}mm</span>
-                    </span>
-                    <span class="text-zinc-500">PT-265 58mm Mechanism</span>
-                    <span class="text-emerald-400 font-bold">30mm Sticker 👉</span>
-                  </div>
-
-                  <!-- Visualizer Container representing the 58mm print line -->
-                  <div class="w-full bg-zinc-800 rounded-xl p-2.5 border border-zinc-700 relative overflow-hidden flex" style="min-height: 200px;">
-                    <!-- Left empty chamber area (pushed by guide) -->
-                    <div 
-                      class="transition-all duration-200 border-r border-dashed border-zinc-600 flex flex-col items-center justify-center text-[9px] font-mono text-zinc-500 select-none bg-zinc-800/60 p-1"
-                      :style="{ width: Math.min(Math.max(((settings.labelLayout.horizontalOffsetMm ?? 18) / 48) * 100, 0), 55) + '%' }">
-                      <span v-if="(settings.labelLayout.horizontalOffsetMm ?? 18) > 8">Guide Adjuster</span>
-                      <span v-if="(settings.labelLayout.horizontalOffsetMm ?? 18) > 8" class="text-[8px] text-zinc-600">({{ settings.labelLayout.horizontalOffsetMm ?? 18 }}mm)</span>
-                    </div>
-
-                    <!-- The 30x20mm Thermal Sticker Card -->
-                    <div 
-                      class="flex-1 bg-white rounded-md p-2.5 shadow-md border border-zinc-300 font-sans text-black relative select-none transition-all duration-200 flex flex-col justify-between"
-                      style="min-height: 180px;">
-                      
-                      <!-- OPTION A: SIDE-BY-SIDE LAYOUT (Exact Reference Match) -->
-                      <div v-if="settings.labelLayout.showQrCode !== false" class="h-full flex flex-col justify-between">
-                        <!-- Top Header Row: Control Code on left, Time on right -->
-                        <div class="flex justify-between items-baseline pt-0.5">
-                          <div v-if="settings.labelLayout.showControlCode !== false" 
-                               class="font-black text-black tracking-tight leading-none"
-                               :class="settings.labelLayout.codeSize === 'xl' ? 'text-2xl' : (settings.labelLayout.codeSize === 'lg' ? 'text-xl' : 'text-lg')">
-                            {{ (samplePreviewItem.controlCode || 'L0911-002').replace(/^\[\s*|\s*\]$/g, '') }}
-                          </div>
-                          <div class="font-medium text-black text-xs leading-none">
-                            {{ settings.labelLayout.showTime !== false ? (samplePreviewItem.time || '13:02') : (settings.labelLayout.showSessionDate ? '#' + sessionDate : '') }}
-                          </div>
-                        </div>
-
-                        <!-- Store Name if explicitly toggled on -->
-                        <div v-if="settings.labelLayout.showStoreName" class="text-[8px] font-bold uppercase text-zinc-600 -mt-1">
-                          {{ activeProfile.name || settings.storeName }}
-                        </div>
-
-                        <!-- Main Content Row: Info on Left, QR Code on Right -->
-                        <div class="flex gap-2 items-center flex-1 my-1"
-                             :class="settings.labelLayout.qrPosition === 'left' ? 'flex-row-reverse' : 'flex-row'">
-                          
-                          <!-- Left Column: Buyer Name, Item Tag/Description, Price -->
-                          <div class="flex-1 flex flex-col justify-around h-full py-0.5 text-left min-w-0">
-                            <!-- Buyer Handle / Name -->
-                            <div v-if="settings.labelLayout.showBuyer !== false" class="font-bold text-black text-xs truncate leading-tight">
-                              {{ (samplePreviewItem.buyer || '').replace(/^@+/, '') }}
-                            </div>
-
-                            <!-- Item Tag / Description -->
-                            <div v-if="settings.labelLayout.showTag !== false || settings.labelLayout.showDescription" class="font-bold text-black text-xs truncate leading-tight">
-                              {{ samplePreviewItem.tag || samplePreviewItem.description || 'Pumice' }}
-                            </div>
-
-                            <!-- Price -->
-                            <div v-if="settings.labelLayout.showPrice !== false" class="font-black text-black text-sm leading-tight">
-                              {{ (activeProfile.currency || '₱').replace(/PHP/g, '₱') }}{{ samplePreviewItem.price }}
-                            </div>
-                          </div>
-
-                          <!-- Right Column: Clean 2D QR Code -->
-                          <div class="shrink-0 flex items-center justify-center">
-                            <div class="w-16 h-16 bg-white flex items-center justify-center">
-                              <img v-if="samplePreviewQrDataUrl" :src="samplePreviewQrDataUrl" class="w-full h-full object-contain" alt="QR Code" />
-                              <div v-else class="w-16 h-16 bg-zinc-900 flex items-center justify-center text-[7px] text-white">QR</div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <!-- Footer text if configured -->
-                        <div v-if="settings.labelLayout.footerText" class="text-[7px] text-center uppercase tracking-wider font-semibold border-t border-black pt-0.5">
-                          {{ settings.labelLayout.footerText }}
-                        </div>
-                      </div>
-
-                      <!-- OPTION B: FULL-WIDTH STACKED LAYOUT -->
-                      <div v-else class="h-full flex flex-col justify-between">
-                        <!-- Sticker Top Bar: Store Name / Session Date -->
-                        <div>
-                          <div v-if="settings.labelLayout.showStoreName || settings.labelLayout.showSessionDate || settings.labelLayout.showTime" class="flex justify-between items-center text-[9px] border-b border-black pb-0.5 mb-1 font-bold">
-                            <span v-if="settings.labelLayout.showStoreName" class="truncate max-w-[110px] uppercase">{{ activeProfile.name || settings.storeName }}</span>
-                            <span v-else>LIVE POS</span>
-                            <span class="text-[8px]">{{ (settings.labelLayout.showSessionDate ? '#' + sessionDate : '') }} {{ (settings.labelLayout.showTime ? samplePreviewItem.time : '') }}</span>
-                          </div>
-
-                          <!-- Main Code & Buyer Line -->
-                          <div class="text-center my-0.5">
-                            <div v-if="settings.labelLayout.showControlCode" 
-                                 class="font-black leading-tight tracking-tight"
-                                 :class="settings.labelLayout.codeSize === 'xl' ? 'text-xl' : (settings.labelLayout.codeSize === 'lg' ? 'text-lg' : 'text-sm')">
-                              {{ samplePreviewItem.controlCode }}
-                            </div>
-
-                            <div v-if="settings.labelLayout.showBuyer" 
-                                 class="font-extrabold uppercase mt-0.5 truncate leading-tight"
-                                 :class="settings.labelLayout.buyerSize === 'lg' ? 'text-sm' : 'text-[11px]'">
-                              {{ samplePreviewItem.buyer }}
-                            </div>
-                          </div>
-
-                          <!-- Tag, Description & Price -->
-                          <div v-if="settings.labelLayout.showTag || settings.labelLayout.showPrice" class="flex justify-between items-center border-t border-dashed border-black pt-1 mt-1 text-[10px]">
-                            <div class="truncate max-w-[120px]">
-                              <span v-if="settings.labelLayout.showTag" class="font-bold">{{ samplePreviewItem.tag }}</span>
-                              <span v-if="settings.labelLayout.showDescription && samplePreviewItem.description" class="text-[8px] ml-1">({{ samplePreviewItem.description }})</span>
-                            </div>
-                            <span v-if="settings.labelLayout.showPrice" class="font-black" :class="settings.labelLayout.priceSize === 'lg' ? 'text-xs font-extrabold' : 'text-[10px]'">
-                              {{ activeProfile.currency }}{{ samplePreviewItem.price }}
-                            </span>
-                          </div>
-
-                          <!-- Barcode if enabled -->
-                          <div v-if="settings.labelLayout.showBarcode" class="text-center mt-1 pt-0.5 border-t border-black">
-                            <div class="h-3.5 flex items-center justify-center overflow-hidden">
-                              <svg class="w-full h-3.5" viewBox="0 0 100 15" preserveAspectRatio="none">
-                                <rect x="0" y="0" width="100" height="15" fill="#fff" />
-                                <g fill="#000">
-                                  <rect x="4" y="0" width="2" height="15" /><rect x="8" y="0" width="1" height="15" />
-                                  <rect x="11" y="0" width="3" height="15" /><rect x="16" y="0" width="2" height="15" />
-                                  <rect x="20" y="0" width="4" height="15" /><rect x="26" y="0" width="1" height="15" />
-                                  <rect x="30" y="0" width="3" height="15" /><rect x="35" y="0" width="2" height="15" />
-                                  <rect x="40" y="0" width="4" height="15" /><rect x="47" y="0" width="1" height="15" />
-                                  <rect x="51" y="0" width="3" height="15" /><rect x="56" y="0" width="2" height="15" />
-                                  <rect x="61" y="0" width="4" height="15" /><rect x="68" y="0" width="1" height="15" />
-                                  <rect x="72" y="0" width="3" height="15" /><rect x="78" y="0" width="2" height="15" />
-                                  <rect x="83" y="0" width="3" height="15" /><rect x="89" y="0" width="1" height="15" />
-                                  <rect x="93" y="0" width="3" height="15" />
-                                </g>
-                              </svg>
-                            </div>
-                            <div class="text-[7px] font-mono tracking-widest mt-0.5">*{{ samplePreviewItem.controlCode }}*</div>
-                          </div>
-
-                          <!-- Custom Footer -->
-                          <div v-if="settings.labelLayout.footerText" class="text-[8px] text-center uppercase tracking-wider font-semibold border-t border-black mt-1 pt-0.5">
-                            {{ settings.labelLayout.footerText }}
-                          </div>
-                        </div>
-                      </div>
-
-                      <!-- Cutoff guideline indicator -->
-                      <div class="absolute -bottom-2.5 left-0 right-0 flex items-center justify-center">
-                        <span class="bg-red-500 text-white font-mono text-[8px] px-1.5 py-0.2 rounded-full font-bold shadow-xs">
-                          ✂️ EXACT DIE-CUT GAP SENSOR CUTOFF
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="space-y-2 pt-1">
-                  <button 
-                    type="button" 
-                    @click="testLabelPrint"
-                    class="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition-colors cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                    <span>⚡ Test Print Sticker (PT-265)</span>
-                  </button>
-
-                  <div class="grid grid-cols-2 gap-2">
-                    <button 
-                      type="button" 
-                      @click="calibratePt265Gap"
-                      class="py-2 px-2.5 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-semibold text-[11px] flex items-center justify-center space-x-1.5 border border-zinc-300 transition-colors cursor-pointer">
-                      <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                      <span>Feed to Cutoff</span>
-                    </button>
-
-                    <button 
-                      type="button" 
-                      @click="saveSettings(true); closePrinterLayoutModal(); showToast('Label settings saved & synced!')"
-                      class="py-2 px-2.5 rounded-lg bg-zinc-900 hover:bg-black text-white font-bold text-[11px] flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs">
-                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                      <span>Save & Close</span>
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-          </div>
-
-          <!-- ========================================================= -->
-          <!-- TAB 2: PT-210 RECEIPT & PACKING SLIP (58mm) DESIGNER      -->
-          <!-- ========================================================= -->
-          <div v-if="activeLayoutTab === 'receipt'" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            
-            <!-- Left 7 Cols: Customization Controls -->
-            <div class="lg:col-span-7 space-y-4">
-              
-              <!-- Hardware Specs Card -->
-              <div class="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="font-bold text-emerald-950 flex items-center space-x-1.5">
-                    <span>🧾 PT-210 Receipt & Packing Slip</span>
-                  </span>
-                  <span class="font-mono text-[10px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded font-bold">
-                    58mm Continuous Roll
-                  </span>
-                </div>
-                <p class="text-[11px] text-emerald-900 leading-relaxed">
-                  The PT-210 outputs 32 characters per line with thermal formatting. Customize what prints on customer parcel packing slips, itemized receipts, and checkout invoices.
-                </p>
-                <div class="flex flex-wrap gap-2 pt-0.5">
-                  <button 
-                    type="button" 
-                    @click="testReceiptPrint"
-                    class="px-2.5 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-[11px] flex items-center space-x-1 shadow-xs transition-colors cursor-pointer">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                    <span>Print Sample Receipt (PT-210)</span>
-                  </button>
-                  <button 
-                    type="button" 
-                    @click="resetReceiptLayout"
-                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-300 font-medium text-[11px] transition-colors cursor-pointer">
-                    Reset 58mm Defaults
-                  </button>
-                </div>
-              </div>
-
-              <!-- Visual Designer Link Banner for Receipt -->
-              <div class="p-3 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between gap-2 text-xs">
-                <div class="flex items-center space-x-2">
-                  <span class="text-base">🎨</span>
-                  <div>
-                    <div class="font-bold text-indigo-950">Visual Receipt & Slip Designer</div>
-                    <div class="text-[10px] text-indigo-700">Reorder sections, adjust alignments and font sizes visually</div>
-                  </div>
-                </div>
-                <button 
-                  type="button" 
-                  @click="openDesigner('receipt'); printerLayoutModalOpen = false" 
-                  class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition-colors">
-                  Open Studio →
-                </button>
-              </div>
-
-              <!-- Header & Titles -->
-              <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-3">
-                <div class="font-bold text-zinc-900 text-xs">Receipt Header & Titles</div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Paper Roll Width</label>
-                    <select v-model="settings.receiptLayout.paperWidth" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option value="58mm">58mm (PT-210 / 32 Columns)</option>
-                      <option value="80mm">80mm (Desktop / 48 Columns)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label class="block text-[11px] font-semibold text-zinc-700 mb-1">Receipt Main Title</label>
-                    <input 
-                      v-model="settings.receiptLayout.headerTitle" 
-                      @input="saveSettings(false)"
-                      type="text" 
-                      placeholder="PARCEL PACKING SLIP"
-                      class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-zinc-900 focus:bg-white focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs pt-1 border-t border-zinc-100">
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showStoreName" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-semibold text-zinc-800 text-[11px]">Store Name</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showDate" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-semibold text-zinc-800 text-[11px]">Date & Time</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showSessionTag" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-semibold text-zinc-800 text-[11px]">Session #Tag</span>
-                  </label>
-                </div>
-              </div>
-
-              <!-- Customer & Items Display -->
-              <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-3">
-                <div class="font-bold text-zinc-900 text-xs">Customer, Items & Financials</div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-                  <div class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200">
-                    <div class="flex items-center space-x-2">
-                      <input type="checkbox" id="rcpt_buyer" v-model="settings.receiptLayout.showBuyerHandle" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                      <label for="rcpt_buyer" class="text-xs font-semibold text-zinc-800 cursor-pointer">Customer Handle</label>
-                    </div>
-                    <select v-model="settings.receiptLayout.buyerSize" @change="saveSettings(false)" class="text-xs bg-white border border-zinc-300 rounded px-2 py-1 font-semibold text-zinc-800">
-                      <option value="md">Normal</option>
-                      <option value="lg">Large (2x)</option>
-                    </select>
-                  </div>
-
-                  <div class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200">
-                    <div class="flex items-center space-x-2">
-                      <input type="checkbox" id="rcpt_bal" v-model="settings.receiptLayout.showBalanceDue" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                      <label for="rcpt_bal" class="text-xs font-semibold text-zinc-800 cursor-pointer">Balance Due</label>
-                    </div>
-                    <select v-model="settings.receiptLayout.balanceDueSize" @change="saveSettings(false)" class="text-xs bg-white border border-zinc-300 rounded px-2 py-1 font-semibold text-zinc-800">
-                      <option value="md">Normal</option>
-                      <option value="lg">Bold Large</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showItemNumber" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]"># Numbers</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showItemTag" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Item Tags</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showItemDescription" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Description</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showStatusBadge" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Status Pill</span>
-                  </label>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showTotalPcs" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Total Pieces</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showSubtotal" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Subtotal</span>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showTotalPaid" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <span class="font-medium text-zinc-800 text-[11px]">Total Paid</span>
-                  </label>
-                </div>
-              </div>
-
-              <!-- Footer, Payment Instructions & QC Box -->
-              <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-3">
-                <div class="font-bold text-zinc-900 text-xs">Footer, QC & Payment Accounts</div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showQcPassBox" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <div>
-                      <span class="font-semibold text-zinc-800 text-[11px]">QC Pass Checkbox</span>
-                      <span class="text-[10px] text-zinc-500 block">[ ] Verified & Packed</span>
-                    </div>
-                  </label>
-
-                  <label class="flex items-center space-x-2 p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                    <input type="checkbox" v-model="settings.receiptLayout.showPaymentDetails" @change="saveSettings(false)" class="rounded text-emerald-600 focus:ring-0 w-4 h-4">
-                    <div>
-                      <span class="font-semibold text-zinc-800 text-[11px]">Payment Details</span>
-                      <span class="text-[10px] text-zinc-500 block">GCash / Maya / Bank info</span>
-                    </div>
-                  </label>
-                </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs pt-1">
-                  <div class="space-y-1">
-                    <label class="block text-[11px] font-semibold text-zinc-700">Custom Footer Message</label>
-                    <input 
-                      v-model="settings.receiptLayout.footerNote" 
-                      @input="saveSettings(false)"
-                      type="text" 
-                      placeholder="Thank you for shopping with us!"
-                      class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs text-zinc-900 focus:bg-white focus:outline-none"
-                    />
-                  </div>
-
-                  <div class="space-y-1">
-                    <label class="block text-[11px] font-semibold text-zinc-700">Feed Lines at Receipt Bottom</label>
-                    <select v-model.number="settings.receiptLayout.feedLines" @change="saveSettings(false)" class="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:bg-white focus:outline-none">
-                      <option :value="2">2 lines</option>
-                      <option :value="3">3 lines (Recommended)</option>
-                      <option :value="4">4 lines (Tear-off margin)</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            <!-- Right 5 Cols: Live Thermal Paper Receipt Preview -->
-            <div class="lg:col-span-5 flex flex-col items-center">
-              <div class="sticky top-2 w-full space-y-3">
-                <div class="flex items-center justify-between px-1">
-                  <span class="font-bold text-zinc-900 text-xs flex items-center space-x-1.5">
-                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                    <span>Live 58mm Thermal Receipt Preview</span>
-                  </span>
-                  <span class="text-[10px] font-mono text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">PT-210 Paper</span>
-                </div>
-
-                <!-- Thermal Paper Roll Simulated Visual -->
-                <div class="bg-zinc-800 p-4 rounded-2xl flex flex-col items-center justify-center shadow-inner border border-zinc-700">
-                  <div class="w-full max-w-[280px] bg-white rounded-md p-3 shadow-lg border-x-2 border-zinc-300 font-mono text-black text-xs relative select-none leading-tight" style="min-height: 280px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
-                    
-                    <!-- Header -->
-                    <div class="text-center border-b-2 border-black pb-1.5 mb-1.5">
-                      <div v-if="settings.receiptLayout.showStoreName" class="font-bold uppercase text-xs">{{ activeProfile.name || settings.storeName }}</div>
-                      <div class="font-black text-sm mt-0.5 tracking-tight">{{ settings.receiptLayout.headerTitle || 'PARCEL PACKING SLIP' }}</div>
-                      <div v-if="settings.receiptLayout.showDate || settings.receiptLayout.showSessionTag" class="text-[10px] text-zinc-800 mt-0.5">
-                        {{ settings.receiptLayout.showSessionTag ? '#INV-' + sessionDate : '' }} {{ settings.receiptLayout.showDate ? '• 09:30 PM' : '' }}
-                      </div>
-                    </div>
-
-                    <!-- Customer Line -->
-                    <div class="border-b border-dashed border-black pb-1 mb-1.5">
-                      <div class="flex justify-between items-baseline">
-                        <span v-if="settings.receiptLayout.showBuyerHandle" class="font-black" :class="settings.receiptLayout.buyerSize === 'lg' ? 'text-sm' : 'text-xs'">
-                          {{ samplePreviewBasket.handle }}
-                        </span>
-                        <span v-if="settings.receiptLayout.showStatusBadge" class="text-[9px] font-bold px-1 rounded border border-black bg-zinc-100 uppercase">
-                          {{ samplePreviewBasket.balance === 0 ? 'PAID' : 'OWING' }}
-                        </span>
-                      </div>
-                    </div>
-
-                    <!-- Itemized Table Header -->
-                    <div class="flex justify-between font-bold text-[10px] border-b border-black pb-0.5 mb-1">
-                      <span>ITEM / TAG</span>
-                      <span>PRICE</span>
-                    </div>
-
-                    <!-- Items Rows -->
-                    <div class="space-y-1 text-[10px] mb-1.5">
-                      <div v-for="(it, i) in samplePreviewBasket.items" :key="it.id" class="flex justify-between items-start">
-                        <div class="truncate max-w-[170px]">
-                          <span v-if="settings.receiptLayout.showItemNumber">{{ i + 1 }}. </span>
-                          <span class="font-bold">{{ it.controlCode }}</span>
-                          <span v-if="settings.receiptLayout.showItemTag"> [{{ it.tag }}]</span>
-                          <span v-if="settings.receiptLayout.showItemDescription && it.description" class="text-[9px]"> ({{ it.description }})</span>
-                        </div>
-                        <span class="font-bold shrink-0">{{ activeProfile.currency }}{{ it.price }}</span>
-                      </div>
-                    </div>
-
-                    <!-- Financial Summary -->
-                    <div class="border-t-2 border-black pt-1 space-y-0.5 text-[10px]">
-                      <div v-if="settings.receiptLayout.showTotalPcs" class="flex justify-between">
-                        <span>Total Items:</span>
-                        <span class="font-bold">{{ samplePreviewBasket.items.length }} pcs</span>
-                      </div>
-                      <div v-if="settings.receiptLayout.showSubtotal" class="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span class="font-bold">{{ activeProfile.currency }}{{ samplePreviewBasket.totalAmount }}</span>
-                      </div>
-                      <div v-if="settings.receiptLayout.showTotalPaid && samplePreviewBasket.totalPaid > 0" class="flex justify-between">
-                        <span>Total Paid:</span>
-                        <span class="font-bold">{{ activeProfile.currency }}{{ samplePreviewBasket.totalPaid }}</span>
-                      </div>
-                      <div v-if="settings.receiptLayout.showBalanceDue" class="flex justify-between font-black border-t border-dashed border-black pt-0.5 mt-0.5" :class="settings.receiptLayout.balanceDueSize === 'lg' ? 'text-xs' : 'text-[10px]'">
-                        <span>BALANCE DUE:</span>
-                        <span>{{ activeProfile.currency }}{{ samplePreviewBasket.balance }}</span>
-                      </div>
-                    </div>
-
-                    <!-- Payment Details if checked -->
-                    <div v-if="settings.receiptLayout.showPaymentDetails && (activeProfile.paymentDetails || settings.paymentDetails)" class="mt-1.5 pt-1 border-t border-dashed border-black text-[9px]">
-                      <div class="font-bold uppercase">Payment Accounts:</div>
-                      <div class="whitespace-pre-line text-[8.5px] leading-tight">{{ activeProfile.paymentDetails || settings.paymentDetails }}</div>
-                    </div>
-
-                    <!-- QC Pass Box -->
-                    <div v-if="settings.receiptLayout.showQcPassBox" class="mt-1.5 pt-1 border-t border-black text-center text-[9px] font-bold">
-                      [ &nbsp; ] Verified &amp; QC Pass
-                    </div>
-
-                    <!-- Footer Note -->
-                    <div v-if="settings.receiptLayout.footerNote" class="mt-1.5 text-center text-[9px] font-medium border-t border-dashed border-black pt-1">
-                      {{ settings.receiptLayout.footerNote }}
-                    </div>
-
-                    <!-- Barcode/Tag at bottom -->
-                    <div class="text-center text-[8px] mt-1 text-zinc-500 font-mono">
-                      *{{ samplePreviewBasket.handle }}*
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="space-y-2 pt-1">
-                  <button 
-                    type="button" 
-                    @click="testReceiptPrint"
-                    class="w-full py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold text-xs flex items-center justify-center space-x-2 shadow-xs transition-colors cursor-pointer">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                    <span>⚡ Test Print Receipt (PT-210)</span>
-                  </button>
-
-                  <button 
-                    type="button" 
-                    @click="saveSettings(true); closePrinterLayoutModal(); showToast('Receipt settings saved & synced!')"
-                    class="w-full py-2 px-2.5 rounded-lg bg-zinc-900 hover:bg-black text-white font-bold text-[11px] flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-                    <span>Save & Close</span>
-                  </button>
-                </div>
-
-              </div>
-            </div>
-
-          </div>
-
-          <!-- ========================================================= -->
-          <!-- TAB 3: DUAL PRINTER BLUETOOTH PAIRING & HARDWARE SETUP    -->
-          <!-- ========================================================= -->
-          <div v-if="activeLayoutTab === 'printers'" class="space-y-4">
-            
-            <div class="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 text-xs space-y-1">
-              <h4 class="font-bold text-zinc-900 text-sm">Dual Thermal Printer Management</h4>
-              <p class="text-[11px] text-zinc-600">
-                You have two physical printers connected: <strong>PT-265</strong> for 30x20mm thermal label stickers, and <strong>PT-210</strong> for 58mm customer packing slips & receipts.
-              </p>
-            </div>
-
-            <!-- Two Hardware Cards Grid -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              <!-- Card 1: PT-265 Label Printer -->
-              <div class="p-4 rounded-xl bg-white border border-indigo-200 shadow-xs space-y-3 flex flex-col justify-between">
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                      <div class="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs">
-                        🏷️
-                      </div>
-                      <div>
-                        <div class="font-bold text-zinc-900 text-xs">PT-265 Label Printer</div>
-                        <div class="text-[10px] text-zinc-500 font-mono">30mm x 20mm Thermal Sticker</div>
-                      </div>
-                    </div>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
-                          :class="btPrinterConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-zinc-100 text-zinc-600 border-zinc-300'">
-                      {{ btPrinterConnected ? (btPrinterName || 'Active') : 'Ready to Pair' }}
-                    </span>
-                  </div>
-
-                  <div class="text-[11px] text-zinc-600 space-y-1 bg-indigo-50/50 p-2.5 rounded-lg border border-indigo-100">
-                    <div class="flex justify-between">
-                      <span class="text-zinc-500">Assigned Role:</span>
-                      <strong class="text-indigo-950">Live Mine Stickers (30x20)</strong>
-                    </div>
-                    <div class="flex justify-between">
-                      <span class="text-zinc-500">Cutoff Mode:</span>
-                      <strong class="text-indigo-950">Auto Gap Advance (GS FF)</strong>
-                    </div>
-                    <div class="flex justify-between">
-                      <span class="text-zinc-500">Auto-Print on Log:</span>
-                      <strong class="text-indigo-950">{{ settings.autoPrint ? 'Enabled' : 'Disabled' }}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="space-y-1.5 pt-2">
-                  <button 
-                    v-if="!btPrinterConnected"
-                    type="button"
-                    @click="connectBluetooth"
-                    :disabled="btPrinterConnecting"
-                    class="w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v18l6-6-6-6 6-6-6 6z" /></svg>
-                    <span>{{ btPrinterConnecting ? 'Pairing...' : 'Pair & Connect PT-265' }}</span>
-                  </button>
-
-                  <div v-if="btPrinterConnected" class="grid grid-cols-2 gap-2">
-                    <button 
-                      type="button" 
-                      @click="testLabelPrint"
-                      class="py-1.5 px-2 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-900 font-bold text-[11px] transition-colors cursor-pointer border border-indigo-300">
-                      Test Sticker
-                    </button>
-                    <button 
-                      type="button" 
-                      @click="calibratePt265Gap"
-                      class="py-1.5 px-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-medium text-[11px] transition-colors cursor-pointer border border-zinc-300">
-                      Feed to Gap
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Card 2: PT-210 Receipt Printer -->
-              <div class="p-4 rounded-xl bg-white border border-emerald-200 shadow-xs space-y-3 flex flex-col justify-between">
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                      <div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-xs">
-                        🧾
-                      </div>
-                      <div>
-                        <div class="font-bold text-zinc-900 text-xs">PT-210 Receipt Printer</div>
-                        <div class="text-[10px] text-zinc-500 font-mono">58mm Continuous Thermal Roll</div>
-                      </div>
-                    </div>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold border"
-                          :class="btPrinterConnected ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-zinc-100 text-zinc-600 border-zinc-300'">
-                      {{ btPrinterConnected ? (btPrinterName || 'Active') : 'Ready to Pair' }}
-                    </span>
-                  </div>
-
-                  <div class="text-[11px] text-zinc-600 space-y-1 bg-emerald-50/50 p-2.5 rounded-lg border border-emerald-100">
-                    <div class="flex justify-between">
-                      <span class="text-zinc-500">Assigned Role:</span>
-                      <strong class="text-emerald-950">Packing Slips & Invoices (58mm)</strong>
-                    </div>
-                    <div class="flex justify-between">
-                      <span class="text-zinc-500">Characters/Line:</span>
-                      <strong class="text-emerald-950">32 Columns (58mm)</strong>
-                    </div>
-                    <div class="flex justify-between">
-                      <span class="text-zinc-500">Direct ESC/POS:</span>
-                      <strong class="text-emerald-950">{{ settings.escPosDirectPrint ? 'Direct Mode' : 'Browser Print' }}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="space-y-1.5 pt-2">
-                  <button 
-                    v-if="!btPrinterConnected"
-                    type="button"
-                    @click="connectBluetooth"
-                    :disabled="btPrinterConnecting"
-                    class="w-full py-2 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v18l6-6-6-6 6-6-6 6z" /></svg>
-                    <span>{{ btPrinterConnecting ? 'Pairing...' : 'Pair & Connect PT-210' }}</span>
-                  </button>
-
-                  <div v-if="btPrinterConnected" class="grid grid-cols-2 gap-2">
-                    <button 
-                      type="button" 
-                      @click="testReceiptPrint"
-                      class="py-1.5 px-2 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-bold text-[11px] transition-colors cursor-pointer border border-emerald-300">
-                      Test Receipt
-                    </button>
-                    <button 
-                      type="button" 
-                      @click="disconnectBluetooth"
-                      class="py-1.5 px-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-medium text-[11px] transition-colors cursor-pointer border border-zinc-300">
-                      Disconnect
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            <!-- Printing Preferences Quick Toggles -->
-            <div class="p-3.5 rounded-xl bg-white border border-zinc-200 shadow-2xs space-y-2.5">
-              <div class="font-bold text-zinc-900 text-xs">Global Printing Options</div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <label class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                  <div>
-                    <div class="font-semibold text-zinc-900 text-[11px]">Direct ESC/POS Mode</div>
-                    <div class="text-[10px] text-zinc-500">Bypasses system print dialog</div>
-                  </div>
-                  <input type="checkbox" v-model="settings.escPosDirectPrint" @change="saveSettings(false)" class="h-4 w-4 rounded text-indigo-600 focus:ring-0 cursor-pointer">
-                </label>
-
-                <label class="flex items-center justify-between p-2 rounded-lg bg-zinc-50 border border-zinc-200 cursor-pointer">
-                  <div>
-                    <div class="font-semibold text-zinc-900 text-[11px]">Auto-Print Sticker on Mining</div>
-                    <div class="text-[10px] text-zinc-500">Prints label instantly on logging</div>
-                  </div>
-                  <input type="checkbox" v-model="settings.autoPrint" @change="saveSettings(false)" class="h-4 w-4 rounded text-indigo-600 focus:ring-0 cursor-pointer">
-                </label>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
-        <!-- Pinned Footer -->
-        <div class="border-t border-zinc-200 px-4 py-3 bg-zinc-50 flex items-center justify-between shrink-0">
-          <span class="text-[11px] text-zinc-500">Layout changes save locally &amp; sync to Supabase</span>
-          <button 
-            @click="saveSettings(true); closePrinterLayoutModal(); showToast('Settings saved & synced!')" 
-            class="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-black text-white text-xs font-bold transition-colors cursor-pointer shadow-xs flex items-center space-x-1.5">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-            <span>Done &amp; Save</span>
-          </button>
-        </div>
-
+        <button 
+          @click="openDesigner('printers'); printerLayoutModalOpen = false" 
+          class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer">
+          Open Visual Studio →
+        </button>
       </div>
     </div>
-
     <!-- =============================================================== -->
     <!-- NOTION CSV IMPORT MODAL (Multi-File: Balances & Invoices)       -->
     <!-- =============================================================== -->

@@ -103,7 +103,7 @@ const app = createApp({
     const currentTab = ref('dashboard'); // 'dashboard', 'mining', 'balances', 'mined_items', 'designer'
     const previousTab = ref('dashboard');
 
-    function openDesigner(mode?: 'label' | 'receipt') {
+    function openDesigner(mode?: 'label' | 'receipt' | 'printers') {
       if (mode) {
         designerMode.value = mode;
       }
@@ -1896,7 +1896,8 @@ const app = createApp({
 
     function openPrinterLayoutModal(tab: 'label' | 'receipt' | 'printers' = 'label') {
       activeLayoutTab.value = tab;
-      printerLayoutModalOpen.value = true;
+      printerLayoutModalOpen.value = false;
+      openDesigner(tab);
       appMenuOpen.value = false;
     }
 
@@ -2079,10 +2080,24 @@ const app = createApp({
       showToast('All PT-210 (58mm) layout configurations reset to default');
     }
 
+    function setPaperGuide(position: 'right' | 'center' | 'left') {
+      if (!settings.value.labelLayout) settings.value.labelLayout = { ...defaultLabelLayout };
+      settings.value.labelLayout.paperGuidePosition = position;
+      if (position === 'right') {
+        settings.value.labelLayout.horizontalOffsetMm = 18;
+      } else if (position === 'center') {
+        settings.value.labelLayout.horizontalOffsetMm = 9;
+      } else if (position === 'left') {
+        settings.value.labelLayout.horizontalOffsetMm = 0;
+      }
+      saveSettings(true);
+      showToast(`Paper guide set to ${position.toUpperCase()} (${settings.value.labelLayout.horizontalOffsetMm}mm offset)`);
+    }
+
     // =========================================================================
     // INTERACTIVE VISUAL DESIGNER STATE & HANDLERS (PT-265 & PT-210)
     // =========================================================================
-    const designerMode = ref<'label' | 'receipt'>('label');
+    const designerMode = ref<'label' | 'receipt' | 'printers'>('label');
     const designerReceiptSubMode = ref<'packing' | 'invoice'>('packing');
     const designerSelectedId = ref<string>('controlCode');
     const designerCanvasZoom = ref<number>(200); // 100, 150, 200, 250, 300%
@@ -6182,6 +6197,14 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
     }
 
     function closeTopmostOverlay(): boolean {
+      if (minedItemsDateFilterModalOpen.value) {
+        closeMinedDateFilterModal();
+        return true;
+      }
+      if (importNotionModalOpen.value) {
+        importNotionModalOpen.value = false;
+        return true;
+      }
       if (showPackingModal.value) {
         closePackingModal();
         return true;
@@ -6444,6 +6467,10 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       window.addEventListener('popstate', () => resolveCustomerCheckoutFromUrl());
 
       window.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          closeTopmostOverlay();
+          return;
+        }
         if (!isAdminAuthenticated.value && !isCustomerCheckoutView.value) {
           if (e.key >= '0' && e.key <= '9') {
             onKeypadPress(e.key);
@@ -6775,6 +6802,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       appMenuOpen,
       openSettingsModal,
       saveSettings,
+      setPaperGuide,
       exportToCsv,
       exportNotionCustomerBalancesCsv,
       exportNotionMinedItemsCsv,
