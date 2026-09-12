@@ -15,6 +15,33 @@ async function startServer() {
     res.json({ status: 'ok' });
   });
 
+  // Image proxy route to bypass client-side CORS and prevent canvas tainting in collages
+  app.get('/api/proxy-image', async (req, res) => {
+    try {
+      const imageUrl = req.query.url as string;
+      if (!imageUrl || (!imageUrl.startsWith('http://') && !imageUrl.startsWith('https://'))) {
+        return res.status(400).json({ error: 'Valid http/https url required' });
+      }
+
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        return res.status(response.status).send(`Failed to fetch image: ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(buffer);
+    } catch (err: any) {
+      console.error('Image proxy error:', err);
+      return res.status(500).json({ error: err.message || 'Image proxy failed' });
+    }
+  });
+
   // Check R2 status (detects if server has .env variables configured)
   app.get('/api/r2-status', (req, res) => {
     const hasEnv = Boolean(

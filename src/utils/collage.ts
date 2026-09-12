@@ -1,14 +1,92 @@
 import type { BuyerBasket, Profile } from '../types';
 
-export function loadImageElement(src: string): Promise<HTMLImageElement> {
+function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
-    if (!src) return reject(new Error('No image src'));
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function createImageFromSrc(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
-    img.onerror = (e) => reject(e);
+    img.onerror = reject;
     img.src = src;
   });
+}
+
+export async function loadImageElement(src: string): Promise<HTMLImageElement> {
+  if (!src || typeof src !== 'string') throw new Error('No image src');
+
+  let formattedSrc = src.trim();
+
+  // Handle SVG data URIs that may contain unescaped characters
+  if (formattedSrc.startsWith('data:image/svg+xml')) {
+    if (!formattedSrc.includes(';base64,')) {
+      try {
+        const svgContent = formattedSrc.replace(/^data:image\/svg\+xml;?(utf8)?,?/, '');
+        const decoded = decodeURIComponent(svgContent);
+        const base64 = btoa(unescape(encodeURIComponent(decoded)));
+        formattedSrc = `data:image/svg+xml;base64,${base64}`;
+      } catch {
+        try {
+          const rawSvg = formattedSrc.replace(/^data:image\/svg\+xml;?(utf8)?,?/, '');
+          formattedSrc = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rawSvg)}`;
+        } catch {
+          // keep as is if transformation fails
+        }
+      }
+    }
+  }
+
+  // 1. Data or Blob URIs: Load directly without crossOrigin (never taints canvas)
+  if (formattedSrc.startsWith('data:') || formattedSrc.startsWith('blob:')) {
+    return createImageFromSrc(formattedSrc);
+  }
+
+  // 2. HTTP/HTTPS URLs (Cloudflare R2, CDN links, external photos):
+  // Convert remote image into a local Base64 Data URL to guarantee non-tainted canvas
+  if (formattedSrc.startsWith('http://') || formattedSrc.startsWith('https://')) {
+    // Attempt A: Direct CORS fetch -> Base64 Data URL
+    try {
+      const res = await fetch(formattedSrc, { mode: 'cors' });
+      if (res.ok) {
+        const blob = await res.blob();
+        const dataUrl = await blobToDataUrl(blob);
+        return await createImageFromSrc(dataUrl);
+      }
+    } catch (_) {
+      // Direct CORS fetch failed, try backend proxy fallback
+    }
+
+    // Attempt B: Backend image proxy (/api/proxy-image) to bypass client-side CORS completely
+    try {
+      const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(formattedSrc)}`;
+      const res = await fetch(proxyUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const dataUrl = await blobToDataUrl(blob);
+        return await createImageFromSrc(dataUrl);
+      }
+    } catch (_) {
+      // Backend proxy fetch failed
+    }
+
+    // Attempt C: Direct image element with crossOrigin = 'anonymous'
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = (err) => reject(err);
+      img.src = formattedSrc;
+    });
+  }
+
+  // 3. Relative or local fallback URLs
+  return createImageFromSrc(formattedSrc);
 }
 
 export function drawCanvasRoundRect(
