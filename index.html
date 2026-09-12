@@ -6139,7 +6139,7 @@
           </div>
         </div>
 
-        <!-- 2-Stage Mode Tabs -->
+        <!-- Mode Tabs -->
         <div class="flex border-b border-zinc-200 bg-white px-3 pt-2 shrink-0 gap-2">
           <button 
             @click="switchPackingTab('scanner')"
@@ -6147,7 +6147,7 @@
             class="flex-1 py-2 px-3 text-xs font-bold rounded-t-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer border-b-2"
             :class="packingActiveTab === 'scanner' ? 'border-amber-600 text-amber-900 bg-amber-50/60' : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'">
             <span>📷</span>
-            <span>Stage 1: QR / Barcode Scan</span>
+            <span>Scan & Verify</span>
           </button>
           <button 
             @click="switchPackingTab('checklist')"
@@ -6155,7 +6155,7 @@
             class="flex-1 py-2 px-3 text-xs font-bold rounded-t-lg transition-all flex items-center justify-center space-x-1.5 cursor-pointer border-b-2"
             :class="packingActiveTab === 'checklist' ? 'border-amber-600 text-amber-900 bg-amber-50/60' : 'border-transparent text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50'">
             <span>📋</span>
-            <span>Stage 2: Checklist & Print</span>
+            <span>Item Checklist</span>
           </button>
         </div>
 
@@ -6369,7 +6369,7 @@
                 v-for="it in activePackingBuyer.items" 
                 :key="it.id"
                 class="border rounded-xl p-2.5 flex items-center justify-between transition-all"
-                :class="it.verified || it.packed ? 'bg-emerald-50/60 border-emerald-300' : 'bg-white border-zinc-200 hover:border-zinc-300'">
+                :class="(packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)) ? 'bg-emerald-50/60 border-emerald-300' : 'bg-white border-zinc-200 hover:border-zinc-300'">
                 
                 <div class="flex items-center space-x-3 min-w-0 flex-1">
                   <!-- Custom Checkbox -->
@@ -6377,7 +6377,7 @@
                     @click="toggleItemVerification(it)"
                     type="button" 
                     class="w-6 h-6 rounded-md flex items-center justify-center text-sm font-bold transition-colors cursor-pointer shrink-0 border"
-                    :class="it.verified || it.packed ? 'bg-emerald-600 border-emerald-700 text-white shadow-xs' : 'bg-white border-zinc-300 text-transparent hover:border-zinc-500'">
+                    :class="(packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)) ? 'bg-emerald-600 border-emerald-700 text-white shadow-xs' : 'bg-white border-zinc-300 text-transparent hover:border-zinc-500'">
                     ✓
                   </button>
 
@@ -6394,7 +6394,12 @@
                   <div class="min-w-0 flex-1">
                     <div class="flex items-center space-x-2">
                       <span class="font-black text-xs font-mono text-zinc-900">{{ it.controlCode || (it.controlNum ? '#' + it.controlNum : '') }}</span>
-                      <span v-if="it.verified || it.packed" class="px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-900 text-[9px] font-bold">VERIFIED</span>
+                      <span v-if="packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)" class="px-1.5 py-0.2 rounded bg-emerald-200 text-emerald-900 text-[9px] font-bold">
+                        {{ packingWorkflowStage === 'stage1' ? 'AUDITED' : 'PACKED' }}
+                      </span>
+                      <span v-if="packingWorkflowStage === 'stage2' && !isItemStage1Audited(it)" class="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 text-[9px] font-bold">
+                        ⚠️ Needs Audit
+                      </span>
                     </div>
                     <div class="text-[11px] text-zinc-600 truncate mt-0.5">
                       {{ (it.description && it.description !== it.controlCode) ? it.description : (it.tag || 'Mined item') }}
@@ -6405,7 +6410,9 @@
                 <!-- Price and Time -->
                 <div class="text-right font-mono shrink-0 pl-2">
                   <div class="font-bold text-xs text-zinc-900">{{ activeProfile.currency }}{{ it.price.toLocaleString() }}</div>
-                  <div v-if="it.verifiedAt" class="text-[10px] text-zinc-400 font-sans">at {{ it.verifiedAt }}</div>
+                  <div v-if="packingWorkflowStage === 'stage1' ? it.auditVerifiedAt : it.packVerifiedAt" class="text-[10px] text-zinc-400 font-sans">
+                    at {{ packingWorkflowStage === 'stage1' ? it.auditVerifiedAt : it.packVerifiedAt }}
+                  </div>
                 </div>
               </div>
             </div>

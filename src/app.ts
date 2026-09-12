@@ -2858,6 +2858,11 @@ const app = createApp({
     const activeInvoiceBuyer = ref<BuyerBasket | null>(null);
 
     function openInvoiceModal(buyer: BuyerBasket) {
+      if (!isBuyerAllStage1Audited(buyer)) {
+        showToast(`⚠️ Cannot open invoice: Please complete Stage 1 Inbound Audit for all items first!`);
+        openPackingModal(buyer, 'checklist', 'stage1');
+        return;
+      }
       activeInvoiceBuyer.value = buyer;
       invoiceModalOpen.value = true;
     }
@@ -2869,6 +2874,11 @@ const app = createApp({
 
     async function triggerInvoicePrint(buyer: BuyerBasket) {
       if (!buyer) return;
+      if (!isBuyerAllStage1Audited(buyer)) {
+        showToast(`⚠️ Cannot print invoice: Please complete Stage 1 Inbound Audit for all items first!`);
+        openPackingModal(buyer, 'checklist', 'stage1');
+        return;
+      }
       if (!btPrinterConnected.value) {
         await connectBluetooth();
         if (!btPrinterConnected.value) return;
@@ -2915,8 +2925,7 @@ const app = createApp({
 
     // Helpers to check Stage 1 (Storage Audit) status
     function isItemStage1Audited(item: MinedItem): boolean {
-      if (item.auditVerified !== undefined) return item.auditVerified;
-      return !!item.verified;
+      return Boolean(item.auditVerified);
     }
 
     function getBuyerStage1AuditedCount(basket?: BuyerBasket | null): number {
@@ -2931,8 +2940,7 @@ const app = createApp({
 
     // Helpers to check Stage 2 (Customer Packing) status
     function isItemStage2Packed(item: MinedItem): boolean {
-      if (item.packVerified !== undefined) return item.packVerified;
-      return !!item.packed;
+      return Boolean(item.packVerified);
     }
 
     function getBuyerStage2PackedCount(basket?: BuyerBasket | null): number {
@@ -3133,17 +3141,26 @@ const app = createApp({
         if (isStage1) {
           matchedItem.auditVerified = true;
           matchedItem.auditVerifiedAt = nowTime;
-          matchedItem.verified = true;
-          matchedItem.verifiedAt = nowTime;
         } else {
+          if (!isItemStage1Audited(matchedItem)) {
+            playBeep('error', settings.value.soundEnabled);
+            lastScannedResult.value = {
+              text: rawCode,
+              status: 'wrong_customer',
+              message: `⚠️ Stage 1 Audit Required First: ${matchedItem.controlCode || '#' + matchedItem.controlNum}`,
+              item: matchedItem,
+              timestamp: Date.now()
+            };
+            showToast(`⚠️ Cannot pack: Item not yet audited in Stage 1!`);
+            return;
+          }
           matchedItem.packVerified = true;
           matchedItem.packVerifiedAt = nowTime;
-          matchedItem.packed = true;
-          matchedItem.packedAt = nowTime;
         }
 
         saveAll();
         pushSingleMineToSupabase(matchedItem, activeProfileId.value, sessionDate.value);
+        refreshActivePackingBuyer();
         playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
 
         lastScannedResult.value = {
@@ -3199,6 +3216,16 @@ const app = createApp({
       packingManualCodeInput.value = '';
     }
 
+    function refreshActivePackingBuyer() {
+      if (activePackingBuyer.value) {
+        const handle = activePackingBuyer.value.handle;
+        const fresh = buyerBasketsList.value.find(b => b.handle === handle || b.displayName === activePackingBuyer.value?.displayName);
+        if (fresh) {
+          activePackingBuyer.value = fresh;
+        }
+      }
+    }
+
     function toggleItemVerification(item: MinedItem) {
       const isStage1 = packingWorkflowStage.value === 'stage1';
       const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -3211,6 +3238,11 @@ const app = createApp({
         item.verifiedAt = isNow ? nowTime : undefined;
         if (isNow) playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
       } else {
+        if (!isItemStage1Audited(item)) {
+          showToast(`⚠️ Cannot pack item: Please complete Stage 1 Inbound Audit for this item first!`);
+          playBeep('error', settings.value.soundEnabled);
+          return;
+        }
         const isNow = !isItemStage2Packed(item);
         item.packVerified = isNow;
         item.packVerifiedAt = isNow ? nowTime : undefined;
@@ -3221,6 +3253,7 @@ const app = createApp({
 
       saveAll();
       pushSingleMineToSupabase(item, activeProfileId.value, sessionDate.value);
+      refreshActivePackingBuyer();
     }
 
     function verifyAllItemsForBuyer(buyer: BuyerBasket) {
@@ -3228,6 +3261,15 @@ const app = createApp({
       const isStage1 = packingWorkflowStage.value === 'stage1';
       const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
+
+      if (!isStage1) {
+        const unAudited = buyer.items.filter(m => !isItemStage1Audited(m));
+        if (unAudited.length > 0) {
+          showToast(`⚠️ Cannot mark all packed: ${unAudited.length} items have not passed Stage 1 Inbound Audit yet!`);
+          playBeep('error', settings.value.soundEnabled);
+          return;
+        }
+      }
 
       allMines.value.forEach(m => {
         if ((m.buyer || '').replace(/^@+/, '').toLowerCase() === buyerClean) {
@@ -3237,17 +3279,20 @@ const app = createApp({
             m.verified = true;
             m.verifiedAt = nowTime;
           } else {
-            m.packVerified = true;
-            m.packVerifiedAt = nowTime;
-            m.packed = true;
-            m.packedAt = nowTime;
+            if (isItemStage1Audited(m)) {
+              m.packVerified = true;
+              m.packVerifiedAt = nowTime;
+              m.packed = true;
+              m.packedAt = nowTime;
+            }
           }
           pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
         }
       });
       saveAll();
+      refreshActivePackingBuyer();
       playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
-      showToast(isStage1 ? `Marked all ${buyer.items.length} items as Stage 1 Audited!` : `Marked all ${buyer.items.length} items as Stage 2 Packed!`);
+      showToast(isStage1 ? `Marked all ${buyer.items.length} items as Stage 1 Audited!` : `Marked all audited items as Stage 2 Packed!`);
     }
 
     function resetVerificationForBuyer(buyer: BuyerBasket) {
@@ -3274,11 +3319,17 @@ const app = createApp({
         }
       });
       saveAll();
+      refreshActivePackingBuyer();
       showToast(`${stageName} reset for @${buyer.displayName}`);
     }
 
     async function printThermalPackingSlip(buyer: BuyerBasket) {
       if (!buyer) return;
+      if (!isBuyerAllStage2Packed(buyer)) {
+        showToast(`⚠️ Cannot print packing slip: Please complete Stage 2 Parcel Pack for all items first!`);
+        openPackingModal(buyer, 'checklist', 'stage2');
+        return;
+      }
       if (!btPrinterConnected.value) {
         await connectBluetooth();
         if (!btPrinterConnected.value) return;
