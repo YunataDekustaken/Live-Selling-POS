@@ -3691,12 +3691,16 @@ const app = createApp({
     const buyerBasketsList = computed<BuyerBasket[]>(() => {
       const map: Record<string, BuyerBasket> = {};
       for (const m of allMines.value) {
-        if (!map[m.buyer]) {
+        const sessionDate = (m.date || 'General Session').trim();
+        const sessionKey = `${m.buyer}__${sessionDate}`;
+        if (!map[sessionKey]) {
           const cleanName = m.buyer.startsWith('@') ? m.buyer.slice(1) : m.buyer;
-          map[m.buyer] = {
+          map[sessionKey] = {
+            id: sessionKey,
             handle: m.buyer,
             displayName: cleanName,
-            dateIssued: m.date || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            sessionDate: sessionDate,
+            dateIssued: sessionDate,
             paymentDate: '',
             items: [],
             totalAmount: 0,
@@ -3707,17 +3711,25 @@ const app = createApp({
             isExpanded: allExpanded.value
           };
         }
-        map[m.buyer].items.push(m);
-        map[m.buyer].totalAmount += m.price;
+        map[sessionKey].items.push(m);
+        map[sessionKey].totalAmount += m.price;
       }
 
       for (const p of allPayments.value) {
-        if (!map[p.buyer]) {
+        const pDate = (p.date || '').trim();
+        let targetKey = Object.keys(map).find(k => k.startsWith(p.buyer + '__') && (pDate && k.endsWith('__' + pDate)));
+        if (!targetKey) {
+          targetKey = Object.keys(map).find(k => k.startsWith(p.buyer + '__'));
+        }
+        if (!targetKey) {
           const cleanName = p.buyer.startsWith('@') ? p.buyer.slice(1) : p.buyer;
-          map[p.buyer] = {
+          targetKey = `${p.buyer}__General Session`;
+          map[targetKey] = {
+            id: targetKey,
             handle: p.buyer,
             displayName: cleanName,
-            dateIssued: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+            sessionDate: 'General Session',
+            dateIssued: 'General Session',
             paymentDate: '',
             items: [],
             totalAmount: 0,
@@ -3728,9 +3740,9 @@ const app = createApp({
             isExpanded: allExpanded.value
           };
         }
-        map[p.buyer].payments.push(p);
-        map[p.buyer].totalPaid += p.amount;
-        map[p.buyer].paymentDate = p.date || p.time || new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+        map[targetKey].payments.push(p);
+        map[targetKey].totalPaid += p.amount;
+        map[targetKey].paymentDate = p.date || p.time || '';
       }
 
       const list = Object.values(map).map(b => {

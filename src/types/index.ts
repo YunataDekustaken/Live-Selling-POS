@@ -45,8 +45,10 @@ export interface PaymentRecord {
 }
 
 export interface BuyerBasket {
+  id?: string;
   handle: string;
   displayName: string;
+  sessionDate?: string;
   items: MinedItem[];
   payments: PaymentRecord[];
   totalAmount: number;

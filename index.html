@@ -1754,13 +1754,13 @@
                 </tr>
               </thead>
               <tbody class="divide-y divide-zinc-200">
-                <tr v-for="b in filteredBuyerBaskets" :key="b.handle" class="hover:bg-zinc-50/60 transition-colors" :class="isBulkSelectCustomerMode && selectedCustomerHandles.includes(b.handle) ? 'bg-red-50/30' : ''">
+                <tr v-for="b in filteredBuyerBaskets" :key="b.id" class="hover:bg-zinc-50/60 transition-colors" :class="isBulkSelectCustomerMode && selectedCustomerHandles.includes(b.id) ? 'bg-red-50/30' : ''">
                   <!-- Bulk Selection Checkbox -->
                   <td v-if="isBulkSelectCustomerMode" class="py-2.5 px-3 w-8 text-center" @click.stop>
                     <input 
                       type="checkbox" 
-                      :checked="selectedCustomerHandles.includes(b.handle)" 
-                      @click.stop="toggleSelectCustomer(b.handle)" 
+                      :checked="selectedCustomerHandles.includes(b.id)" 
+                      @click.stop="toggleSelectCustomer(b.id)" 
                       class="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer" 
                     />
                   </td>
@@ -1901,17 +1901,17 @@
         <div v-else-if="customerViewMode === 'cards'" class="space-y-3">
           <div 
             v-for="b in filteredBuyerBaskets" 
-            :key="b.handle" 
+            :key="b.id" 
             class="bg-white border rounded-xl p-4 shadow-xs space-y-3 transition-colors"
-            :class="isBulkSelectCustomerMode && selectedCustomerHandles.includes(b.handle) ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'">
+            :class="isBulkSelectCustomerMode && selectedCustomerHandles.includes(b.id) ? 'border-red-400 bg-red-50/20' : 'border-zinc-200'">
             
             <div class="flex items-start justify-between">
               <div class="flex items-center space-x-2.5">
                 <input 
                   v-if="isBulkSelectCustomerMode"
                   type="checkbox" 
-                  :checked="selectedCustomerHandles.includes(b.handle)" 
-                  @click.stop="toggleSelectCustomer(b.handle)" 
+                  :checked="selectedCustomerHandles.includes(b.id)" 
+                  @click.stop="toggleSelectCustomer(b.id)" 
                   class="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer mr-1" 
                 />
                 <div class="w-9 h-9 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center font-bold text-zinc-700 text-sm">
