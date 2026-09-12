@@ -100,6 +100,7 @@ export const defaultSettings: AppSettings = {
   receiptPrinterName: 'PT-210',
   labelPrinterName: 'PT-265',
   activePrinterType: 'auto',
-  autoR2DailyBackup: true
+  autoR2DailyBackup: true,
+  scannerRingtone: 'Classic Supermarket'
 };
 

@@ -94,7 +94,7 @@ import {
   R2Config
 } from './utils/r2Storage';
 import QRCode from 'qrcode';
-import { playSuccessBeep, playErrorBuzz } from './utils/audioFeedback';
+import { playSuccessBeep, playErrorBuzz, playRingtoneSample } from './utils/audioFeedback';
 import { LiveScannerController, ScannerCapabilities } from './utils/qrScanner';
 
 const app = createApp({
@@ -696,6 +696,11 @@ const app = createApp({
     function playTestBeep() {
       playBeep('success', settings.value.soundEnabled);
       showToast('Playing audio test chime...');
+    }
+
+    function testRingtone(ringtoneName?: string) {
+      playRingtoneSample(ringtoneName || settings.value.scannerRingtone || 'Classic Supermarket');
+      showToast(`Playing ringtone preview: ${ringtoneName || settings.value.scannerRingtone || 'Classic Supermarket'}`);
     }
 
     // Live Mining Form State
@@ -3112,7 +3117,7 @@ const app = createApp({
         const alreadyDone = isStage1 ? isItemStage1Audited(matchedItem) : isItemStage2Packed(matchedItem);
 
         if (alreadyDone) {
-          playSuccessBeep();
+          playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
           lastScannedResult.value = {
             text: rawCode,
             status: 'already_scanned',
@@ -3139,7 +3144,7 @@ const app = createApp({
 
         saveAll();
         pushSingleMineToSupabase(matchedItem, activeProfileId.value, sessionDate.value);
-        playSuccessBeep();
+        playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
 
         lastScannedResult.value = {
           text: rawCode,
@@ -3204,14 +3209,14 @@ const app = createApp({
         item.auditVerifiedAt = isNow ? nowTime : undefined;
         item.verified = isNow;
         item.verifiedAt = isNow ? nowTime : undefined;
-        if (isNow) playSuccessBeep();
+        if (isNow) playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
       } else {
         const isNow = !isItemStage2Packed(item);
         item.packVerified = isNow;
         item.packVerifiedAt = isNow ? nowTime : undefined;
         item.packed = isNow;
         item.packedAt = isNow ? nowTime : undefined;
-        if (isNow) playSuccessBeep();
+        if (isNow) playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
       }
 
       saveAll();
@@ -3241,7 +3246,7 @@ const app = createApp({
         }
       });
       saveAll();
-      playSuccessBeep();
+      playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
       showToast(isStage1 ? `Marked all ${buyer.items.length} items as Stage 1 Audited!` : `Marked all ${buyer.items.length} items as Stage 2 Packed!`);
     }
 
@@ -6445,6 +6450,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       saveSessionDateForStore,
       onSettingsStoreChange,
       playTestBeep,
+      playRingtoneSample,
       form,
       photoInputRef,
       triggerPhotoCapture,

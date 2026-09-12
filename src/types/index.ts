@@ -175,6 +175,7 @@ export interface AppSettings {
   securityPin?: string;
   requirePasscode?: boolean;
   autoR2DailyBackup?: boolean;
+  scannerRingtone?: string;
 }
 
 export interface ActiveStoreForm {

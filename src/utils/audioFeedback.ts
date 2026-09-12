@@ -19,29 +19,66 @@ function getAudioContext(): AudioContext | null {
 }
 
 /**
-  * Play a high-pitched sharp supermarket barcode scanner beep for successful match
+  * Play a high-pitched barcode scanner beep or phone-like ringtone for successful match
   */
-export function playSuccessBeep() {
+export function playSuccessBeep(ringtone: string = 'Classic Supermarket') {
   try {
     const ctx = getAudioContext();
     if (ctx) {
       const now = ctx.currentTime;
-      
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
-      // Crisp 2800Hz sine wave beep, 70ms with fast exponential decay
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(2800, now);
-      
-      gain.gain.setValueAtTime(0.5, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
-      
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
-      osc.start(now);
-      osc.stop(now + 0.08);
+
+      if (ringtone === 'Modern Chirp') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2000, now);
+        osc.frequency.setValueAtTime(3200, now + 0.04);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } else if (ringtone === 'Cash Register') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1760, now);
+        osc.frequency.setValueAtTime(3520, now + 0.08);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.start(now);
+        osc.stop(now + 0.26);
+      } else if (ringtone === 'Digital Chime') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1046, now);
+        osc.frequency.setValueAtTime(1318, now + 0.05);
+        gain.gain.setValueAtTime(0.45, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      } else if (ringtone === 'Retro Coin') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(987, now);
+        osc.frequency.setValueAtTime(1318, now + 0.06);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc.start(now);
+        osc.stop(now + 0.19);
+      } else if (ringtone === 'Subtle Tap') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+        osc.start(now);
+        osc.stop(now + 0.04);
+      } else {
+        // Classic Supermarket (2800Hz sine, 70ms)
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2800, now);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+        osc.start(now);
+        osc.stop(now + 0.08);
+      }
     }
   } catch (e) {
     console.debug('Audio beep unavailable:', e);
@@ -53,6 +90,13 @@ export function playSuccessBeep() {
       navigator.vibrate(45);
     } catch {}
   }
+}
+
+/**
+  * Play preview sample of selected ringtone
+  */
+export function playRingtoneSample(ringtone: string) {
+  playSuccessBeep(ringtone);
 }
 
 /**
