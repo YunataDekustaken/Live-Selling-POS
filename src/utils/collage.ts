@@ -191,7 +191,7 @@ export async function createPhotoCollageCanvas(
 
   // Buyer Name Pill in Header (Top Right)
   const cleanBuyerName = (target.displayName || target.handle).replace(/^@+/, '');
-  const buyerTagText = `@${cleanBuyerName}`;
+  const buyerTagText = cleanBuyerName;
   ctx.font = 'bold 20px system-ui, -apple-system, sans-serif';
   const tagW = ctx.measureText(buyerTagText).width + 28;
   const tagH = 40;

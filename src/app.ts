@@ -75,7 +75,9 @@ import {
   disconnectBluetoothPrinter,
   printDirectSticker,
   printDirectPackingSlip,
+  printRasterPackingSlip,
   printDirectInvoice,
+  printRasterInvoice,
   printDirectTest,
   feedToNextLabelGap,
   getConnectedPrinterName
@@ -2043,28 +2045,66 @@ const app = createApp({
       }
     }
 
-    async function testReceiptPrint() {
+    async function executePrintReceipt(basket: BuyerBasket, isPacking: boolean = true) {
+      if (!basket) return;
+      const layout = isPacking
+        ? (settings.value.receiptLayout || defaultReceiptLayout)
+        : (settings.value.invoiceLayout || defaultInvoiceLayout);
+
+      const mode = layout.printMode || 'direct_bt';
+
+      if (mode === 'browser_dialog') {
+        if (isPacking) {
+          activePackingSlipToPrint.value = basket;
+          activeInvoiceToPrint.value = null;
+        } else {
+          activeInvoiceToPrint.value = basket;
+          activePackingSlipToPrint.value = null;
+        }
+        setTimeout(() => {
+          window.print();
+        }, 100);
+        showToast(`Opening browser print dialog for ${isPacking ? 'Packing Slip' : 'Invoice'}...`);
+        return;
+      }
+
       if (!btPrinterConnected.value) {
         await connectBluetooth();
         if (!btPrinterConnected.value) {
-          showToast('Please connect PT-210 via Bluetooth first');
+          showToast('Please connect PT-210 Bluetooth thermal printer first');
           return;
         }
       }
+
       try {
-        const basket = samplePreviewBasket.value;
-        const isPacking = designerReceiptSubMode.value === 'packing';
-        const layout = isPacking ? settings.value.receiptLayout : settings.value.invoiceLayout;
-        const cols = layout?.paperWidth === '80mm' ? 48 : 32;
-        if (isPacking) {
-          await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, layout);
+        if (isPacking) isPrintingPackingSlip.value = true;
+        const cols = layout.paperWidth === '80mm' ? 48 : 32;
+        if (mode === 'canvas_raster') {
+          if (isPacking) {
+            await printRasterPackingSlip(basket, activeProfile.value, sessionDate.value, cols, layout);
+          } else {
+            await printRasterInvoice(basket, activeProfile.value, sessionDate.value, cols, layout);
+          }
+          showToast(`${isPacking ? 'Packing slip' : 'Invoice'} (Canvas Raster) printed to ${btPrinterName.value || 'PT-210'}`);
         } else {
-          await printDirectInvoice(basket, activeProfile.value, sessionDate.value, cols, layout);
+          if (isPacking) {
+            await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, layout);
+          } else {
+            await printDirectInvoice(basket, activeProfile.value, sessionDate.value, cols, layout);
+          }
+          showToast(`${isPacking ? 'Packing slip' : 'Invoice'} (Direct ESC/POS) printed to ${btPrinterName.value || 'PT-210'}`);
         }
-        showToast(`${isPacking ? 'Packing slip' : 'Invoice'} test sent to ${btPrinterName.value || 'PT-210'}`);
-      } catch (e: any) {
-        showToast(`Receipt print error: ${e.message || e}`);
+      } catch (err: any) {
+        showToast(`Print failed: ${err.message || err}`);
+      } finally {
+        if (isPacking) isPrintingPackingSlip.value = false;
       }
+    }
+
+    async function testReceiptPrint() {
+      const basket = samplePreviewBasket.value;
+      const isPacking = designerReceiptSubMode.value === 'packing';
+      await executePrintReceipt(basket, isPacking);
     }
 
     function resetLabelLayout() {
@@ -2871,32 +2911,11 @@ const app = createApp({
     }
 
     async function directPrintPackingSlipBt(basket: BuyerBasket) {
-      if (!btPrinterConnected.value) {
-        await connectBluetooth();
-        if (!btPrinterConnected.value) return;
-      }
-      try {
-        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
-        await printDirectPackingSlip(basket, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
-        showToast(`Packing slip printed to ${btPrinterName.value || 'PT-210'}`);
-      } catch (err: any) {
-        showToast(`Print failed: ${err.message || err}`);
-      }
+      await executePrintReceipt(basket, true);
     }
 
     async function directPrintInvoiceBt(buyer: BuyerBasket) {
-      if (!btPrinterConnected.value) {
-        await connectBluetooth();
-        if (!btPrinterConnected.value) return;
-      }
-      try {
-        const layout = settings.value.invoiceLayout || defaultInvoiceLayout;
-        const cols = layout?.paperWidth === '80mm' ? 48 : 32;
-        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, layout);
-        showToast(`Invoice printed to ${btPrinterName.value || 'PT-210'}`);
-      } catch (err: any) {
-        showToast(`Print failed: ${err.message || err}`);
-      }
+      await executePrintReceipt(buyer, false);
     }
 
     const customerViewMode = ref('cards'); // 'cards' | 'table'
@@ -2934,18 +2953,7 @@ const app = createApp({
         openPackingModal(buyer, 'checklist', 'stage1');
         return;
       }
-      if (!btPrinterConnected.value) {
-        await connectBluetooth();
-        if (!btPrinterConnected.value) return;
-      }
-      try {
-        const layout = settings.value.invoiceLayout || defaultInvoiceLayout;
-        const cols = layout?.paperWidth === '80mm' ? 48 : 32;
-        await printDirectInvoice(buyer, activeProfile.value, sessionDate.value, cols, layout);
-        showToast(`Invoice printed to ${btPrinterName.value || 'PT-210'}`);
-      } catch (err: any) {
-        showToast(`Print failed: ${err.message || err}`);
-      }
+      await executePrintReceipt(buyer, false);
     }
 
     // =========================================================================
@@ -3231,9 +3239,9 @@ const app = createApp({
         const remaining = currentBuyerItems.filter(m => isStage1 ? !isItemStage1Audited(m) : !isItemStage2Packed(m));
         if (remaining.length === 0) {
           if (isStage1) {
-            showToast(`🎉 Stage 1 Complete! All ${currentBuyerItems.length} items audited for @${buyerClean}. Ready to print invoice!`);
+            showToast(`🎉 Stage 1 Complete! All ${currentBuyerItems.length} items audited for ${buyerClean}. Ready to print invoice!`);
           } else {
-            showToast(`🎉 Stage 2 Complete! All ${currentBuyerItems.length} items packed for @${buyerClean}. Ready to seal & print packing slip!`);
+            showToast(`🎉 Stage 2 Complete! All ${currentBuyerItems.length} items packed for ${buyerClean}. Ready to seal & print packing slip!`);
           }
         }
         return;
@@ -3358,7 +3366,7 @@ const app = createApp({
 
     function resetVerificationForBuyer(buyer: BuyerBasket) {
       if (!buyer) return;
-      if (!confirm(`Reset all audit and packing verification for @${buyer.displayName}?`)) return;
+      if (!confirm(`Reset all audit and packing verification for ${buyer.displayName}?`)) return;
       const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
 
       allMines.value.forEach(m => {
@@ -3376,7 +3384,7 @@ const app = createApp({
       });
       saveAll();
       refreshActivePackingBuyer();
-      showToast(`All verifications reset for @${buyer.displayName}`);
+      showToast(`All verifications reset for ${buyer.displayName}`);
     }
 
     async function printThermalPackingSlip(buyer: BuyerBasket) {
@@ -3386,20 +3394,7 @@ const app = createApp({
         openPackingModal(buyer, 'checklist', 'stage2');
         return;
       }
-      if (!btPrinterConnected.value) {
-        await connectBluetooth();
-        if (!btPrinterConnected.value) return;
-      }
-      try {
-        isPrintingPackingSlip.value = true;
-        const cols = settings.value.receiptLayout?.paperWidth === '80mm' ? 48 : 32;
-        await printDirectPackingSlip(buyer, activeProfile.value, sessionDate.value, cols, settings.value.receiptLayout);
-        showToast(`Packing slip printed to ${btPrinterName.value || 'PT-210'}`);
-      } catch (err: any) {
-        showToast(`Print failed: ${err.message || err}`);
-      } finally {
-        isPrintingPackingSlip.value = false;
-      }
+      await executePrintReceipt(buyer, true);
     }
 
     async function markBuyerAsPackedAndPrint(buyer: BuyerBasket) {
@@ -5002,7 +4997,7 @@ const app = createApp({
       const lines: string[] = [];
       lines.push(`LIVE SALE INVOICE & RECEIPT`);
       lines.push(`----------------------------------------`);
-      lines.push(`Customer: ${buyer.handle}`);
+      lines.push(`Customer: ${buyer.handle.replace(/^@+/, '')}`);
       lines.push(`Date: ${sessionDate.value} | ${activeProfile.value.name || settings.value.storeName}`);
       lines.push(`----------------------------------------`);
       lines.push(`MINED ITEMS (${buyer.items.length} pcs):`);

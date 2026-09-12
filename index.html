@@ -504,7 +504,7 @@
             <!-- Greeting Banner -->
             <div class="bg-white/10 backdrop-blur-xs rounded-xl p-3 border border-white/10">
               <p class="text-xs text-zinc-100 font-medium leading-relaxed">
-                🎉 Hi <strong class="text-amber-300">@{{ (customerCheckoutData.displayName || customerCheckoutData.handle).replace(/^@+/, '') }}</strong>! Thank you for mining with us tonight! Below are the photos of all your mined items, total breakdown, and GCash payment details.
+                🎉 Hi <strong class="text-amber-300">{{ (customerCheckoutData.displayName || customerCheckoutData.handle).replace(/^@+/, '') }}</strong>! Thank you for mining with us tonight! Below are the photos of all your mined items, total breakdown, and GCash payment details.
               </p>
             </div>
           </div>
@@ -4313,13 +4313,12 @@
               Customer / Buyer Handle *
             </label>
             <div class="relative">
-              <span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-zinc-400 text-sm">@</span>
               <input 
                 v-model="editingMineForm.buyer"
                 @focus="editingMineSuggestionsOpen = true"
                 type="text" 
                 placeholder="customer_handle"
-                class="w-full bg-zinc-50 border border-zinc-300 focus:border-zinc-900 rounded-xl pl-7 pr-3 py-2 text-xs font-bold text-zinc-900 focus:bg-white focus:outline-none"
+                class="w-full bg-zinc-50 border border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 focus:bg-white focus:outline-none"
               />
             </div>
             
@@ -4496,13 +4495,12 @@
           <div>
             <label class="block font-semibold text-zinc-700 uppercase tracking-wider text-[10px] mb-1">New Customer Handle *</label>
             <div class="relative">
-              <span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-zinc-400 text-sm">@</span>
               <input 
                 v-model="renameCustomerNewHandle"
                 type="text" 
                 placeholder="corrected_handle"
                 @keyup.enter="executeRenameCustomer"
-                class="w-full bg-zinc-50 border-2 border-zinc-300 focus:border-zinc-900 rounded-xl pl-7 pr-3 py-2 text-xs font-bold text-zinc-900 focus:bg-white focus:outline-none"
+                class="w-full bg-zinc-50 border-2 border-zinc-300 focus:border-zinc-900 rounded-xl px-3 py-2 text-xs font-bold text-zinc-900 focus:bg-white focus:outline-none"
               />
             </div>
           </div>
@@ -6278,7 +6276,7 @@
           <div class="flex items-center space-x-2">
             <span class="font-bold text-sm text-zinc-900">Mined Items Photo Collage</span>
             <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-purple-100 text-purple-800 font-bold">
-              @{{ (collageBuyer.displayName || collageBuyer.handle).replace(/^@+/, '') }}
+              {{ (collageBuyer.displayName || collageBuyer.handle).replace(/^@+/, '') }}
             </span>
           </div>
           <button @click="collageModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
@@ -7571,7 +7569,7 @@
 
       <div style="margin-top: 2mm; text-align: center; border-top: 1px solid #000; padding-top: 1mm; font-size: 7pt;">
         <div>Verified & Packed: [ &nbsp; ] QC Pass</div>
-        <div style="font-size: 6pt; margin-top: 0.5mm; font-family: monospace;">*{{ activePackingSlipToPrint.handle }}*</div>
+        <div style="font-size: 6pt; margin-top: 0.5mm; font-family: monospace;">*{{ activePackingSlipToPrint.handle.replace(/^@+/, '') }}*</div>
       </div>
     </div>
 
@@ -7582,11 +7580,11 @@
       <div style="border-bottom: 2px solid #000; padding-bottom: 1mm; text-align: center;">
         <div style="font-size: 8pt; font-weight: 700; text-transform: uppercase;">{{ activeProfile.name || settings.storeName }}</div>
         <div style="font-size: 11pt; font-weight: 900; margin-top: 0.5mm;">OFFICIAL INVOICE</div>
-        <div style="font-size: 7.5pt; font-family: monospace;">#INV-{{ sessionDate }}-{{ activeInvoiceToPrint.handle.replace('@','').toUpperCase() }}</div>
+        <div style="font-size: 7.5pt; font-family: monospace;">#INV-{{ sessionDate }}-{{ activeInvoiceToPrint.handle.replace(/^@+/,'').toUpperCase() }}</div>
       </div>
 
       <div style="margin: 1.5mm 0; border-bottom: 1px dashed #000; padding-bottom: 1.5mm;">
-        <div style="font-size: 13pt; font-weight: 900;">{{ activeInvoiceToPrint.handle }}</div>
+        <div style="font-size: 13pt; font-weight: 900;">{{ activeInvoiceToPrint.handle.replace(/^@+/, '') }}</div>
         <div style="display: flex; justify-content: space-between; font-size: 7.5pt; margin-top: 0.5mm;">
           <span>Date: {{ sessionDate }}</span>
           <span style="font-weight: 900;">STATUS: {{ getStatusText(activeInvoiceToPrint.balance) }}</span>
@@ -7633,7 +7631,7 @@
 
       <div style="margin-top: 2mm; text-align: center; border-top: 1px solid #000; padding-top: 1mm; font-size: 7pt;">
         <div>Thank you for live shopping with us!</div>
-        <div style="font-size: 6pt; margin-top: 0.5mm; font-family: monospace;">*{{ activeInvoiceToPrint.handle }}*</div>
+        <div style="font-size: 6pt; margin-top: 0.5mm; font-family: monospace;">*{{ activeInvoiceToPrint.handle.replace(/^@+/, '') }}*</div>
       </div>
     </div>
 

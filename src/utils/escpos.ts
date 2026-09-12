@@ -612,7 +612,7 @@ export async function buildStickerCanvasRaster(
       ctx.textBaseline = 'top';
       const buyerFontSize = cfg.buyerSize === 'lg' ? 17 : 14;
       ctx.font = `bold ${buyerFontSize}px system-ui, -apple-system, sans-serif`;
-      ctx.fillText(`@${cleanBuyer}`, stickerW / 2, currY);
+      ctx.fillText(`${cleanBuyer}`, stickerW / 2, currY);
       currY += buyerFontSize + 4;
     }
 
@@ -851,7 +851,7 @@ export function buildStickerEscPos(
     } else {
       enc.size(1, 1);
     }
-    enc.line(`@${cleanBuyer}`).normal();
+    enc.line(`${cleanBuyer}`).normal();
     enc.setLineSpacing(is30x20 ? 10 : 16);
   }
 
@@ -1052,7 +1052,7 @@ export function buildStickerTSPL(
     // 3. Buyer Handle (e.g. @janedoe)
     if (cfg.showBuyer) {
       const buyerFont = cfg.buyerSize === 'large' ? '3' : '2';
-      tspl += `TEXT ${stickerCenter},${yPos},"${buyerFont}",0,1,1,2,"@${cleanBuyer.substring(0, 13)}"\r\n`;
+      tspl += `TEXT ${stickerCenter},${yPos},"${buyerFont}",0,1,1,2,"${cleanBuyer.substring(0, 13)}"\r\n`;
       yPos += is30x20 ? 28 : 32;
     }
 
@@ -1180,7 +1180,7 @@ export function buildPackingSlipEscPos(
         setAlign();
         enc.bold(true);
         if (sec.fontSize >= 18) enc.size(2, 2);
-        enc.line(`@${(basket.displayName || basket.handle).replace(/^@+/, '')}`);
+        enc.line(`${(basket.displayName || basket.handle).replace(/^@+/, '')}`);
         enc.normal();
       } else if (sec.id === 'status') {
         setAlign();
@@ -1257,7 +1257,7 @@ export function buildPackingSlipEscPos(
       enc.alignCenter()
         .size(2, 2)
         .bold(true)
-        .line(`@${(basket.displayName || basket.handle).replace(/^@+/, '')}`)
+        .line(`${(basket.displayName || basket.handle).replace(/^@+/, '')}`)
         .normal();
     }
 
@@ -1385,7 +1385,7 @@ export function buildInvoiceEscPos(
         setAlign();
         enc.bold(true);
         if (sec.fontSize >= 18) enc.size(2, 2);
-        enc.line(`@${cleanName}`);
+        enc.line(`${cleanName}`);
         enc.normal();
       } else if (sec.id === 'status') {
         setAlign();
@@ -1449,7 +1449,7 @@ export function buildInvoiceEscPos(
       enc.alignCenter()
         .size(2, 2)
         .bold(true)
-        .line(`@${cleanName}`)
+        .line(`${cleanName}`)
         .normal();
     }
 
@@ -1540,4 +1540,232 @@ export function buildTestReceiptEscPos(
     .normal()
     .feed(3);
   return enc.encode();
+}
+
+/**
+ * Builds ESC/POS monochrome Canvas Raster Graphic for Receipts & Invoices (pixel-perfect graphics match)
+ */
+export async function buildReceiptCanvasRaster(
+  basket: {
+    handle: string;
+    displayName?: string;
+    items: Array<{ controlCode: string; controlNum?: number | string; tag?: string; description?: string; price: number }>;
+    totalAmount: number;
+    totalPaid: number;
+    balance: number;
+    status: string;
+  },
+  profile: {
+    name: string;
+    currency?: string;
+    paymentDetails?: string;
+  },
+  sessionDate: string = '',
+  paperCols: number = 32,
+  layoutConfig?: ReceiptLayoutSettings,
+  isInvoice: boolean = false
+): Promise<Uint8Array> {
+  const cfg = layoutConfig || (isInvoice ? defaultInvoiceLayout : defaultReceiptLayout);
+  const is80mm = paperCols === 48 || cfg.paperWidth === '80mm';
+  const receiptW = is80mm ? 576 : 384;
+  const bytesWidth = is80mm ? 72 : 48;
+
+  const titleText = isInvoice ? 'OFFICIAL INVOICE' : 'PARCEL PACKING SLIP';
+  const cleanName = (basket.displayName || basket.handle).replace(/^@+/, '');
+  const currencyStr = (profile.currency || '₱').replace(/PHP/g, '₱');
+
+  const calculatedH = 180 + (basket.items.length * 28) + 260;
+  const receiptH = Math.max(300, Math.ceil(calculatedH));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = receiptW;
+  canvas.height = receiptH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return isInvoice
+      ? buildInvoiceEscPos(basket, profile, sessionDate, paperCols, cfg)
+      : buildPackingSlipEscPos(basket, profile, sessionDate, paperCols, cfg);
+  }
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, receiptW, receiptH);
+
+  ctx.fillStyle = '#000000';
+  ctx.strokeStyle = '#000000';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+
+  let currY = 10;
+
+  if (cfg.showStoreName !== false) {
+    ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
+    ctx.fillText((profile.name || 'LIVE POS').toUpperCase(), receiptW / 2, currY);
+    currY += 28;
+  }
+
+  if (cfg.showTitle !== false) {
+    ctx.font = 'bold 18px system-ui, -apple-system, sans-serif';
+    ctx.fillText(titleText, receiptW / 2, currY);
+    currY += 24;
+  }
+
+  if (cfg.showSessionDate !== false || cfg.showDateTime !== false) {
+    ctx.font = '13px monospace';
+    ctx.fillText(`Session: #${sessionDate} • ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, receiptW / 2, currY);
+    currY += 20;
+  }
+
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(10, currY + 4);
+  ctx.lineTo(receiptW - 10, currY + 4);
+  ctx.stroke();
+  currY += 12;
+
+  if (cfg.showBuyerName !== false) {
+    ctx.font = '900 28px system-ui, -apple-system, sans-serif';
+    ctx.fillText(cleanName, receiptW / 2, currY);
+    currY += 34;
+  }
+
+  if (cfg.showPaymentStatus !== false) {
+    ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
+    ctx.fillText(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`, receiptW / 2, currY);
+    currY += 22;
+  }
+
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(10, currY + 4);
+  ctx.lineTo(receiptW - 10, currY + 4);
+  ctx.stroke();
+  currY += 12;
+
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText('ITEM / DESCRIPTION', 12, currY);
+  ctx.textAlign = 'right';
+  ctx.fillText(`AMT (${currencyStr})`, receiptW - 12, currY);
+  currY += 20;
+
+  ctx.beginPath();
+  ctx.moveTo(10, currY);
+  ctx.lineTo(receiptW - 10, currY);
+  ctx.stroke();
+  currY += 8;
+
+  ctx.font = '14px system-ui, -apple-system, sans-serif';
+  basket.items.forEach((it, idx) => {
+    const isV = !!((it as any).packVerified ?? (it as any).packed ?? (it as any).auditVerified ?? (it as any).verified);
+    const prefix = !isInvoice ? (isV ? '[V] ' : '[ ] ') : `${idx + 1}. `;
+    const code = it.controlNum ? `#${it.controlNum}` : it.controlCode;
+    const desc = (it.description && it.description !== it.controlCode && it.description !== 'Decor') ? ` • ${it.description}` : '';
+    const itemStr = `${prefix}${code}${desc}`;
+
+    ctx.textAlign = 'left';
+    ctx.fillText(itemStr.length > 24 ? itemStr.substring(0, 24) + '…' : itemStr, 12, currY);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${it.price.toLocaleString()}`, receiptW - 12, currY);
+    currY += 22;
+  });
+
+  currY += 6;
+  ctx.beginPath();
+  ctx.moveTo(10, currY);
+  ctx.lineTo(receiptW - 10, currY);
+  ctx.stroke();
+  currY += 10;
+
+  ctx.font = 'bold 16px system-ui, -apple-system, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Total Items:', 12, currY);
+  ctx.textAlign = 'right';
+  ctx.fillText(`${basket.items.length} pcs`, receiptW - 12, currY);
+  currY += 24;
+
+  ctx.textAlign = 'left';
+  ctx.fillText('Subtotal:', 12, currY);
+  ctx.textAlign = 'right';
+  ctx.fillText(`${currencyStr} ${basket.totalAmount.toLocaleString()}`, receiptW - 12, currY);
+  currY += 24;
+
+  if (basket.totalPaid > 0) {
+    ctx.textAlign = 'left';
+    ctx.fillText('Total Paid:', 12, currY);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${currencyStr} ${basket.totalPaid.toLocaleString()}`, receiptW - 12, currY);
+    currY += 24;
+  }
+
+  ctx.font = '900 18px system-ui, -apple-system, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('BALANCE DUE:', 12, currY);
+  ctx.textAlign = 'right';
+  ctx.fillText(`${currencyStr} ${Math.abs(basket.balance).toLocaleString()}`, receiptW - 12, currY);
+  currY += 30;
+
+  if (profile.paymentDetails && profile.paymentDetails.trim()) {
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 12px system-ui, -apple-system, sans-serif';
+    ctx.fillText('PAYMENT ACCOUNTS:', receiptW / 2, currY);
+    currY += 18;
+    ctx.font = '12px system-ui, -apple-system, sans-serif';
+    const lines = profile.paymentDetails.split('\n');
+    lines.forEach(l => {
+      if (l.trim()) {
+        ctx.fillText(l.trim(), receiptW / 2, currY);
+        currY += 18;
+      }
+    });
+    currY += 10;
+  }
+
+  ctx.textAlign = 'center';
+  ctx.font = '12px system-ui, -apple-system, sans-serif';
+  ctx.fillText(cfg.customFooterNote || 'Thank you for mining with us!', receiptW / 2, currY);
+  currY += 24;
+
+  const actualH = currY + 10;
+  const imgData = ctx.getImageData(0, 0, receiptW, actualH);
+  const data = imgData.data;
+
+  const totalBitmapBytes = bytesWidth * actualH;
+  const rasterBuffer = new Uint8Array(totalBitmapBytes);
+
+  for (let y = 0; y < actualH; y++) {
+    const rowByteStart = y * bytesWidth;
+    for (let x = 0; x < receiptW; x++) {
+      const idx = (y * receiptW + x) * 4;
+      const r = data[idx];
+      const g = data[idx + 1];
+      const b = data[idx + 2];
+      const a = data[idx + 3];
+
+      const isBlack = a > 50 && (0.299 * r + 0.587 * g + 0.114 * b < 160);
+      if (isBlack) {
+        const byteOffset = rowByteStart + Math.floor(x / 8);
+        const bitPos = 7 - (x % 8);
+        rasterBuffer[byteOffset] |= (1 << bitPos);
+      }
+    }
+  }
+
+  const output: number[] = [];
+  output.push(0x1B, 0x40);
+  const xL = bytesWidth % 256;
+  const xH = Math.floor(bytesWidth / 256);
+  const yL = actualH % 256;
+  const yH = Math.floor(actualH / 256);
+
+  output.push(0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH);
+  for (let i = 0; i < rasterBuffer.length; i++) {
+    output.push(rasterBuffer[i]);
+  }
+
+  const feedCount = cfg.feedLines !== undefined ? cfg.feedLines : 3;
+  for (let i = 0; i < feedCount; i++) {
+    output.push(0x0A);
+  }
+
+  return new Uint8Array(output);
 }

@@ -136,6 +136,7 @@ export interface VisualReceiptSection {
 
 export interface ReceiptLayoutSettings {
   paperWidth: '58mm' | '80mm';
+  printMode?: 'direct_bt' | 'browser_dialog' | 'canvas_raster';
   showStoreName: boolean;
   showTitle: boolean;
   showSessionDate: boolean;

@@ -63,6 +63,7 @@ export const defaultLabelLayout: LabelLayoutSettings = {
 
 export const defaultReceiptLayout: ReceiptLayoutSettings = {
   paperWidth: '58mm',
+  printMode: 'direct_bt',
   showStoreName: true,
   showTitle: true,
   showSessionDate: true,
@@ -99,6 +100,7 @@ export const defaultInvoiceSections: VisualReceiptSection[] = [
 
 export const defaultInvoiceLayout: ReceiptLayoutSettings = {
   paperWidth: '58mm',
+  printMode: 'direct_bt',
   showStoreName: true,
   showTitle: true,
   showSessionDate: true,

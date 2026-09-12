@@ -11,6 +11,7 @@ import {
   buildFeedGapTSPL,
   buildPackingSlipEscPos,
   buildInvoiceEscPos,
+  buildReceiptCanvasRaster,
   buildTestReceiptEscPos
 } from './escpos';
 import type { LabelLayoutSettings, ReceiptLayoutSettings } from '../types';
@@ -289,6 +290,32 @@ export async function printDirectPackingSlip(
 }
 
 /**
+ * Print Canvas Raster Bitmap Packing Slip to PT-210
+ */
+export async function printRasterPackingSlip(
+  basket: {
+    handle: string;
+    displayName?: string;
+    items: Array<{ controlCode: string; controlNum?: number | string; tag?: string; description?: string; price: number }>;
+    totalAmount: number;
+    totalPaid: number;
+    balance: number;
+    status: string;
+  },
+  profile: {
+    name: string;
+    currency?: string;
+    paymentDetails?: string;
+  },
+  sessionDate: string = '',
+  paperCols: number = 32,
+  layoutConfig?: ReceiptLayoutSettings
+): Promise<boolean> {
+  const bytes = await buildReceiptCanvasRaster(basket, profile, sessionDate, paperCols, layoutConfig, false);
+  return await sendEscPosBytes(bytes);
+}
+
+/**
  * Directly print Official Customer Invoice to PT-210
  */
 export async function printDirectInvoice(
@@ -311,6 +338,32 @@ export async function printDirectInvoice(
   layoutConfig?: ReceiptLayoutSettings
 ): Promise<boolean> {
   const bytes = buildInvoiceEscPos(basket, profile, sessionDate, paperCols, layoutConfig);
+  return await sendEscPosBytes(bytes);
+}
+
+/**
+ * Print Canvas Raster Bitmap Invoice to PT-210
+ */
+export async function printRasterInvoice(
+  basket: {
+    handle: string;
+    displayName?: string;
+    items: Array<{ controlCode: string; controlNum?: number | string; tag?: string; description?: string; price: number }>;
+    totalAmount: number;
+    totalPaid: number;
+    balance: number;
+    status: string;
+  },
+  profile: {
+    name: string;
+    currency?: string;
+    paymentDetails?: string;
+  },
+  sessionDate: string = '',
+  paperCols: number = 32,
+  layoutConfig?: ReceiptLayoutSettings
+): Promise<boolean> {
+  const bytes = await buildReceiptCanvasRaster(basket, profile, sessionDate, paperCols, layoutConfig, true);
   return await sendEscPosBytes(bytes);
 }
 
