@@ -3161,6 +3161,7 @@ const app = createApp({
         saveAll();
         pushSingleMineToSupabase(matchedItem, activeProfileId.value, sessionDate.value);
         refreshActivePackingBuyer();
+        triggerScanAnimation(matchedItem.id);
         playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
 
         lastScannedResult.value = {
@@ -3216,6 +3217,16 @@ const app = createApp({
       packingManualCodeInput.value = '';
     }
 
+    const recentlyScannedItemId = ref<string | null>(null);
+    function triggerScanAnimation(itemId: string) {
+      recentlyScannedItemId.value = itemId;
+      setTimeout(() => {
+        if (recentlyScannedItemId.value === itemId) {
+          recentlyScannedItemId.value = null;
+        }
+      }, 700);
+    }
+
     function refreshActivePackingBuyer() {
       if (activePackingBuyer.value) {
         const handle = activePackingBuyer.value.handle;
@@ -3254,6 +3265,7 @@ const app = createApp({
       saveAll();
       pushSingleMineToSupabase(item, activeProfileId.value, sessionDate.value);
       refreshActivePackingBuyer();
+      triggerScanAnimation(item.id);
     }
 
     function verifyAllItemsForBuyer(buyer: BuyerBasket) {
@@ -6862,7 +6874,8 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       verifyAllItemsForBuyer,
       resetVerificationForBuyer,
       printThermalPackingSlip,
-      markBuyerAsPackedAndPrint
+      markBuyerAsPackedAndPrint,
+      recentlyScannedItemId
     };
   }
 });

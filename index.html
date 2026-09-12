@@ -6377,7 +6377,10 @@
                     @click="toggleItemVerification(it)"
                     type="button" 
                     class="w-6 h-6 rounded-md flex items-center justify-center text-sm font-bold transition-colors cursor-pointer shrink-0 border"
-                    :class="(packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)) ? 'bg-emerald-600 border-emerald-700 text-white shadow-xs' : 'bg-white border-zinc-300 text-transparent hover:border-zinc-500'">
+                    :class="[
+                      (packingWorkflowStage === 'stage1' ? isItemStage1Audited(it) : isItemStage2Packed(it)) ? 'bg-emerald-600 border-emerald-700 text-white shadow-xs' : 'bg-white border-zinc-300 text-transparent hover:border-zinc-500',
+                      recentlyScannedItemId === it.id ? 'scale-125 ring-4 ring-emerald-300 animate-bounce transition-all duration-300' : 'transition-transform duration-300'
+                    ]">
                     ✓
                   </button>
 
