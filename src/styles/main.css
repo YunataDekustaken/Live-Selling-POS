@@ -23,3 +23,11 @@ body {
   background: #e4e4e7;
   border-radius: 9999px;
 }
+
+/* Html5Qrcode video element adjustment */
+#packing-qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  aspect-ratio: 1 / 1 !important;
+}
