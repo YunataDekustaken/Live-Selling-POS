@@ -1184,7 +1184,7 @@ export function buildPackingSlipEscPos(
         enc.normal();
       } else if (sec.id === 'status') {
         setAlign();
-        enc.line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
+        enc.line(`STATUS: ${basket.balance <= 0 ? 'PAID' : 'UNPAID'}`);
       } else if (sec.id === 'itemsTable') {
         enc.twoColumns('CHECK / ITEM / CODE', `AMT (${currencyStr})`);
         enc.separator('-');
@@ -1263,7 +1263,7 @@ export function buildPackingSlipEscPos(
 
     if (cfg.showPaymentStatus) {
       enc.alignCenter()
-        .line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
+        .line(`STATUS: ${basket.balance <= 0 ? 'PAID' : 'UNPAID'}`);
     }
 
     if (cfg.showDividers) enc.separator('-');
@@ -1389,7 +1389,7 @@ export function buildInvoiceEscPos(
         enc.normal();
       } else if (sec.id === 'status') {
         setAlign();
-        enc.line(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`);
+        enc.line(`STATUS: ${basket.balance <= 0 ? 'PAID' : 'UNPAID'}`);
       } else if (sec.id === 'itemsTable') {
         enc.twoColumns('ITEM', `PRICE (${currencyStr})`);
         enc.separator('-');
@@ -1630,7 +1630,7 @@ export async function buildReceiptCanvasRaster(
 
   if (cfg.showPaymentStatus !== false) {
     ctx.font = 'bold 14px system-ui, -apple-system, sans-serif';
-    ctx.fillText(`STATUS: ${basket.balance <= 0 ? 'FULLY SETTLED (PAID)' : 'OWING BALANCE'}`, receiptW / 2, currY);
+    ctx.fillText(`STATUS: ${basket.balance <= 0 ? 'PAID' : 'UNPAID'}`, receiptW / 2, currY);
     currY += 22;
   }
 

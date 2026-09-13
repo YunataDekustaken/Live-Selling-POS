@@ -3,9 +3,9 @@ export function formatCurrency(amount: number, symbol = '₱'): string {
 }
 
 export function getStatusText(balance: number): string {
-  if (balance > 0) return 'UNPAID / OWING';
-  if (balance < 0) return 'OVERPAID / CREDIT';
-  return 'FULLY SETTLED';
+  if (balance > 0) return 'UNPAID';
+  if (balance < 0) return 'CREDIT';
+  return 'PAID';
 }
 
 export function getStatusBadgeClass(balance: number): string {

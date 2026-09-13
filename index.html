@@ -766,7 +766,7 @@
                 <div class="min-w-0">
                   <div class="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors flex items-center space-x-1.5">
                     <span>Customer Balances</span>
-                    <span v-if="owingBuyersCount > 0" class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-300 font-mono font-bold">{{ owingBuyersCount }} owing</span>
+                    <span v-if="owingBuyersCount > 0" class="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/25 text-amber-300 font-mono font-bold">{{ owingBuyersCount }} unpaid</span>
                   </div>
                   <div class="text-[11px] text-zinc-400 truncate">{{ buyerBasketsList.length }} buyers • Invoicing & Pay</div>
                 </div>
@@ -889,7 +889,7 @@
                 {{ activeProfile.currency }}{{ sessionStats.totalBalance.toLocaleString() }}
               </div>
               <div class="text-[11px] mt-0.5 font-mono" :class="sessionStats.totalBalance > 0 ? 'text-amber-700 font-semibold' : 'text-zinc-500'">
-                {{ owingBuyersCount }} buyers owing
+                {{ owingBuyersCount }} buyers unpaid
               </div>
             </div>
 
@@ -944,7 +944,7 @@
             </div>
             <div class="min-w-0">
               <div class="text-xs font-bold text-zinc-900 truncate">Balances</div>
-              <div class="text-[10px] text-zinc-500">{{ owingBuyersCount }} owing payments</div>
+              <div class="text-[10px] text-zinc-500">{{ owingBuyersCount }} unpaid</div>
             </div>
           </button>
 
@@ -1623,7 +1623,7 @@
                 @click="buyerFilterStatus = 'owing'"
                 class="px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-colors"
                 :class="buyerFilterStatus === 'owing' ? 'bg-amber-700 text-white font-semibold' : 'bg-white text-amber-700 border border-zinc-200 hover:bg-zinc-50'">
-                Unpaid / Owing ({{ owingBuyersCount }})
+                Unpaid ({{ owingBuyersCount }})
               </button>
               <button 
                 @click="buyerFilterStatus = 'settled'"
@@ -1910,7 +1910,7 @@
                       <span 
                         class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border"
                         :class="getStatusBadgeClass(session.balance)">
-                        {{ session.balance > 0 ? 'OWING' : 'PAID' }}
+                        {{ session.balance > 0 ? 'UNPAID' : 'PAID' }}
                       </span>
                     </td>
 
@@ -2142,7 +2142,7 @@
                     <span 
                       class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border"
                       :class="getStatusBadgeClass(session.balance)">
-                      {{ session.balance > 0 ? ('OWING ' + activeProfile.currency + session.balance.toLocaleString()) : 'PAID' }}
+                      {{ session.balance > 0 ? ('UNPAID ' + activeProfile.currency + session.balance.toLocaleString()) : 'PAID' }}
                     </span>
                   </div>
                 </div>
@@ -4910,8 +4910,8 @@
                     <span 
                       class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold border"
                       :class="sessionGroup.sessionBalance <= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'">
-                      <template v-if="sessionGroup.sessionBalance <= 0">PAID IN FULL</template>
-                      <template v-else>OWING {{ activeProfile.currency }}{{ Math.abs(sessionGroup.sessionBalance).toLocaleString() }}</template>
+                      <template v-if="sessionGroup.sessionBalance <= 0">PAID</template>
+                      <template v-else>UNPAID {{ activeProfile.currency }}{{ Math.abs(sessionGroup.sessionBalance).toLocaleString() }}</template>
                     </span>
                   </div>
                 </div>
@@ -7277,7 +7277,7 @@
               <span 
                 class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0"
                 :class="inv.balance <= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'">
-                {{ inv.status === 'Paid' ? 'PAID' : 'OWING ' + activeProfile.currency + inv.balance }}
+                {{ inv.status === 'Paid' ? 'PAID' : 'UNPAID ' + activeProfile.currency + inv.balance }}
               </span>
             </div>
           </div>

@@ -5413,11 +5413,11 @@ const app = createApp({
         lines.push(`Payments Made: ${activeProfile.value.currency}${buyer.totalPaid.toLocaleString()}`);
       }
       if (buyer.balance > 0) {
-        lines.push(`REMAINING BALANCE: ${activeProfile.value.currency}${buyer.balance.toLocaleString()} (OWING)`);
+        lines.push(`REMAINING BALANCE: ${activeProfile.value.currency}${buyer.balance.toLocaleString()} (UNPAID)`);
       } else if (buyer.balance < 0) {
         lines.push(`ACCOUNT CREDIT: ${activeProfile.value.currency}${Math.abs(buyer.balance).toLocaleString()}`);
       } else {
-        lines.push(`STATUS: FULLY SETTLED / PAID`);
+        lines.push(`STATUS: PAID`);
       }
       lines.push(`----------------------------------------`);
       lines.push(`PAYMENT ACCOUNTS:`);
