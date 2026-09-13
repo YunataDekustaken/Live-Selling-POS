@@ -4,6 +4,7 @@ import type {
   MinedItem,
   PaymentRecord,
   BuyerBasket,
+  CustomerGroup,
   AppSettings,
   ActiveStoreForm,
   LiveMiningForm,
@@ -2963,6 +2964,7 @@ const app = createApp({
     // =========================================================================
     const showPackingModal = ref(false);
     const activePackingBuyer = ref<BuyerBasket | null>(null);
+    const selectedPackingInvoiceIds = ref<string[]>([]);
     const packingWorkflowStage = ref<'stage1' | 'stage2'>('stage1');
     const packingActiveTab = ref<'scanner' | 'checklist'>('scanner');
     const packingScannerActive = ref(false);
@@ -2977,6 +2979,114 @@ const app = createApp({
     const scannerCurrentZoom = ref(1);
     let packingScannerInstance: LiveScannerController | null = null;
     let scanCooldownTimer: any = null;
+
+    function getCustomerSessionInvoices(buyerHandleOrName: string): BuyerBasket[] {
+      if (!buyerHandleOrName) return [];
+      const clean = buyerHandleOrName.replace(/^@+/, '').toLowerCase();
+      return buyerBasketsList.value.filter(b => {
+        const handleClean = b.handle.replace(/^@+/, '').toLowerCase();
+        const displayClean = b.displayName.replace(/^@+/, '').toLowerCase();
+        return handleClean === clean || displayClean === clean;
+      });
+    }
+
+    const activePackingCustomerInvoices = computed<BuyerBasket[]>(() => {
+      if (!activePackingBuyer.value) return [];
+      return getCustomerSessionInvoices(activePackingBuyer.value.handle);
+    });
+
+    const activePackingCombinedBasket = computed<BuyerBasket>(() => {
+      if (!activePackingBuyer.value) {
+        return {
+          handle: '',
+          displayName: '',
+          sessionDate: '',
+          items: [],
+          payments: [],
+          totalAmount: 0,
+          totalPaid: 0,
+          balance: 0,
+          status: 'Unpaid'
+        };
+      }
+
+      const allInvoices = activePackingCustomerInvoices.value;
+      const selectedInvoices = allInvoices.filter(inv => 
+        selectedPackingInvoiceIds.value.includes(inv.id || '')
+      );
+
+      const targetInvoices = selectedInvoices.length > 0 ? selectedInvoices : [activePackingBuyer.value];
+
+      const itemsMap: MinedItem[] = [];
+      const paymentsMap: PaymentRecord[] = [];
+      let totalAmount = 0;
+      let totalPaid = 0;
+      const datesSet = new Set<string>();
+
+      for (const inv of targetInvoices) {
+        if (inv.sessionDate) datesSet.add(inv.sessionDate);
+        for (const it of inv.items) {
+          if (!itemsMap.some(existing => existing.id === it.id)) {
+            itemsMap.push(it);
+          }
+        }
+        for (const pay of inv.payments) {
+          if (!paymentsMap.some(existing => existing.id === pay.id)) {
+            paymentsMap.push(pay);
+          }
+        }
+        totalAmount += inv.totalAmount;
+        totalPaid += inv.totalPaid;
+      }
+
+      const balance = totalAmount - totalPaid;
+      const status = balance <= 0 ? 'Paid' : (totalPaid > 0 ? 'Partial' : 'Unpaid');
+      const sessionDateStr = Array.from(datesSet).join(', ') || sessionDate.value;
+
+      return {
+        id: activePackingBuyer.value.id,
+        handle: activePackingBuyer.value.handle,
+        displayName: activePackingBuyer.value.displayName,
+        sessionDate: sessionDateStr,
+        dateIssued: sessionDateStr,
+        items: itemsMap,
+        payments: paymentsMap,
+        totalAmount,
+        totalPaid,
+        balance,
+        status
+      };
+    });
+
+    function togglePackingInvoiceSelection(invoiceId: string) {
+      const index = selectedPackingInvoiceIds.value.indexOf(invoiceId);
+      if (index > -1) {
+        if (selectedPackingInvoiceIds.value.length > 1) {
+          selectedPackingInvoiceIds.value.splice(index, 1);
+        } else {
+          showToast('At least one session invoice must be selected for packing');
+        }
+      } else {
+        selectedPackingInvoiceIds.value.push(invoiceId);
+      }
+    }
+
+    function isPackingInvoiceSelected(invoiceId: string): boolean {
+      return selectedPackingInvoiceIds.value.includes(invoiceId);
+    }
+
+    function selectAllPackingInvoices() {
+      selectedPackingInvoiceIds.value = activePackingCustomerInvoices.value.map(i => i.id || '');
+    }
+
+    function selectPaidPackingInvoicesOnly() {
+      const paid = activePackingCustomerInvoices.value.filter(i => i.balance <= 0).map(i => i.id || '');
+      if (paid.length > 0) {
+        selectedPackingInvoiceIds.value = paid;
+      } else {
+        showToast('No paid invoices found for this customer');
+      }
+    }
 
     const lastScannedResult = ref<{
       text: string;
@@ -3039,13 +3149,22 @@ const app = createApp({
       return isItemStage2Packed(item);
     }
 
-    function openPackingModal(buyer: BuyerBasket, defaultTab: 'scanner' | 'checklist' = 'scanner', stage: 'stage1' | 'stage2' = 'stage1') {
+    function openPackingModal(buyer: BuyerBasket, defaultTab: 'scanner' | 'checklist' = 'scanner', stage: 'stage1' | 'stage2' = 'stage1', selectAllSessions = false) {
       activePackingBuyer.value = buyer;
       packingWorkflowStage.value = stage;
       packingActiveTab.value = defaultTab;
       packingManualCodeInput.value = '';
       lastScannedResult.value = null;
       showPackingModal.value = true;
+
+      const invoices = getCustomerSessionInvoices(buyer.handle);
+      if (stage === 'stage1') {
+        selectedPackingInvoiceIds.value = buyer.id ? [buyer.id] : (invoices[0]?.id ? [invoices[0].id] : []);
+      } else if (selectAllSessions) {
+        selectedPackingInvoiceIds.value = invoices.map(i => i.id || '');
+      } else {
+        selectedPackingInvoiceIds.value = buyer.id ? [buyer.id] : invoices.map(i => i.id || '');
+      }
 
       if (defaultTab === 'scanner') {
         setTimeout(() => {
@@ -3057,6 +3176,12 @@ const app = createApp({
     function setPackingWorkflowStage(stage: 'stage1' | 'stage2') {
       packingWorkflowStage.value = stage;
       lastScannedResult.value = null;
+      if (stage === 'stage1' && activePackingBuyer.value) {
+        const singleId = activePackingBuyer.value.id;
+        if (singleId) {
+          selectedPackingInvoiceIds.value = [singleId];
+        }
+      }
     }
 
     function closePackingModal() {
@@ -3175,16 +3300,13 @@ const app = createApp({
         return false;
       };
 
-      // 1. Check if the scanned code matches an item belonging to this active packing buyer
-      const currentBuyerItems = allMines.value.filter(m => {
-        const b = (m.buyer || '').replace(/^@+/, '').toLowerCase();
-        return b === buyerClean;
-      });
+      // 1. Check if the scanned code matches an item belonging to selected packing invoices
+      const currentBuyerItems = activePackingCombinedBasket.value.items;
 
       const matchedItem = currentBuyerItems.find(matchesItem);
 
       if (matchedItem) {
-        // Item belongs to this buyer!
+        // Item belongs to selected packing invoices!
         const isStage1 = packingWorkflowStage.value === 'stage1';
         const alreadyDone = isStage1 ? isItemStage1Audited(matchedItem) : isItemStage2Packed(matchedItem);
 
@@ -3244,6 +3366,25 @@ const app = createApp({
             showToast(`🎉 Stage 2 Complete! All ${currentBuyerItems.length} items packed for ${buyerClean}. Ready to seal & print packing slip!`);
           }
         }
+        return;
+      }
+
+      // Check if item belongs to an unselected session invoice for THIS buyer
+      const unselectedMine = allMines.value.find(m => {
+        const bClean = (m.buyer || '').replace(/^@+/, '').toLowerCase();
+        return bClean === buyerClean && matchesItem(m);
+      });
+
+      if (unselectedMine) {
+        playErrorBuzz();
+        lastScannedResult.value = {
+          text: rawCode,
+          status: 'wrong_customer',
+          message: `⚠️ Item belongs to UNSELECTED session (${unselectedMine.date || 'other session'}). Check the session box above to include it!`,
+          item: unselectedMine,
+          timestamp: Date.now()
+        };
+        showToast(`⚠️ Item is in session (${unselectedMine.date || 'other'}). Toggle that session above to pack it!`);
         return;
       }
 
@@ -3325,14 +3466,14 @@ const app = createApp({
       refreshActivePackingBuyer();
     }
 
-    function verifyAllItemsForBuyer(buyer: BuyerBasket) {
-      if (!buyer) return;
+    function verifyAllItemsForBuyer(buyer?: BuyerBasket) {
+      const target = buyer || activePackingCombinedBasket.value;
+      if (!target || !target.items || target.items.length === 0) return;
       const isStage1 = packingWorkflowStage.value === 'stage1';
       const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
 
       if (!isStage1) {
-        const unAudited = buyer.items.filter(m => !isItemStage1Audited(m));
+        const unAudited = target.items.filter(m => !isItemStage1Audited(m));
         if (unAudited.length > 0) {
           showToast(`⚠️ Cannot mark all packed: ${unAudited.length} items have not passed Stage 1 Inbound Audit yet!`);
           playBeep('error', settings.value.soundEnabled);
@@ -3340,8 +3481,9 @@ const app = createApp({
         }
       }
 
+      const itemIds = new Set(target.items.map(it => it.id));
       allMines.value.forEach(m => {
-        if ((m.buyer || '').replace(/^@+/, '').toLowerCase() === buyerClean) {
+        if (itemIds.has(m.id)) {
           if (isStage1) {
             m.auditVerified = true;
             m.auditVerifiedAt = nowTime;
@@ -3361,16 +3503,17 @@ const app = createApp({
       saveAll();
       refreshActivePackingBuyer();
       playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
-      showToast(isStage1 ? `Marked all ${buyer.items.length} items as Stage 1 Audited!` : `Marked all audited items as Stage 2 Packed!`);
+      showToast(isStage1 ? `Marked all ${target.items.length} items as Stage 1 Audited!` : `Marked all audited items as Stage 2 Packed!`);
     }
 
-    function resetVerificationForBuyer(buyer: BuyerBasket) {
-      if (!buyer) return;
-      if (!confirm(`Reset all audit and packing verification for ${buyer.displayName}?`)) return;
-      const buyerClean = buyer.handle.replace(/^@+/, '').toLowerCase();
+    function resetVerificationForBuyer(buyer?: BuyerBasket) {
+      const target = buyer || activePackingCombinedBasket.value;
+      if (!target || !target.items || target.items.length === 0) return;
+      if (!confirm(`Reset all audit and packing verification for ${target.displayName}?`)) return;
 
+      const itemIds = new Set(target.items.map(it => it.id));
       allMines.value.forEach(m => {
-        if ((m.buyer || '').replace(/^@+/, '').toLowerCase() === buyerClean) {
+        if (itemIds.has(m.id)) {
           m.auditVerified = false;
           m.auditVerifiedAt = undefined;
           m.verified = false;
@@ -3384,36 +3527,38 @@ const app = createApp({
       });
       saveAll();
       refreshActivePackingBuyer();
-      showToast(`All verifications reset for ${buyer.displayName}`);
+      showToast(`All verifications reset for ${target.displayName}`);
     }
 
-    async function printThermalPackingSlip(buyer: BuyerBasket) {
-      if (!buyer) return;
-      if (!isBuyerAllStage2Packed(buyer)) {
+    async function printThermalPackingSlip(buyer?: BuyerBasket) {
+      const target = buyer || activePackingCombinedBasket.value;
+      if (!target) return;
+      if (!isBuyerAllStage2Packed(target)) {
         showToast(`⚠️ Cannot print packing slip: Please complete Stage 2 Parcel Pack for all items first!`);
-        openPackingModal(buyer, 'checklist', 'stage2');
+        openPackingModal(target, 'checklist', 'stage2');
         return;
       }
-      await executePrintReceipt(buyer, true);
+      await executePrintReceipt(target, true);
     }
 
-    async function markBuyerAsPackedAndPrint(buyer: BuyerBasket) {
-      if (!buyer) return;
+    async function markBuyerAsPackedAndPrint(buyer?: BuyerBasket) {
+      const target = buyer || activePackingCombinedBasket.value;
+      if (!target) return;
       const isStage1 = packingWorkflowStage.value === 'stage1';
       if (isStage1) {
-        if (!isBuyerAllStage1Audited(buyer)) {
+        if (!isBuyerAllStage1Audited(target)) {
           showToast(`⚠️ Cannot print invoice: Please scan & audit all items in Stage 1 first!`);
           playBeep('error', settings.value.soundEnabled);
           return;
         }
-        await triggerInvoicePrint(buyer);
+        await triggerInvoicePrint(target);
       } else {
-        if (!isBuyerAllStage2Packed(buyer)) {
+        if (!isBuyerAllStage2Packed(target)) {
           showToast(`⚠️ Cannot print packing slip: Please pack & scan all items in Stage 2 first!`);
           playBeep('error', settings.value.soundEnabled);
           return;
         }
-        await printThermalPackingSlip(buyer);
+        await printThermalPackingSlip(target);
       }
     }
 
@@ -3739,6 +3884,59 @@ const app = createApp({
     const buyerSearchQuery = ref('');
     const buyerFilterStatus = ref('all'); // 'all', 'owing', 'settled', 'credit', 'needs_storage_audit', 'ready_to_invoice', 'ready_to_pack', 'shipped'
 
+    const expandedCustomerMap = ref<Record<string, boolean>>({});
+
+    function isCustomerExpanded(handle: string): boolean {
+      const clean = handle.replace(/^@+/, '').toLowerCase();
+      return expandedCustomerMap.value[clean] !== false;
+    }
+
+    function toggleCustomerExpand(handle: string) {
+      const clean = handle.replace(/^@+/, '').toLowerCase();
+      expandedCustomerMap.value[clean] = !isCustomerExpanded(handle);
+    }
+
+    const showSettledSessionsMap = ref<Record<string, boolean>>({});
+
+    function isShowingSettledSessions(handle: string): boolean {
+      const clean = handle.replace(/^@+/, '').toLowerCase();
+      return !!showSettledSessionsMap.value[clean];
+    }
+
+    function toggleShowSettledSessions(handle: string) {
+      const clean = handle.replace(/^@+/, '').toLowerCase();
+      showSettledSessionsMap.value[clean] = !showSettledSessionsMap.value[clean];
+    }
+
+    function getCustomerActiveSessions(sessions: BuyerBasket[]): BuyerBasket[] {
+      return (sessions || []).filter(s => s.balance > 0);
+    }
+
+    function getCustomerSettledSessions(sessions: BuyerBasket[]): BuyerBasket[] {
+      return (sessions || []).filter(s => s.balance <= 0);
+    }
+
+    function getVisibleCustomerSessions(group: CustomerGroup): BuyerBasket[] {
+      if (!group || !group.sessions) return [];
+      if (isShowingSettledSessions(group.handle)) {
+        return group.sessions;
+      }
+      return (group.sessions || []).filter(s => s.balance > 0);
+    }
+
+    const availableSessionDates = computed<string[]>(() => {
+      const dates = new Set<string>();
+      for (const m of allMines.value) {
+        if (m.date && m.date.trim()) {
+          dates.add(m.date.trim());
+        }
+      }
+      if (sessionDate.value && sessionDate.value.trim()) {
+        dates.add(sessionDate.value.trim());
+      }
+      return Array.from(dates).sort((a, b) => b.localeCompare(a));
+    });
+
     const buyerBasketsList = computed<BuyerBasket[]>(() => {
       const map: Record<string, BuyerBasket> = {};
       for (const m of allMines.value) {
@@ -3813,6 +4011,76 @@ const app = createApp({
         activeInvoiceBuyer.value = fresh;
       }
     }
+
+    const groupedCustomersList = computed<CustomerGroup[]>(() => {
+      const map: Record<string, CustomerGroup> = {};
+
+      for (const b of buyerBasketsList.value) {
+        const cleanHandle = b.handle.replace(/^@+/, '').toLowerCase() || 'unknown';
+        if (!map[cleanHandle]) {
+          map[cleanHandle] = {
+            id: cleanHandle,
+            handle: b.handle,
+            displayName: b.displayName,
+            totalAmount: 0,
+            totalPaid: 0,
+            totalBalance: 0,
+            status: 'Unpaid',
+            totalItemsCount: 0,
+            sessionCount: 0,
+            sessions: [],
+            isExpanded: isCustomerExpanded(b.handle)
+          };
+        }
+
+        map[cleanHandle].sessions.push(b);
+        map[cleanHandle].totalAmount += b.totalAmount;
+        map[cleanHandle].totalPaid += b.totalPaid;
+        map[cleanHandle].totalItemsCount += b.items.length;
+      }
+
+      const list = Object.values(map).map(g => {
+        g.totalBalance = g.totalAmount - g.totalPaid;
+        g.status = g.totalBalance <= 0 ? 'Paid' : (g.totalPaid > 0 ? 'Partial' : 'Unpaid');
+        g.sessionCount = g.sessions.length;
+        g.sessions.sort((a, b) => (b.sessionDate || '').localeCompare(a.sessionDate || ''));
+        g.isExpanded = isCustomerExpanded(g.handle);
+        return g;
+      });
+
+      return list.sort((a, b) => b.totalBalance - a.totalBalance || b.totalItemsCount - a.totalItemsCount);
+    });
+
+    const filteredGroupedCustomers = computed<CustomerGroup[]>(() => {
+      let list = groupedCustomersList.value;
+
+      const q = buyerSearchQuery.value.trim().toLowerCase();
+      if (q) {
+        list = list.filter(g => 
+          g.handle.toLowerCase().includes(q) || 
+          g.displayName.toLowerCase().includes(q) ||
+          g.sessions.some(s => s.items.some(i => (i.controlCode || '').toLowerCase().includes(q) || (i.description || '').toLowerCase().includes(q)))
+        );
+      }
+
+      if (buyerFilterStatus.value === 'owing') {
+        list = list.filter(g => g.totalBalance > 0);
+      } else if (buyerFilterStatus.value === 'settled') {
+        list = list.filter(g => g.totalBalance === 0);
+      } else if (buyerFilterStatus.value === 'credit') {
+        list = list.filter(g => g.totalBalance < 0);
+      } else if (buyerFilterStatus.value === 'needs_storage_audit') {
+        list = list.filter(g => g.sessions.some(s => !isBuyerAllStage1Audited(s)));
+      } else if (buyerFilterStatus.value === 'ready_to_invoice') {
+        list = list.filter(g => g.sessions.every(s => isBuyerAllStage1Audited(s)));
+      } else if (buyerFilterStatus.value === 'ready_to_pack') {
+        list = list.filter(g => g.totalBalance <= 0 && g.sessions.some(s => !isBuyerAllStage2Packed(s)));
+      } else if (buyerFilterStatus.value === 'shipped') {
+        list = list.filter(g => g.sessions.every(s => isBuyerAllStage2Packed(s)));
+      }
+
+      return list;
+    });
 
     const filteredBuyerBaskets = computed(() => {
       let list = buyerBasketsList.value;
@@ -4231,32 +4499,32 @@ const app = createApp({
     const selectedCustomerHandles = ref<string[]>([]);
 
     const isAllCustomersSelected = computed(() => {
-      if (filteredBuyerBaskets.value.length === 0) return false;
-      return filteredBuyerBaskets.value.every(b => selectedCustomerHandles.value.includes(b.handle));
+      if (filteredGroupedCustomers.value.length === 0) return false;
+      return filteredGroupedCustomers.value.every(g => selectedCustomerHandles.value.includes(g.handle));
     });
 
     const selectedCustomersCount = computed(() => selectedCustomerHandles.value.length);
     const selectedCustomersTotalBalance = computed(() => {
       const handleSet = new Set(selectedCustomerHandles.value);
-      return buyerBasketsList.value
-        .filter(b => handleSet.has(b.handle))
-        .reduce((sum, b) => sum + b.balance, 0);
+      return groupedCustomersList.value
+        .filter(g => handleSet.has(g.handle))
+        .reduce((sum, g) => sum + g.totalBalance, 0);
     });
     const selectedCustomersTotalAmount = computed(() => {
       const handleSet = new Set(selectedCustomerHandles.value);
-      return buyerBasketsList.value
-        .filter(b => handleSet.has(b.handle))
-        .reduce((sum, b) => sum + b.totalAmount, 0);
+      return groupedCustomersList.value
+        .filter(g => handleSet.has(g.handle))
+        .reduce((sum, g) => sum + g.totalAmount, 0);
     });
 
     function toggleSelectAllCustomers() {
       if (isAllCustomersSelected.value) {
-        const filteredHandles = new Set(filteredBuyerBaskets.value.map(b => b.handle));
+        const filteredHandles = new Set(filteredGroupedCustomers.value.map(g => g.handle));
         selectedCustomerHandles.value = selectedCustomerHandles.value.filter(h => !filteredHandles.has(h));
       } else {
         const newSet = new Set(selectedCustomerHandles.value);
-        for (const b of filteredBuyerBaskets.value) {
-          newSet.add(b.handle);
+        for (const g of filteredGroupedCustomers.value) {
+          newSet.add(g.handle);
         }
         selectedCustomerHandles.value = Array.from(newSet);
       }
@@ -4336,9 +4604,9 @@ const app = createApp({
       }
     }
 
-    const owingBuyersCount = computed(() => buyerBasketsList.value.filter(b => b.balance > 0).length);
-    const settledBuyersCount = computed(() => buyerBasketsList.value.filter(b => b.balance === 0).length);
-    const creditBuyersCount = computed(() => buyerBasketsList.value.filter(b => b.balance < 0).length);
+    const owingBuyersCount = computed(() => groupedCustomersList.value.filter(g => g.totalBalance > 0).length);
+    const settledBuyersCount = computed(() => groupedCustomersList.value.filter(g => g.totalBalance === 0).length);
+    const creditBuyersCount = computed(() => groupedCustomersList.value.filter(g => g.totalBalance < 0).length);
 
     const profilesOverview = computed(() => {
       return profiles.value.map(p => {
@@ -4770,8 +5038,141 @@ const app = createApp({
     }
 
     // =========================================================================
-    // RENAME CUSTOMER / FIX TYPO (CROSS-INVOICE EDITING)
+    // FULL-SCREEN CUSTOMER DETAIL & ORDER HISTORY PAGE
     // =========================================================================
+    const selectedCustomerHandleForDetail = ref<string | null>(null);
+    const customerDetailActiveTab = ref<'orders' | 'payments'>('orders');
+    const customerDetailOrderFilter = ref<'all' | 'unpaid' | 'paid'>('all');
+
+    const activeCustomerGroup = computed<CustomerGroup | null>(() => {
+      if (!selectedCustomerHandleForDetail.value) return null;
+      const clean = selectedCustomerHandleForDetail.value.replace(/^@+/, '').toLowerCase();
+      return groupedCustomersList.value.find(g => g.handle.replace(/^@+/, '').toLowerCase() === clean) || null;
+    });
+
+    const activeCustomerAllMinedItems = computed<MinedItem[]>(() => {
+      if (!selectedCustomerHandleForDetail.value) return [];
+      const clean = selectedCustomerHandleForDetail.value.replace(/^@+/, '').toLowerCase();
+      return allMines.value
+        .filter(m => (m.buyer || '').replace(/^@+/, '').toLowerCase() === clean)
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    });
+
+    function isCustomerItemPaid(it: MinedItem): boolean {
+      if (!activeCustomerGroup.value) return false;
+      if (activeCustomerGroup.value.totalBalance <= 0) return true;
+      const session = activeCustomerGroup.value.sessions.find(s => s.sessionDate === (it.date || s.sessionDate));
+      if (session && session.balance <= 0) return true;
+      return false;
+    }
+
+    const activeCustomerFilteredItems = computed<MinedItem[]>(() => {
+      const items = activeCustomerAllMinedItems.value;
+      if (customerDetailOrderFilter.value === 'all') return items;
+      if (customerDetailOrderFilter.value === 'paid') {
+        return items.filter(it => isCustomerItemPaid(it));
+      }
+      return items.filter(it => !isCustomerItemPaid(it));
+    });
+
+    const activeCustomerUnpaidCount = computed(() => {
+      return activeCustomerAllMinedItems.value.filter(it => !isCustomerItemPaid(it)).length;
+    });
+
+    const activeCustomerPaidCount = computed(() => {
+      return activeCustomerAllMinedItems.value.filter(it => isCustomerItemPaid(it)).length;
+    });
+
+    const customerCollapsedSessions = ref<Record<string, boolean>>({});
+
+    function toggleCustomerSessionCollapse(sessionId: string) {
+      customerCollapsedSessions.value[sessionId] = !customerCollapsedSessions.value[sessionId];
+    }
+
+    function isCustomerSessionCollapsed(sessionId: string): boolean {
+      return !!customerCollapsedSessions.value[sessionId];
+    }
+
+    interface CustomerSessionOrdersGroup {
+      id: string;
+      sessionDate: string;
+      sessionBasket?: BuyerBasket;
+      items: MinedItem[];
+      totalItemsInSession: number;
+      sessionTotalAmount: number;
+      sessionTotalPaid: number;
+      sessionBalance: number;
+      sessionStatus: 'Paid' | 'Partial' | 'Unpaid' | 'Credit' | string;
+      isCollapsed: boolean;
+    }
+
+    const activeCustomerSessionGroups = computed<CustomerSessionOrdersGroup[]>(() => {
+      if (!activeCustomerGroup.value) return [];
+      const group = activeCustomerGroup.value;
+      const filter = customerDetailOrderFilter.value;
+
+      return group.sessions.map(session => {
+        let items = session.items || [];
+        if (filter === 'paid') {
+          items = items.filter(it => isCustomerItemPaid(it));
+        } else if (filter === 'unpaid') {
+          items = items.filter(it => !isCustomerItemPaid(it));
+        }
+
+        // Sort items descending by timestamp
+        items = [...items].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+        return {
+          id: session.id,
+          sessionDate: session.sessionDate || 'General Session',
+          sessionBasket: session,
+          items,
+          totalItemsInSession: session.items?.length || 0,
+          sessionTotalAmount: session.totalAmount || 0,
+          sessionTotalPaid: session.totalPaid || 0,
+          sessionBalance: session.balance || 0,
+          sessionStatus: session.status || 'Unpaid',
+          isCollapsed: isCustomerSessionCollapsed(session.id)
+        };
+      }).filter(s => s.items.length > 0);
+    });
+
+    const activeCustomerPaymentsList = computed<PaymentRecord[]>(() => {
+      if (!selectedCustomerHandleForDetail.value) return [];
+      const clean = selectedCustomerHandleForDetail.value.replace(/^@+/, '').toLowerCase();
+      return allPayments.value
+        .filter(p => (p.buyer || '').replace(/^@+/, '').toLowerCase() === clean)
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    });
+
+    function openCustomerDetailPage(handle: string) {
+      if (!handle) return;
+      selectedCustomerHandleForDetail.value = handle;
+      customerDetailActiveTab.value = 'orders';
+      customerDetailOrderFilter.value = 'all';
+    }
+
+    function closeCustomerDetailPage() {
+      selectedCustomerHandleForDetail.value = null;
+    }
+
+    function logPaymentForCurrentCustomer() {
+      if (!activeCustomerGroup.value) return;
+      const group = activeCustomerGroup.value;
+      const proxyBasket: BuyerBasket = {
+        id: group.sessions[0]?.id || ('customer_' + group.handle),
+        handle: group.handle,
+        displayName: group.displayName,
+        items: activeCustomerAllMinedItems.value,
+        payments: activeCustomerPaymentsList.value,
+        totalAmount: group.totalAmount,
+        totalPaid: group.totalPaid,
+        balance: group.totalBalance,
+        status: group.totalBalance <= 0 ? 'Paid' : (group.totalPaid > 0 ? 'Partial' : 'Unpaid'),
+        sessionDate: group.sessions[0]?.sessionDate
+      };
+      openPaymentModal(proxyBasket);
+    }
     const renameCustomerModalOpen = ref(false);
     const renameCustomerOldHandle = ref('');
     const renameCustomerNewHandle = ref('');
@@ -6731,10 +7132,37 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       closeEditPaymentModal,
       saveEditedPayment,
       deletePayment,
+      selectedCustomerHandleForDetail,
+      customerDetailActiveTab,
+      customerDetailOrderFilter,
+      activeCustomerGroup,
+      activeCustomerAllMinedItems,
+      isCustomerItemPaid,
+      activeCustomerFilteredItems,
+      activeCustomerUnpaidCount,
+      activeCustomerPaidCount,
+      activeCustomerPaymentsList,
+      activeCustomerSessionGroups,
+      customerCollapsedSessions,
+      toggleCustomerSessionCollapse,
+      isCustomerSessionCollapsed,
+      openCustomerDetailPage,
+      closeCustomerDetailPage,
+      logPaymentForCurrentCustomer,
       buyerSearchQuery,
       buyerFilterStatus,
       buyerBasketsList,
       filteredBuyerBaskets,
+      groupedCustomersList,
+      filteredGroupedCustomers,
+      isCustomerExpanded,
+      toggleCustomerExpand,
+      showSettledSessionsMap,
+      isShowingSettledSessions,
+      toggleShowSettledSessions,
+      getCustomerActiveSessions,
+      getCustomerSettledSessions,
+      getVisibleCustomerSessions,
       minedItemsSearchQuery,
       minedItemsFilterCategory,
       minedItemsFilterDate,
@@ -6919,6 +7347,15 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       buildCompleteBackupPayload,
       showPackingModal,
       activePackingBuyer,
+      selectedPackingInvoiceIds,
+      getCustomerSessionInvoices,
+      activePackingCustomerInvoices,
+      activePackingCombinedBasket,
+      togglePackingInvoiceSelection,
+      isPackingInvoiceSelected,
+      selectAllPackingInvoices,
+      selectPaidPackingInvoicesOnly,
+      availableSessionDates,
       packingWorkflowStage,
       setPackingWorkflowStage,
       isItemStage1Audited,

@@ -60,6 +60,20 @@ export interface BuyerBasket {
   isExpanded?: boolean;
 }
 
+export interface CustomerGroup {
+  id: string;
+  handle: string;
+  displayName: string;
+  totalAmount: number;
+  totalPaid: number;
+  totalBalance: number;
+  status: 'Paid' | 'Partial' | 'Unpaid';
+  totalItemsCount: number;
+  sessionCount: number;
+  sessions: BuyerBasket[];
+  isExpanded: boolean;
+}
+
 export interface LabelLayoutSettings {
   labelSize: '30x20mm' | '40x30mm' | '50x30mm' | '58mm_roll' | string;
   protocol: 'escpos' | 'tspl' | string;
