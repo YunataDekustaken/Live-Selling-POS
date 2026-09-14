@@ -40,6 +40,12 @@ import {
 } from './utils/notionImport';
 import { createPhotoCollageCanvas } from './utils/collage';
 import {
+  generateOnlineInvoiceReceiptImage,
+  downloadReceiptPng,
+  copyReceiptPngToClipboard,
+  shareReceiptPng
+} from './utils/receiptImage';
+import {
   getSupabaseClient,
   pushProfileToSupabase,
   pushActiveProfileToSupabase,
@@ -720,7 +726,8 @@ const app = createApp({
       description: '',
       price: '',
       buyer: '',
-      photo: ''
+      photo: '',
+      numberOfItems: ''
     });
 
     const photoInputRef = ref<HTMLInputElement | null>(null);
@@ -3591,6 +3598,9 @@ const app = createApp({
         ? currentUploadJob.value.r2Url 
         : (form.photo || '');
 
+      const rawNumItems = parseInt(String(form.numberOfItems || '').trim(), 10);
+      const numberOfItems = (!isNaN(rawNumItems) && rawNumItems > 0) ? rawNumItems : undefined;
+
       const newMine: MinedItem = {
         id: 'mine_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
         controlCode: controlCode,
@@ -3602,7 +3612,9 @@ const app = createApp({
         photo: finalPhotoUrl,
         date: todayDate,
         time: timeStr,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        numberOfItems: numberOfItems,
+        quantity: numberOfItems
       };
 
       // Link current in-flight upload to this mine ID so the R2 URL upgrades and syncs upon completion
@@ -3650,6 +3662,7 @@ const app = createApp({
       form.description = '';
       form.tag = '';
       form.photo = '';
+      form.numberOfItems = '';
       if (photoInputRef.value) {
         photoInputRef.value.value = '';
       }
@@ -4747,7 +4760,8 @@ const app = createApp({
       color: 'emerald',
       quickPrefixesText: '',
       defaultCategoriesText: '',
-      paymentDetails: ''
+      paymentDetails: '',
+      logoUrl: ''
     });
 
     function openProfileModal() {
@@ -4769,6 +4783,7 @@ const app = createApp({
       editingProfileForm.quickPrefixesText = 'A, B, C, D, VIP';
       editingProfileForm.defaultCategoriesText = 'Tops, Dresses, Bottoms, Jackets, Accessories';
       editingProfileForm.paymentDetails = 'GCash: 09XX-XXX-XXXX\nMaya: 09XX-XXX-XXXX';
+      editingProfileForm.logoUrl = '';
       profileEditModalOpen.value = true;
     }
 
@@ -4784,7 +4799,21 @@ const app = createApp({
       editingProfileForm.quickPrefixesText = (p.quickPrefixes || []).join(', ');
       editingProfileForm.defaultCategoriesText = (p.defaultCategories || []).join(', ');
       editingProfileForm.paymentDetails = p.paymentDetails || '';
+      editingProfileForm.logoUrl = p.logoUrl || '';
       profileEditModalOpen.value = true;
+    }
+
+    function handleLogoUpload(e: Event) {
+      const target = e.target as HTMLInputElement;
+      if (target.files && target.files[0]) {
+        const file = target.files[0];
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          editingProfileForm.logoUrl = (event.target?.result as string) || '';
+          showToast('Store logo selected! Click Save Profile to apply.');
+        };
+        reader.readAsDataURL(file);
+      }
     }
 
     function saveProfile() {
@@ -4815,7 +4844,8 @@ const app = createApp({
         color: editingProfileForm.color || 'emerald',
         quickPrefixes: prefixes.length ? prefixes : ['A', 'B', 'C'],
         defaultCategories: categories.length ? categories : ['General'],
-        paymentDetails: editingProfileForm.paymentDetails.trim()
+        paymentDetails: editingProfileForm.paymentDetails.trim(),
+        logoUrl: editingProfileForm.logoUrl || undefined
       };
 
       // If creating or updating a profile, remove it from the deleted set and cloud tombstones
@@ -5767,6 +5797,86 @@ const app = createApp({
         console.warn('Direct image clipboard copy failed:', e);
       }
       downloadCollageImage();
+    }
+
+    // =========================================================================
+    // ONLINE INVOICE RECEIPT (IMAGE / PNG) MODAL & METHODS
+    // =========================================================================
+    const onlineReceiptModalOpen = ref(false);
+    const onlineReceiptBuyer = ref<BuyerBasket | null>(null);
+    const onlineReceiptDataUrl = ref('');
+    const isGeneratingReceiptImage = ref(false);
+
+    async function openOnlineReceiptModal(buyer?: BuyerBasket | null) {
+      const target: BuyerBasket | null = buyer || activePackingCombinedBasket.value || activeInvoiceBuyer.value;
+      if (!target) {
+        showToast('Please select a customer to view online receipt');
+        return;
+      }
+
+      onlineReceiptBuyer.value = target;
+      isGeneratingReceiptImage.value = true;
+      onlineReceiptModalOpen.value = true;
+      onlineReceiptDataUrl.value = '';
+
+      await nextTick();
+
+      try {
+        const url = await generateOnlineInvoiceReceiptImage(
+          target,
+          activeProfile.value,
+          sessionDate.value,
+          settings.value.invoiceLayout
+        );
+        onlineReceiptDataUrl.value = url;
+        isGeneratingReceiptImage.value = false;
+        playBeep('success', settings.value.soundEnabled);
+      } catch (err: any) {
+        console.error('Online receipt image generation failed:', err);
+        isGeneratingReceiptImage.value = false;
+        showToast('Could not generate receipt image: ' + (err?.message || err));
+      }
+    }
+
+    function closeOnlineReceiptModal() {
+      onlineReceiptModalOpen.value = false;
+      onlineReceiptBuyer.value = null;
+      onlineReceiptDataUrl.value = '';
+    }
+
+    function downloadOnlineReceiptImage() {
+      if (!onlineReceiptDataUrl.value || !onlineReceiptBuyer.value) return;
+      const cleanName = (onlineReceiptBuyer.value.displayName || onlineReceiptBuyer.value.handle || 'customer').replace(/^@+/, '');
+      const filename = `Invoice_Receipt_${cleanName}_${sessionDate.value || 'session'}.png`;
+      downloadReceiptPng(onlineReceiptDataUrl.value, filename);
+      playBeep('success', settings.value.soundEnabled);
+      showToast(`Downloaded receipt image for @${cleanName}`);
+    }
+
+    async function copyOnlineReceiptImage() {
+      if (!onlineReceiptDataUrl.value || !onlineReceiptBuyer.value) return;
+      const cleanName = (onlineReceiptBuyer.value.displayName || onlineReceiptBuyer.value.handle || 'customer').replace(/^@+/, '');
+      const ok = await copyReceiptPngToClipboard(onlineReceiptDataUrl.value);
+      if (ok) {
+        playBeep('success', settings.value.soundEnabled);
+        showToast('Receipt image copied to clipboard! Ready to paste in chat.');
+      } else {
+        downloadOnlineReceiptImage();
+        showToast('Direct image clipboard copy not supported in this browser; downloaded PNG instead.');
+      }
+    }
+
+    async function shareOnlineReceiptImage() {
+      if (!onlineReceiptDataUrl.value || !onlineReceiptBuyer.value) return;
+      const cleanName = (onlineReceiptBuyer.value.displayName || onlineReceiptBuyer.value.handle || 'customer').replace(/^@+/, '');
+      const filename = `Invoice_Receipt_${cleanName}_${sessionDate.value || 'session'}.png`;
+      const title = `${activeProfile.value.name || 'Live POS'} - Invoice Receipt for @${cleanName}`;
+      const text = `Here is your official invoice receipt from ${activeProfile.value.name || 'Live POS'}. Total: ${activeProfile.value.currency}${onlineReceiptBuyer.value.totalAmount.toLocaleString()} • Balance Due: ${activeProfile.value.currency}${Math.abs(onlineReceiptBuyer.value.balance).toLocaleString()}`;
+
+      const ok = await shareReceiptPng(onlineReceiptDataUrl.value, filename, title, text);
+      if (!ok) {
+        copyOnlineReceiptImage();
+      }
     }
 
     // Overall Session Statistics
@@ -6967,6 +7077,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       closeProfileModal,
       openAddProfileModal,
       openEditProfileModal,
+      handleLogoUpload,
       saveProfile,
       deleteProfile,
       goToMining,
@@ -7033,6 +7144,15 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       generatePhotoCollage,
       downloadCollageImage,
       copyCollageImage,
+      onlineReceiptModalOpen,
+      onlineReceiptBuyer,
+      onlineReceiptDataUrl,
+      isGeneratingReceiptImage,
+      openOnlineReceiptModal,
+      closeOnlineReceiptModal,
+      downloadOnlineReceiptImage,
+      copyOnlineReceiptImage,
+      shareOnlineReceiptImage,
       customerNotes,
       updateCustomerNote,
       descriptionInputRef,

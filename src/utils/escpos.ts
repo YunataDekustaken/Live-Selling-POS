@@ -1375,7 +1375,7 @@ export function buildInvoiceEscPos(
       } else if (sec.id === 'title') {
         setAlign();
         if (sec.fontWeight !== 'normal') enc.bold(true);
-        enc.line(sec.customText || 'OFFICIAL SALES INVOICE');
+        enc.line(sec.customText || 'INVOICE RECEIPT');
         enc.normal();
       } else if (sec.id === 'sessionDate') {
         setAlign();
@@ -1437,7 +1437,7 @@ export function buildInvoiceEscPos(
         enc.line(profile.name || 'LIVE SELLING POS');
       }
       if (cfg.showTitle) {
-        enc.line('OFFICIAL SALES INVOICE');
+        enc.line('INVOICE RECEIPT');
       }
       enc.normal();
     }
@@ -1570,7 +1570,7 @@ export async function buildReceiptCanvasRaster(
   const receiptW = is80mm ? 576 : 384;
   const bytesWidth = is80mm ? 72 : 48;
 
-  const titleText = isInvoice ? 'OFFICIAL INVOICE' : 'PARCEL PACKING SLIP';
+  const titleText = isInvoice ? 'INVOICE RECEIPT' : 'PARCEL PACKING SLIP';
   const cleanName = (basket.displayName || basket.handle).replace(/^@+/, '');
   const currencyStr = (profile.currency || '₱').replace(/PHP/g, '₱');
 

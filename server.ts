@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 
@@ -266,6 +267,75 @@ async function startServer() {
       console.error('Server R2 get error:', err);
       return res.status(500).json({ error: err.message || 'Failed to download from Cloudflare R2' });
     }
+  });
+
+  // Serve static assets from both /public/assets and root /assets
+  app.use('/assets', express.static(path.join(process.cwd(), 'public', 'assets')));
+  app.use('/assets', express.static(path.join(process.cwd(), 'assets')));
+
+  // Check and stream uploaded store logo if present in assets
+  app.get('/api/receipt-logo', (req, res) => {
+    const possibleDirs = [
+      path.join(process.cwd(), 'assets'),
+      path.join(process.cwd(), 'public', 'assets'),
+      path.join(process.cwd(), 'public')
+    ];
+
+    const commonNames = [
+      'logo.png', 'logo.jpg', 'logo.jpeg', 'logo.webp', 'logo.svg',
+      'store_logo.png', 'store_logo.jpg', 'store-logo.png', 'store-logo.jpg'
+    ];
+
+    for (const dir of possibleDirs) {
+      if (!fs.existsSync(dir)) continue;
+
+      // 1. Check known common names first
+      for (const name of commonNames) {
+        const fullPath = path.join(dir, name);
+        if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+          const ext = path.extname(fullPath).toLowerCase();
+          const mimeTypes: Record<string, string> = {
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.webp': 'image/webp',
+            '.svg': 'image/svg+xml'
+          };
+          res.setHeader('Content-Type', mimeTypes[ext] || 'image/png');
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          return fs.createReadStream(fullPath).pipe(res);
+        }
+      }
+
+      // 2. If inside assets directory, look for any uploaded image file
+      if (dir.endsWith('assets')) {
+        try {
+          const files = fs.readdirSync(dir);
+          for (const file of files) {
+            const ext = path.extname(file).toLowerCase();
+            if (['.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(ext)) {
+              const fullPath = path.join(dir, file);
+              if (fs.statSync(fullPath).isFile()) {
+                const mimeTypes: Record<string, string> = {
+                  '.png': 'image/png',
+                  '.jpg': 'image/jpeg',
+                  '.jpeg': 'image/jpeg',
+                  '.webp': 'image/webp',
+                  '.svg': 'image/svg+xml'
+                };
+                res.setHeader('Content-Type', mimeTypes[ext] || 'image/png');
+                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                return fs.createReadStream(fullPath).pipe(res);
+              }
+            }
+          }
+        } catch {
+          // ignore directory read error
+        }
+      }
+    }
+
+    return res.status(404).json({ hasLogo: false, message: 'No logo file found in assets' });
   });
 
   // Vite middleware for development

@@ -8,6 +8,7 @@ export interface Profile {
   quickPrefixes: string[];
   defaultCategories: string[];
   paymentDetails: string;
+  logoUrl?: string;
 }
 
 export interface MinedItem {
@@ -22,6 +23,8 @@ export interface MinedItem {
   date?: string;
   time?: string;
   timestamp?: number;
+  numberOfItems?: number;
+  quantity?: number;
   verified?: boolean;
   verifiedAt?: string;
   auditVerified?: boolean;
@@ -169,6 +172,7 @@ export interface ReceiptLayoutSettings {
   showQcCheckbox: boolean;
   customFooterNote: string;
   feedLines: number;
+  logoUrl?: string;
   customSections?: VisualReceiptSection[];
 }
 
@@ -214,6 +218,7 @@ export interface LiveMiningForm {
   price: string | number;
   buyer: string;
   photo: string;
+  numberOfItems?: string | number;
 }
 
 export interface ImportBackupSnapshot {
