@@ -105,7 +105,7 @@ import {
 } from './utils/r2Storage';
 import QRCode from 'qrcode';
 import { playSuccessBeep, playErrorBuzz, playRingtoneSample } from './utils/audioFeedback';
-import { LiveScannerController, ScannerCapabilities } from './utils/qrScanner';
+import { LiveScannerController, ScannerCapabilities, CameraDeviceOption } from './utils/qrScanner';
 
 const app = createApp({
   setup() {
@@ -3007,6 +3007,8 @@ const app = createApp({
     const scannerZoomMax = ref(1);
     const scannerZoomStep = ref(0.1);
     const scannerCurrentZoom = ref(1);
+    const scannerAvailableCameras = ref<CameraDeviceOption[]>([]);
+    const scannerActiveCameraId = ref<string>('');
     let packingScannerInstance: LiveScannerController | null = null;
     let scanCooldownTimer: any = null;
 
@@ -3231,8 +3233,8 @@ const app = createApp({
       }
     }
 
-    async function startPackingScanner() {
-      if (packingScannerActive.value) return;
+    async function startPackingScanner(targetCameraId?: string) {
+      if (packingScannerActive.value && !targetCameraId) return;
       if (!packingScannerInstance) {
         packingScannerInstance = new LiveScannerController('packing-qr-reader');
       }
@@ -3249,9 +3251,13 @@ const app = createApp({
           scannerZoomMax.value = caps.maxZoom;
           scannerZoomStep.value = caps.stepZoom;
           scannerCurrentZoom.value = caps.currentZoom;
-        }
+        },
+        targetCameraId
       );
-      if (!started) {
+      if (started && packingScannerInstance) {
+        scannerAvailableCameras.value = packingScannerInstance.availableCameras;
+        scannerActiveCameraId.value = packingScannerInstance.activeCameraId || '';
+      } else {
         packingScannerActive.value = false;
       }
     }
@@ -3267,8 +3273,46 @@ const app = createApp({
 
     async function toggleScannerTorch() {
       if (!packingScannerInstance) return;
+      if (!scannerTorchSupported.value) {
+        showToast('Flash not available on this lens — switch camera to Main (1x)');
+        return;
+      }
       const state = await packingScannerInstance.toggleTorch();
       scannerTorchOn.value = state;
+    }
+
+    async function switchScannerCamera(cameraId: string) {
+      if (!cameraId) return;
+      if (!packingScannerInstance || !packingScannerActive.value) {
+        await startPackingScanner(cameraId);
+        return;
+      }
+      scannerActiveCameraId.value = cameraId;
+      const ok = await packingScannerInstance.switchCamera(cameraId);
+      if (ok) {
+        scannerAvailableCameras.value = packingScannerInstance.availableCameras;
+        scannerActiveCameraId.value = packingScannerInstance.activeCameraId || cameraId;
+        const targetObj = scannerAvailableCameras.value.find(c => c.id === cameraId);
+        showToast(`Switched to ${targetObj ? targetObj.label : 'camera'}`);
+      }
+    }
+
+    async function cycleScannerCamera() {
+      if (!scannerAvailableCameras.value || scannerAvailableCameras.value.length <= 1) {
+        const list = await LiveScannerController.queryCameras();
+        scannerAvailableCameras.value = list;
+        if (list.length <= 1) {
+          showToast('Single camera detected');
+          return;
+        }
+      }
+      const list = scannerAvailableCameras.value;
+      const currentIdx = list.findIndex(c => c.id === scannerActiveCameraId.value);
+      const nextIdx = (currentIdx + 1) % list.length;
+      const nextCam = list[nextIdx];
+      if (nextCam) {
+        await switchScannerCamera(nextCam.id);
+      }
     }
 
     async function setScannerZoom(zoomVal: number) {
@@ -8065,6 +8109,10 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       scannerZoomMin,
       scannerZoomMax,
       scannerCurrentZoom,
+      scannerAvailableCameras,
+      scannerActiveCameraId,
+      switchScannerCamera,
+      cycleScannerCamera,
       toggleScannerTorch,
       setScannerZoom,
       onZoomSliderInput,

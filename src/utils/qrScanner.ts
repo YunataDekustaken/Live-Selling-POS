@@ -10,11 +10,64 @@ export interface ScannerCapabilities {
   torchOn: boolean;
 }
 
+export interface CameraDeviceOption {
+  id: string;
+  label: string;
+  isBack: boolean;
+  isUltraWide: boolean;
+  isTelephoto: boolean;
+  isMain: boolean;
+}
+
+export function categorizeCamera(dev: { id: string; label: string }, index: number, total: number): CameraDeviceOption {
+  const lbl = (dev.label || '').toLowerCase();
+  const isFront = lbl.includes('front') || lbl.includes('user') || lbl.includes('selfie') || lbl.includes('facing front');
+  const isUltraWide = lbl.includes('ultra') || lbl.includes('0.5') || lbl.includes('0.6') || lbl.includes('wide-angle') || lbl.includes('wide angle') || lbl.includes('uw');
+  const isTelephoto = lbl.includes('tele') || lbl.includes('3x') || lbl.includes('5x') || lbl.includes('10x') || lbl.includes('zoom');
+  const isBack = !isFront;
+  const isMain = isBack && !isUltraWide && !isTelephoto;
+
+  let friendlyLabel = dev.label || '';
+  if (!friendlyLabel || friendlyLabel.startsWith('camera2') || /^\d+/.test(friendlyLabel)) {
+    if (isFront) {
+      friendlyLabel = `🤳 Front Camera`;
+    } else if (isUltraWide) {
+      friendlyLabel = `🌐 Back Ultra-Wide (0.5x)`;
+    } else if (isTelephoto) {
+      friendlyLabel = `🔍 Back Telephoto (Zoom)`;
+    } else if (isMain) {
+      friendlyLabel = `📷 Back Main Camera (1x - Autofocus)`;
+    } else {
+      friendlyLabel = `📷 Back Camera ${index + 1}`;
+    }
+  } else {
+    if (isUltraWide && !friendlyLabel.toLowerCase().includes('ultra')) {
+      friendlyLabel = `🌐 ${friendlyLabel} (Ultra-Wide)`;
+    } else if (isMain && !friendlyLabel.toLowerCase().includes('main')) {
+      friendlyLabel = `📷 ${friendlyLabel} (Main 1x)`;
+    }
+  }
+
+  return {
+    id: dev.id,
+    label: friendlyLabel,
+    isBack,
+    isUltraWide,
+    isTelephoto,
+    isMain
+  };
+}
+
 export class LiveScannerController {
   private scanner: Html5Qrcode | null = null;
   private elementId: string;
   public isRunning: boolean = false;
   private videoTrack: MediaStreamTrack | null = null;
+  public activeCameraId: string | null = null;
+  public availableCameras: CameraDeviceOption[] = [];
+  private onDecodedCb: ((text: string) => void) | null = null;
+  private onCapsCb: ((caps: ScannerCapabilities) => void) | null = null;
+
   public capabilities: ScannerCapabilities = {
     hasTorch: false,
     hasZoom: false,
@@ -29,14 +82,46 @@ export class LiveScannerController {
     this.elementId = elementId;
   }
 
+  /**
+   * Enumerate and sort all available video devices, prioritizing Main 1x rear cameras over Ultra-Wide
+   */
+  public static async queryCameras(): Promise<CameraDeviceOption[]> {
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      if (!devices || devices.length === 0) return [];
+      
+      const list: CameraDeviceOption[] = devices.map((d, idx) => 
+        categorizeCamera(d, idx, devices.length)
+      );
+
+      // Sort order: Main Back (1x) first -> Other Back cameras -> Telephoto -> Ultra-Wide last -> Front
+      return list.sort((a, b) => {
+        if (a.isMain && !b.isMain) return -1;
+        if (!a.isMain && b.isMain) return 1;
+        if (a.isBack && !b.isBack) return -1;
+        if (!a.isBack && b.isBack) return 1;
+        if (!a.isUltraWide && b.isUltraWide) return -1;
+        if (a.isUltraWide && !b.isUltraWide) return 1;
+        return 0;
+      });
+    } catch (err) {
+      console.warn('Error querying cameras:', err);
+      return [];
+    }
+  }
+
   public async start(
     onDecoded: (text: string) => void,
-    onCapabilitiesChanged?: (caps: ScannerCapabilities) => void
+    onCapabilitiesChanged?: (caps: ScannerCapabilities) => void,
+    preferredCameraId?: string
   ): Promise<boolean> {
     try {
       if (this.isRunning) {
         await this.stop();
       }
+
+      this.onDecodedCb = onDecoded;
+      this.onCapsCb = onCapabilitiesChanged || null;
 
       const targetEl = document.getElementById(this.elementId);
       if (!targetEl) {
@@ -61,40 +146,63 @@ export class LiveScannerController {
         }
       });
 
-      // Html5Qrcode expects cameraIdOrConfig to have EXACTLY 1 key: either 'facingMode' or 'deviceId'
-      // Try environment (rear) camera first. If on laptop/desktop without rear camera, fallback to user (front)
+      // 1. Discover all cameras on the device to avoid Samsung Ultra-Wide traps
+      this.availableCameras = await LiveScannerController.queryCameras();
+
+      // High-resolution video stream constraints for razor-sharp QR decoding on 30x20mm thermal labels
       const scanConfig = {
-        fps: 15,
+        fps: 20,
         disableFlip: false,
         videoConstraints: {
-          facingMode: { ideal: 'environment' },
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 }
+          width: { min: 640, ideal: 1920, max: 2560 },
+          height: { min: 480, ideal: 1080, max: 1440 }
         }
       };
 
+      // 2. Determine target camera:
+      // Priority 1: explicitly passed preferredCameraId or saved in localStorage
+      // Priority 2: first Main Back camera (avoiding ultra-wide)
+      // Priority 3: first Back camera
+      // Priority 4: environment facingMode fallback
+      const savedCamId = preferredCameraId || localStorage.getItem('pos_preferred_camera_id') || '';
+      let targetCamera = this.availableCameras.find(c => c.id === savedCamId);
+
+      if (!targetCamera) {
+        targetCamera = this.availableCameras.find(c => c.isMain) ||
+                       this.availableCameras.find(c => c.isBack && !c.isUltraWide) ||
+                       this.availableCameras.find(c => c.isBack) ||
+                       this.availableCameras[0];
+      }
+
       let started = false;
 
-      try {
-        await this.scanner.start(
-          { facingMode: 'environment' },
-          scanConfig,
-          (decodedText) => {
-            if (decodedText) {
-              onDecoded(decodedText.trim());
-            }
-          },
-          () => {
-            // frame tick
-          }
-        );
-        started = true;
-      } catch (backCamErr) {
-        console.warn('Could not start with environment facingMode, attempting fallback:', backCamErr);
+      // If a specific camera device ID was identified, start with that camera ID
+      if (targetCamera && targetCamera.id) {
         try {
           await this.scanner.start(
-            { facingMode: 'user' },
-            { fps: 15, disableFlip: false },
+            targetCamera.id,
+            scanConfig,
+            (decodedText) => {
+              if (decodedText) {
+                onDecoded(decodedText.trim());
+              }
+            },
+            () => {}
+          );
+          this.activeCameraId = targetCamera.id;
+          localStorage.setItem('pos_preferred_camera_id', targetCamera.id);
+          started = true;
+        } catch (specCamErr) {
+          console.warn(`Could not start camera ${targetCamera.label} (${targetCamera.id}):`, specCamErr);
+        }
+      }
+
+      // Fallback 1: try environment facingMode if direct camera start failed
+      if (!started) {
+        try {
+          await this.scanner.start(
+            { facingMode: 'environment' },
+            scanConfig,
             (decodedText) => {
               if (decodedText) {
                 onDecoded(decodedText.trim());
@@ -103,8 +211,23 @@ export class LiveScannerController {
             () => {}
           );
           started = true;
-        } catch (frontCamErr) {
-          console.warn('Could not start user camera fallback:', frontCamErr);
+        } catch (backCamErr) {
+          console.warn('Could not start with environment facingMode, attempting fallback:', backCamErr);
+          try {
+            await this.scanner.start(
+              { facingMode: 'user' },
+              { fps: 15, disableFlip: false },
+              (decodedText) => {
+                if (decodedText) {
+                  onDecoded(decodedText.trim());
+                }
+              },
+              () => {}
+            );
+            started = true;
+          } catch (frontCamErr) {
+            console.warn('Could not start user camera fallback:', frontCamErr);
+          }
         }
       }
 
@@ -115,7 +238,7 @@ export class LiveScannerController {
 
       this.isRunning = true;
 
-      // Extract running video track to query Torch / Zoom hardware capabilities
+      // 3. Extract running video track & optimize Focus, Torch, and Zoom capabilities
       this.detectTrackCapabilities(onCapabilitiesChanged);
 
       return true;
@@ -126,11 +249,23 @@ export class LiveScannerController {
     }
   }
 
+  /**
+   * Switch active camera lens (e.g. from Ultra-Wide to Main 1x, or between lenses)
+   */
+  public async switchCamera(cameraId: string): Promise<boolean> {
+    if (!this.onDecodedCb) return false;
+    localStorage.setItem('pos_preferred_camera_id', cameraId);
+    this.activeCameraId = cameraId;
+    const cb = this.onDecodedCb;
+    const capsCb = this.onCapsCb || undefined;
+    return await this.start(cb, capsCb, cameraId);
+  }
+
   private detectTrackCapabilities(onCapabilitiesChanged?: (caps: ScannerCapabilities) => void) {
     try {
       if (!this.scanner) return;
       
-      // Attempt to retrieve track capabilities directly from Html5Qrcode or the video element
+      // Retrieve track capabilities directly from the video element
       let track: MediaStreamTrack | null = null;
       try {
         const videoEl = document.querySelector(`#${this.elementId} video`) as HTMLVideoElement | null;
@@ -150,13 +285,23 @@ export class LiveScannerController {
         const caps = track.getCapabilities() as any;
         const settings = typeof track.getSettings === 'function' ? track.getSettings() as any : {};
 
+        // Apply continuous autofocus constraint if supported by the camera hardware
+        if (caps && caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
+          try {
+            (track as any).applyConstraints({
+              advanced: [{ focusMode: 'continuous' }]
+            }).catch(() => {});
+          } catch (e) {
+            // ignore
+          }
+        }
+
         const hasTorch = Boolean(caps && caps.torch);
         const hasZoom = Boolean(caps && caps.zoom && typeof caps.zoom.max === 'number');
 
         const minZ = hasZoom ? (caps.zoom.min || 1) : 1;
         const maxZ = hasZoom ? (caps.zoom.max || 1) : 1;
-        // Default zoom to 5x or max available
-        const defaultZoom = hasZoom ? Math.min(maxZ, Math.max(minZ, 5)) : 1;
+        const defaultZoom = minZ; // Default to natural 1x zoom without digital blur
 
         this.capabilities = {
           hasTorch,
@@ -167,10 +312,6 @@ export class LiveScannerController {
           currentZoom: defaultZoom,
           torchOn: Boolean(settings.torch)
         };
-
-        if (hasZoom && defaultZoom > minZ) {
-          this.setZoom(defaultZoom).catch(() => {});
-        }
       } else {
         this.capabilities = {
           hasTorch: false,
@@ -195,7 +336,7 @@ export class LiveScannerController {
    * Toggle Flashlight / Torch
    */
   public async toggleTorch(): Promise<boolean> {
-    if (!this.capabilities.hasTorch) return false;
+    if (!this.capabilities.hasTorch && !this.videoTrack) return false;
     const nextState = !this.capabilities.torchOn;
     
     try {
