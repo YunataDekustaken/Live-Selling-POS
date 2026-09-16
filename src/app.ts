@@ -6105,6 +6105,18 @@ const app = createApp({
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
+    function closeCustomerCheckoutView() {
+      isCustomerCheckoutView.value = false;
+      customerCheckoutData.value = null;
+      if (typeof window !== 'undefined' && (window.location.search || window.location.hash)) {
+        try {
+          window.history.replaceState({ app: 'live_pos', root: true, tab: currentTab.value }, '', window.location.pathname);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
     function copyInvoiceLink(buyer: BuyerBasket) {
       if (!buyer) return;
       const cleanName = (buyer.displayName || buyer.handle || 'customer').replace(/^@+/, '').trim();
@@ -6127,6 +6139,7 @@ const app = createApp({
     }
 
     async function resolveCustomerCheckoutFromUrl(forceFetch = false) {
+      if (isHandlingBackNav) return;
       const urlParams = new URLSearchParams(window.location.search);
       const hash = window.location.hash || '';
 
@@ -7296,20 +7309,24 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
     }
 
     function closeTopmostOverlay(): boolean {
-      if (minedItemsDateFilterModalOpen.value) {
-        closeMinedDateFilterModal();
-        return true;
-      }
-      if (importNotionModalOpen.value) {
-        importNotionModalOpen.value = false;
-        return true;
-      }
-      if (showPackingModal.value) {
-        closePackingModal();
-        return true;
-      }
       if (zoomModalOpen.value) {
         closePhotoZoom();
+        return true;
+      }
+      if (printStickerPromptModalOpen.value) {
+        printStickerPromptModalOpen.value = false;
+        return true;
+      }
+      if (addCustomerItemModalOpen.value) {
+        closeAddCustomerItemModal();
+        return true;
+      }
+      if (addInvoiceItemModalOpen.value) {
+        closeAddInvoiceItemModal();
+        return true;
+      }
+      if (editPaymentModalOpen.value) {
+        closeEditPaymentModal();
         return true;
       }
       if (editMineModalOpen.value) {
@@ -7320,12 +7337,16 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
         closeRenameCustomerModal();
         return true;
       }
-      if (addInvoiceItemModalOpen.value) {
-        closeAddInvoiceItemModal();
+      if (minedItemsDateFilterModalOpen.value) {
+        closeMinedDateFilterModal();
         return true;
       }
-      if (editPaymentModalOpen.value) {
-        closeEditPaymentModal();
+      if (importNotionModalOpen.value) {
+        importNotionModalOpen.value = false;
+        return true;
+      }
+      if (showPackingModal.value) {
+        closePackingModal();
         return true;
       }
       if (showSaveProfileModal.value) {
@@ -7344,8 +7365,20 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
         r2GuideModalOpen.value = false;
         return true;
       }
+      if (showR2RestoreModal.value) {
+        showR2RestoreModal.value = false;
+        return true;
+      }
+      if (showStaffLoginModal.value) {
+        showStaffLoginModal.value = false;
+        return true;
+      }
       if (collageModalOpen.value) {
         collageModalOpen.value = false;
+        return true;
+      }
+      if (onlineReceiptModalOpen.value) {
+        onlineReceiptModalOpen.value = false;
         return true;
       }
       if (printerLayoutModalOpen.value) {
@@ -7376,8 +7409,12 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
         appMenuOpen.value = false;
         return true;
       }
+      if (selectedCustomerHandleForDetail.value) {
+        closeCustomerDetailPage();
+        return true;
+      }
       if (isCustomerCheckoutView.value) {
-        isCustomerCheckoutView.value = false;
+        closeCustomerCheckoutView();
         return true;
       }
       return false;
@@ -7385,17 +7422,24 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
 
     const openOverlayCount = computed(() => {
       let count = 0;
-      if (showPackingModal.value) count++;
       if (zoomModalOpen.value) count++;
-      if (editMineModalOpen.value) count++;
-      if (renameCustomerModalOpen.value) count++;
+      if (printStickerPromptModalOpen.value) count++;
+      if (addCustomerItemModalOpen.value) count++;
       if (addInvoiceItemModalOpen.value) count++;
       if (editPaymentModalOpen.value) count++;
+      if (editMineModalOpen.value) count++;
+      if (renameCustomerModalOpen.value) count++;
+      if (minedItemsDateFilterModalOpen.value) count++;
+      if (importNotionModalOpen.value) count++;
+      if (showPackingModal.value) count++;
       if (showSaveProfileModal.value) count++;
       if (showPasteCoordinatesModal.value) count++;
       if (showIOSGuide.value) count++;
       if (r2GuideModalOpen.value) count++;
+      if (showR2RestoreModal.value) count++;
+      if (showStaffLoginModal.value) count++;
       if (collageModalOpen.value) count++;
+      if (onlineReceiptModalOpen.value) count++;
       if (printerLayoutModalOpen.value) count++;
       if (paymentModalOpen.value) count++;
       if (invoiceModalOpen.value) count++;
@@ -7403,6 +7447,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       if (profileModalOpen.value) count++;
       if (settingsModalOpen.value) count++;
       if (appMenuOpen.value) count++;
+      if (selectedCustomerHandleForDetail.value) count++;
       if (isCustomerCheckoutView.value) count++;
       return count;
     });
@@ -7562,8 +7607,12 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       restartAutoSync();
 
       resolveCustomerCheckoutFromUrl();
-      window.addEventListener('hashchange', () => resolveCustomerCheckoutFromUrl());
-      window.addEventListener('popstate', () => resolveCustomerCheckoutFromUrl());
+      window.addEventListener('hashchange', () => {
+        if (!isHandlingBackNav) resolveCustomerCheckoutFromUrl();
+      });
+      window.addEventListener('popstate', () => {
+        if (!isHandlingBackNav) resolveCustomerCheckoutFromUrl();
+      });
 
       window.addEventListener('keydown', (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
@@ -7704,6 +7753,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       openPhotoZoom,
       closePhotoZoom,
       isCustomerCheckoutView,
+      closeCustomerCheckoutView,
       customerCheckoutData,
       customerCheckoutLoading,
       customerCheckoutError,
