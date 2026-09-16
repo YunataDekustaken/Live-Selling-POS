@@ -21,10 +21,36 @@ export interface CameraDeviceOption {
 
 export function categorizeCamera(dev: { id: string; label: string }, index: number, total: number): CameraDeviceOption {
   const lbl = (dev.label || '').toLowerCase();
-  const isFront = lbl.includes('front') || lbl.includes('user') || lbl.includes('selfie') || lbl.includes('facing front');
-  const isUltraWide = lbl.includes('ultra') || lbl.includes('0.5') || lbl.includes('0.6') || lbl.includes('wide-angle') || lbl.includes('wide angle') || lbl.includes('uw');
-  const isTelephoto = lbl.includes('tele') || lbl.includes('3x') || lbl.includes('5x') || lbl.includes('10x') || lbl.includes('zoom');
+  
+  // Front camera detection
+  const isFront = lbl.includes('front') || lbl.includes('user') || lbl.includes('selfie') || lbl.includes('facing front') || /camera2?\s*1\b/.test(lbl) || (lbl === '' && index === 1);
+  
+  // Ultra-wide lens detection (e.g. 0.5x, 0.6x, ultra, wide angle, or camera2 2 / 2, facing back)
+  const isUltraWide = !isFront && (
+    lbl.includes('ultra') || 
+    lbl.includes('0.5') || 
+    lbl.includes('0.6') || 
+    lbl.includes('wide-angle') || 
+    lbl.includes('wide angle') || 
+    lbl.includes('uw') ||
+    /camera2?\s*2\b/.test(lbl) ||
+    /\b2,\s*facing\s*back\b/.test(lbl) ||
+    (lbl === '' && index === 2)
+  );
+
+  // Telephoto lens detection (e.g. 3x, 5x, tele, zoom, or camera2 3)
+  const isTelephoto = !isFront && !isUltraWide && (
+    lbl.includes('tele') || 
+    lbl.includes('3x') || 
+    lbl.includes('5x') || 
+    lbl.includes('10x') || 
+    lbl.includes('zoom') ||
+    /camera2?\s*3\b/.test(lbl) ||
+    /\b3,\s*facing\s*back\b/.test(lbl)
+  );
+
   const isBack = !isFront;
+  // Main rear camera: rear camera that is neither ultra-wide nor telephoto, or explicitly camera 0 / main
   const isMain = isBack && !isUltraWide && !isTelephoto;
 
   let friendlyLabel = dev.label || '';
@@ -36,15 +62,17 @@ export function categorizeCamera(dev: { id: string; label: string }, index: numb
     } else if (isTelephoto) {
       friendlyLabel = `🔍 Back Telephoto (Zoom)`;
     } else if (isMain) {
-      friendlyLabel = `📷 Back Main Camera (1x - Autofocus)`;
+      friendlyLabel = `📷 Back Main (1x)`;
     } else {
       friendlyLabel = `📷 Back Camera ${index + 1}`;
     }
   } else {
-    if (isUltraWide && !friendlyLabel.toLowerCase().includes('ultra')) {
-      friendlyLabel = `🌐 ${friendlyLabel} (Ultra-Wide)`;
-    } else if (isMain && !friendlyLabel.toLowerCase().includes('main')) {
-      friendlyLabel = `📷 ${friendlyLabel} (Main 1x)`;
+    if (isFront && !friendlyLabel.includes('🤳')) {
+      friendlyLabel = `🤳 ${friendlyLabel}`;
+    } else if (isUltraWide && !friendlyLabel.includes('🌐')) {
+      friendlyLabel = `🌐 ${friendlyLabel}`;
+    } else if (isMain && !friendlyLabel.includes('📷')) {
+      friendlyLabel = `📷 ${friendlyLabel}`;
     }
   }
 
@@ -149,21 +177,23 @@ export class LiveScannerController {
       // 1. Discover all cameras on the device to avoid Samsung Ultra-Wide traps
       this.availableCameras = await LiveScannerController.queryCameras();
 
-      // High-resolution video stream constraints for razor-sharp QR decoding on 30x20mm thermal labels
+      // Clean, high-performance scan configuration without over-constrained resolution constraints
       const scanConfig = {
         fps: 20,
         disableFlip: false,
-        videoConstraints: {
-          width: { min: 640, ideal: 1920, max: 2560 },
-          height: { min: 480, ideal: 1080, max: 1440 }
-        }
+        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const edge = Math.max(160, Math.floor(minEdge * 0.85));
+          return { width: edge, height: edge };
+        },
+        aspectRatio: 1.0
       };
 
       // 2. Determine target camera:
       // Priority 1: explicitly passed preferredCameraId or saved in localStorage
-      // Priority 2: first Main Back camera (avoiding ultra-wide)
-      // Priority 3: first Back camera
-      // Priority 4: environment facingMode fallback
+      // Priority 2: first Main Back camera (e.g. camera 0 / 1x autofocus)
+      // Priority 3: any Back camera
+      // Priority 4: first available device
       const savedCamId = preferredCameraId || localStorage.getItem('pos_preferred_camera_id') || '';
       let targetCamera = this.availableCameras.find(c => c.id === savedCamId);
 
@@ -176,7 +206,7 @@ export class LiveScannerController {
 
       let started = false;
 
-      // If a specific camera device ID was identified, start with that camera ID
+      // Strategy A: If a specific camera device ID was identified, start directly with that camera ID
       if (targetCamera && targetCamera.id) {
         try {
           await this.scanner.start(
@@ -197,7 +227,7 @@ export class LiveScannerController {
         }
       }
 
-      // Fallback 1: try environment facingMode if direct camera start failed
+      // Strategy B: Fallback to standard environment facingMode if direct camera ID failed
       if (!started) {
         try {
           await this.scanner.start(
@@ -212,11 +242,12 @@ export class LiveScannerController {
           );
           started = true;
         } catch (backCamErr) {
-          console.warn('Could not start with environment facingMode, attempting fallback:', backCamErr);
+          console.warn('Could not start with environment facingMode, attempting front fallback:', backCamErr);
+          // Strategy C: Fallback to user/front camera (e.g. desktop webcam without rear camera)
           try {
             await this.scanner.start(
               { facingMode: 'user' },
-              { fps: 15, disableFlip: false },
+              scanConfig,
               (decodedText) => {
                 if (decodedText) {
                   onDecoded(decodedText.trim());
@@ -226,7 +257,7 @@ export class LiveScannerController {
             );
             started = true;
           } catch (frontCamErr) {
-            console.warn('Could not start user camera fallback:', frontCamErr);
+            console.error('All camera start attempts failed:', frontCamErr);
           }
         }
       }
@@ -237,6 +268,16 @@ export class LiveScannerController {
       }
 
       this.isRunning = true;
+
+      // Refresh camera list now that permissions are granted to obtain real hardware labels
+      try {
+        const freshList = await LiveScannerController.queryCameras();
+        if (freshList && freshList.length > 0) {
+          this.availableCameras = freshList;
+        }
+      } catch (e) {
+        // ignore
+      }
 
       // 3. Extract running video track & optimize Focus, Torch, and Zoom capabilities
       this.detectTrackCapabilities(onCapabilitiesChanged);
@@ -258,6 +299,11 @@ export class LiveScannerController {
     this.activeCameraId = cameraId;
     const cb = this.onDecodedCb;
     const capsCb = this.onCapsCb || undefined;
+
+    // Cleanly stop existing scanner and give the mobile camera sensor a moment to release
+    await this.stop();
+    await new Promise(r => setTimeout(r, 120));
+
     return await this.start(cb, capsCb, cameraId);
   }
 
@@ -284,6 +330,11 @@ export class LiveScannerController {
       if (track && typeof track.getCapabilities === 'function') {
         const caps = track.getCapabilities() as any;
         const settings = typeof track.getSettings === 'function' ? track.getSettings() as any : {};
+
+        if (settings && settings.deviceId) {
+          this.activeCameraId = settings.deviceId;
+          localStorage.setItem('pos_preferred_camera_id', settings.deviceId);
+        }
 
         // Apply continuous autofocus constraint if supported by the camera hardware
         if (caps && caps.focusMode && Array.isArray(caps.focusMode) && caps.focusMode.includes('continuous')) {
