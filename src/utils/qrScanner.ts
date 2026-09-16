@@ -25,8 +25,11 @@ export function categorizeCamera(dev: { id: string; label: string }, index: numb
   // Front camera detection
   const isFront = lbl.includes('front') || lbl.includes('user') || lbl.includes('selfie') || lbl.includes('facing front') || /camera2?\s*1\b/.test(lbl) || (lbl === '' && index === 1);
   
+  // Explicit camera 0 / primary back camera detection
+  const isCamera0 = /camera2?\s*0\b/.test(lbl) || /\b0,\s*facing\s*back\b/.test(lbl) || (index === 0 && !isFront);
+
   // Ultra-wide lens detection (e.g. 0.5x, 0.6x, ultra, wide angle, or camera2 2 / 2, facing back)
-  const isUltraWide = !isFront && (
+  const isUltraWide = !isFront && !isCamera0 && (
     lbl.includes('ultra') || 
     lbl.includes('0.5') || 
     lbl.includes('0.6') || 
@@ -39,19 +42,17 @@ export function categorizeCamera(dev: { id: string; label: string }, index: numb
   );
 
   // Telephoto lens detection (e.g. 3x, 5x, tele, zoom, or camera2 3)
-  const isTelephoto = !isFront && !isUltraWide && (
+  const isTelephoto = !isFront && !isUltraWide && !isCamera0 && (
     lbl.includes('tele') || 
-    lbl.includes('3x') || 
     lbl.includes('5x') || 
     lbl.includes('10x') || 
-    lbl.includes('zoom') ||
     /camera2?\s*3\b/.test(lbl) ||
     /\b3,\s*facing\s*back\b/.test(lbl)
   );
 
   const isBack = !isFront;
-  // Main rear camera: rear camera that is neither ultra-wide nor telephoto, or explicitly camera 0 / main
-  const isMain = isBack && !isUltraWide && !isTelephoto;
+  // Main rear camera: Camera 0 or standard primary rear camera with autofocus and flash
+  const isMain = isCamera0 || (isBack && !isUltraWide && !isTelephoto);
 
   let friendlyLabel = dev.label || '';
   if (!friendlyLabel || friendlyLabel.startsWith('camera2') || /^\d+/.test(friendlyLabel)) {
@@ -62,7 +63,7 @@ export function categorizeCamera(dev: { id: string; label: string }, index: numb
     } else if (isTelephoto) {
       friendlyLabel = `🔍 Back Telephoto (Zoom)`;
     } else if (isMain) {
-      friendlyLabel = `📷 Back Main (1x)`;
+      friendlyLabel = `📷 Camera 0 (Main Rear)`;
     } else {
       friendlyLabel = `📷 Back Camera ${index + 1}`;
     }
@@ -102,7 +103,7 @@ export class LiveScannerController {
     minZoom: 1,
     maxZoom: 1,
     stepZoom: 0.1,
-    currentZoom: 1,
+    currentZoom: 3,
     torchOn: false
   };
 
@@ -111,7 +112,7 @@ export class LiveScannerController {
   }
 
   /**
-   * Enumerate and sort all available video devices, prioritizing Main 1x rear cameras over Ultra-Wide
+   * Enumerate and sort all available video devices, prioritizing Camera 0 / Main 1x rear camera
    */
   public static async queryCameras(): Promise<CameraDeviceOption[]> {
     try {
@@ -122,14 +123,12 @@ export class LiveScannerController {
         categorizeCamera(d, idx, devices.length)
       );
 
-      // Sort order: Main Back (1x) first -> Other Back cameras -> Telephoto -> Ultra-Wide last -> Front
+      // Sort order: Camera 0 / Main Back first -> Other Back cameras -> Front
       return list.sort((a, b) => {
         if (a.isMain && !b.isMain) return -1;
         if (!a.isMain && b.isMain) return 1;
         if (a.isBack && !b.isBack) return -1;
         if (!a.isBack && b.isBack) return 1;
-        if (!a.isUltraWide && b.isUltraWide) return -1;
-        if (a.isUltraWide && !b.isUltraWide) return 1;
         return 0;
       });
     } catch (err) {
@@ -174,39 +173,34 @@ export class LiveScannerController {
         }
       });
 
-      // 1. Discover all cameras on the device to avoid Samsung Ultra-Wide traps
+      // 1. Discover all cameras on the device to locate Camera 0 / Main Rear Camera
       this.availableCameras = await LiveScannerController.queryCameras();
 
-      // Clean, high-performance scan configuration without over-constrained resolution constraints
+      // Clean, high-performance scan configuration
       const scanConfig = {
-        fps: 20,
+        fps: 25,
         disableFlip: false,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
           const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const edge = Math.max(160, Math.floor(minEdge * 0.85));
+          const edge = Math.max(160, Math.floor(minEdge * 0.88));
           return { width: edge, height: edge };
         },
         aspectRatio: 1.0
       };
 
-      // 2. Determine target camera:
-      // Priority 1: explicitly passed preferredCameraId or saved in localStorage
-      // Priority 2: first Main Back camera (e.g. camera 0 / 1x autofocus)
-      // Priority 3: any Back camera
+      // 2. Camera 0 / Main Rear Camera is the ONLY and default target:
+      // Priority 1: explicitly identified Camera 0 / isMain
+      // Priority 2: first non-ultrawide back camera
+      // Priority 3: any back camera
       // Priority 4: first available device
-      const savedCamId = preferredCameraId || localStorage.getItem('pos_preferred_camera_id') || '';
-      let targetCamera = this.availableCameras.find(c => c.id === savedCamId);
-
-      if (!targetCamera) {
-        targetCamera = this.availableCameras.find(c => c.isMain) ||
-                       this.availableCameras.find(c => c.isBack && !c.isUltraWide) ||
-                       this.availableCameras.find(c => c.isBack) ||
-                       this.availableCameras[0];
-      }
+      const targetCamera = this.availableCameras.find(c => c.isMain) ||
+                           this.availableCameras.find(c => c.isBack && !c.isUltraWide) ||
+                           this.availableCameras.find(c => c.isBack) ||
+                           this.availableCameras[0];
 
       let started = false;
 
-      // Strategy A: If a specific camera device ID was identified, start directly with that camera ID
+      // Strategy A: Start directly using the Camera 0 device ID
       if (targetCamera && targetCamera.id) {
         try {
           await this.scanner.start(
@@ -220,14 +214,13 @@ export class LiveScannerController {
             () => {}
           );
           this.activeCameraId = targetCamera.id;
-          localStorage.setItem('pos_preferred_camera_id', targetCamera.id);
           started = true;
         } catch (specCamErr) {
           console.warn(`Could not start camera ${targetCamera.label} (${targetCamera.id}):`, specCamErr);
         }
       }
 
-      // Strategy B: Fallback to standard environment facingMode if direct camera ID failed
+      // Strategy B: Fallback to standard environment facingMode (rear camera)
       if (!started) {
         try {
           await this.scanner.start(
@@ -243,7 +236,7 @@ export class LiveScannerController {
           started = true;
         } catch (backCamErr) {
           console.warn('Could not start with environment facingMode, attempting front fallback:', backCamErr);
-          // Strategy C: Fallback to user/front camera (e.g. desktop webcam without rear camera)
+          // Strategy C: Fallback to user/front camera (e.g. laptop webcam with no rear camera)
           try {
             await this.scanner.start(
               { facingMode: 'user' },
@@ -269,18 +262,8 @@ export class LiveScannerController {
 
       this.isRunning = true;
 
-      // Refresh camera list now that permissions are granted to obtain real hardware labels
-      try {
-        const freshList = await LiveScannerController.queryCameras();
-        if (freshList && freshList.length > 0) {
-          this.availableCameras = freshList;
-        }
-      } catch (e) {
-        // ignore
-      }
-
-      // 3. Extract running video track & optimize Focus, Torch, and Zoom capabilities
-      this.detectTrackCapabilities(onCapabilitiesChanged);
+      // 3. Extract running video track & apply default 3x zoom and flash/torch capabilities
+      await this.detectTrackCapabilities(onCapabilitiesChanged);
 
       return true;
     } catch (err) {
@@ -291,23 +274,21 @@ export class LiveScannerController {
   }
 
   /**
-   * Switch active camera lens (e.g. from Ultra-Wide to Main 1x, or between lenses)
+   * Switch active camera lens (kept for controller api stability)
    */
   public async switchCamera(cameraId: string): Promise<boolean> {
     if (!this.onDecodedCb) return false;
-    localStorage.setItem('pos_preferred_camera_id', cameraId);
     this.activeCameraId = cameraId;
     const cb = this.onDecodedCb;
     const capsCb = this.onCapsCb || undefined;
 
-    // Cleanly stop existing scanner and give the mobile camera sensor a moment to release
     await this.stop();
     await new Promise(r => setTimeout(r, 120));
 
     return await this.start(cb, capsCb, cameraId);
   }
 
-  private detectTrackCapabilities(onCapabilitiesChanged?: (caps: ScannerCapabilities) => void) {
+  private async detectTrackCapabilities(onCapabilitiesChanged?: (caps: ScannerCapabilities) => void) {
     try {
       if (!this.scanner) return;
       
@@ -333,7 +314,6 @@ export class LiveScannerController {
 
         if (settings && settings.deviceId) {
           this.activeCameraId = settings.deviceId;
-          localStorage.setItem('pos_preferred_camera_id', settings.deviceId);
         }
 
         // Apply continuous autofocus constraint if supported by the camera hardware
@@ -347,12 +327,13 @@ export class LiveScannerController {
           }
         }
 
-        const hasTorch = Boolean(caps && caps.torch);
+        const hasTorch = Boolean(caps && caps.torch) || ('torch' in settings);
         const hasZoom = Boolean(caps && caps.zoom && typeof caps.zoom.max === 'number');
 
         const minZ = hasZoom ? (caps.zoom.min || 1) : 1;
         const maxZ = hasZoom ? (caps.zoom.max || 1) : 1;
-        const defaultZoom = minZ; // Default to natural 1x zoom without digital blur
+        // Default zoom is 3x (clamped to device capability, e.g. 3.0 if supported)
+        const defaultZoom = hasZoom ? Math.min(maxZ, Math.max(minZ, 3.0)) : 1;
 
         this.capabilities = {
           hasTorch,
@@ -363,6 +344,15 @@ export class LiveScannerController {
           currentZoom: defaultZoom,
           torchOn: Boolean(settings.torch)
         };
+
+        // Automatically apply the default 3x zoom immediately upon camera start
+        if (hasZoom) {
+          try {
+            await this.setZoom(defaultZoom);
+          } catch (e) {
+            console.debug('Failed to apply initial 3x zoom:', e);
+          }
+        }
       } else {
         this.capabilities = {
           hasTorch: false,

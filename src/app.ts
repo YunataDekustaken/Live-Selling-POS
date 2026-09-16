@@ -3568,7 +3568,7 @@ const app = createApp({
     const scannerZoomMin = ref(1);
     const scannerZoomMax = ref(1);
     const scannerZoomStep = ref(0.1);
-    const scannerCurrentZoom = ref(1);
+    const scannerCurrentZoom = ref(3);
     const scannerAvailableCameras = ref<CameraDeviceOption[]>([]);
     const scannerActiveCameraId = ref<string>('');
     let packingScannerInstance: LiveScannerController | null = null;
@@ -3830,15 +3830,11 @@ const app = createApp({
       }
       packingScannerActive.value = false;
       scannerTorchOn.value = false;
-      scannerCurrentZoom.value = 1;
+      scannerCurrentZoom.value = 3;
     }
 
     async function toggleScannerTorch() {
       if (!packingScannerInstance) return;
-      if (!scannerTorchSupported.value) {
-        showToast('Flash not available on this lens — switch camera to Main (1x)');
-        return;
-      }
       const state = await packingScannerInstance.toggleTorch();
       scannerTorchOn.value = state;
     }

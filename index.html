@@ -8051,22 +8051,11 @@
                   v-if="packingScannerActive"
                   @click="toggleScannerTorch" 
                   type="button" 
-                  :title="scannerTorchOn ? 'Turn Flashlight Off' : (scannerTorchSupported ? 'Turn Flashlight On' : 'Flashlight (Main Camera required)')"
+                  :title="scannerTorchOn ? 'Turn Flashlight Off' : 'Turn Flashlight On'"
                   class="px-2.5 py-1.5 rounded-lg font-bold text-[11px] shadow-sm flex items-center space-x-1.5 cursor-pointer transition-all border"
-                  :class="scannerTorchOn ? 'bg-amber-400 border-amber-300 text-zinc-950 shadow-amber-400/40 animate-pulse' : (scannerTorchSupported ? 'bg-zinc-850/90 border-zinc-700 text-zinc-200 hover:bg-zinc-700 hover:text-white' : 'bg-zinc-900/70 border-zinc-800 text-zinc-500 hover:text-zinc-300')">
+                  :class="scannerTorchOn ? 'bg-amber-400 border-amber-300 text-zinc-950 shadow-amber-400/40 animate-pulse' : 'bg-zinc-850/90 border-zinc-700 text-zinc-200 hover:bg-zinc-700 hover:text-white'">
                   <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                  <span>{{ scannerTorchOn ? 'Flash On' : 'Flash' }}</span>
-                </button>
-
-                <!-- Switch Camera Lens Button (1-tap toggle between Main 1x, Ultra-Wide, Front) -->
-                <button 
-                  v-if="packingScannerActive"
-                  @click="cycleScannerCamera" 
-                  type="button" 
-                  title="Switch Camera Lens (Main 1x / Ultra-Wide / Front)"
-                  class="px-2.5 py-1.5 rounded-lg bg-zinc-850/90 hover:bg-zinc-700 text-zinc-200 font-semibold text-[11px] shadow-sm flex items-center space-x-1.5 cursor-pointer border border-zinc-700 transition-all">
-                  <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                  <span>Switch Cam</span>
+                  <span>{{ scannerTorchOn ? 'Flash On' : '⚡ Flash' }}</span>
                 </button>
 
                 <!-- Start / Pause Scanner Button -->
@@ -8085,20 +8074,6 @@
                   class="px-3 py-1.5 rounded-lg bg-zinc-850/90 hover:bg-zinc-700 text-zinc-200 font-semibold text-[11px] shadow-sm flex items-center space-x-1.5 cursor-pointer border border-zinc-700">
                   <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                   <span>Pause</span>
-                </button>
-              </div>
-
-              <!-- Available Camera Lens Selector Bar (Quick pills if multiple lenses exist) -->
-              <div v-if="packingScannerActive && scannerAvailableCameras.length > 1" 
-                class="absolute top-12 inset-x-2 flex items-center justify-center gap-1.5 z-10 overflow-x-auto py-1 px-1 scrollbar-none pointer-events-auto">
-                <button 
-                  v-for="cam in scannerAvailableCameras" 
-                  :key="cam.id"
-                  @click="switchScannerCamera(cam.id)"
-                  type="button"
-                  class="px-2.5 py-0.5 rounded-full text-[10px] font-medium transition-all whitespace-nowrap border shrink-0 cursor-pointer backdrop-blur-md"
-                  :class="scannerActiveCameraId === cam.id ? 'bg-amber-400 text-zinc-950 border-amber-300 font-bold shadow-sm' : 'bg-zinc-900/90 text-zinc-300 border-zinc-700 hover:bg-zinc-800'">
-                  {{ cam.label }}
                 </button>
               </div>
 
