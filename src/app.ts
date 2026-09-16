@@ -3652,6 +3652,12 @@ const app = createApp({
       };
     });
 
+    const showPackingSessionPicker = ref(false);
+
+    function togglePackingSessionPicker() {
+      showPackingSessionPicker.value = !showPackingSessionPicker.value;
+    }
+
     function togglePackingInvoiceSelection(invoiceId: string) {
       const index = selectedPackingInvoiceIds.value.indexOf(invoiceId);
       if (index > -1) {
@@ -3758,6 +3764,7 @@ const app = createApp({
       packingActiveTab.value = defaultTab;
       packingManualCodeInput.value = '';
       lastScannedResult.value = null;
+      showPackingSessionPicker.value = false;
       showPackingModal.value = true;
 
       const invoices = getCustomerSessionInvoices(buyer.handle);
@@ -8711,6 +8718,8 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       showPackingModal,
       activePackingBuyer,
       selectedPackingInvoiceIds,
+      showPackingSessionPicker,
+      togglePackingSessionPicker,
       getCustomerSessionInvoices,
       activePackingCustomerInvoices,
       activePackingCombinedBasket,
