@@ -5213,8 +5213,35 @@ const app = createApp({
       numberOfItems: '' as string | number,
       sessionDate: '',
       photo: '',
-      printSticker: true
+      printSticker: false
     });
+
+    const printStickerPromptModalOpen = ref(false);
+    const lastAddedMinedItem = ref<MinedItem | null>(null);
+    const isPrintingStickerPrompt = ref(false);
+
+    function closePrintStickerPromptModal() {
+      printStickerPromptModalOpen.value = false;
+      lastAddedMinedItem.value = null;
+      isPrintingStickerPrompt.value = false;
+    }
+
+    async function confirmPrintStickerLabel() {
+      if (!lastAddedMinedItem.value) {
+        closePrintStickerPromptModal();
+        return;
+      }
+      isPrintingStickerPrompt.value = true;
+      try {
+        await triggerStickerPrint(lastAddedMinedItem.value);
+        showToast(`Sticker printed for ${lastAddedMinedItem.value.controlCode}`);
+      } catch (err: any) {
+        showToast(`Print failed: ${err?.message || err}`);
+      } finally {
+        isPrintingStickerPrompt.value = false;
+        closePrintStickerPromptModal();
+      }
+    }
 
     const addCustomerItemPreviewCode = computed(() => {
       const prefix = getStorePrefix(activeProfile.value);
@@ -5232,7 +5259,7 @@ const app = createApp({
       addCustomerItemForm.tag = '';
       addCustomerItemForm.photo = '';
       addCustomerItemForm.sessionDate = targetSessionDate || (activeCustomerGroup.value?.sessions[0]?.sessionDate) || sessionDate.value || defaultSessionDate;
-      addCustomerItemForm.printSticker = settings.value.autoPrint;
+      addCustomerItemForm.printSticker = false;
       addCustomerItemModalOpen.value = true;
     }
 
@@ -5362,14 +5389,13 @@ const app = createApp({
         }).catch(err => console.warn('Background mine photo upload notice:', err));
       }
 
-      // Print sticker if toggled
-      if (addCustomerItemForm.printSticker) {
-        directPrintStickerBt(newMine);
-      }
-
       playBeep('success', settings.value.soundEnabled);
       showToast(`Added ${newMine.controlCode} (${activeProfile.value.currency}${newMine.price.toLocaleString()}) to ${buyer}!`);
       closeAddCustomerItemModal();
+
+      // Open screen pop-up asking if user wants to print sticker label
+      lastAddedMinedItem.value = newMine;
+      printStickerPromptModalOpen.value = true;
     }
 
     const renameCustomerModalOpen = ref(false);
@@ -7448,6 +7474,11 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       setAddCustomerItemDescription,
       handleAddCustomerItemPhotoChange,
       saveAddCustomerItem,
+      printStickerPromptModalOpen,
+      lastAddedMinedItem,
+      isPrintingStickerPrompt,
+      closePrintStickerPromptModal,
+      confirmPrintStickerLabel,
       buyerSearchQuery,
       buyerFilterStatus,
       buyerBasketsList,

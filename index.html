@@ -4754,7 +4754,7 @@
       v-if="selectedCustomerHandleForDetail && activeCustomerGroup" 
       class="screen-ui fixed inset-0 z-50 bg-zinc-50 overflow-y-auto flex flex-col animate-fadeIn">
       
-      <!-- Top Sticky Navigation Bar (Mobile-Optimized, Non-Overlapping) -->
+      <!-- Top Sticky Navigation Bar (Mobile-Optimized, Single-Line Header) -->
       <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-zinc-200 px-2.5 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2 shadow-2xs">
         <!-- Left: Back Button & Customer Header -->
         <div class="flex items-center gap-1.5 sm:gap-2.5 min-w-0 flex-1 overflow-hidden">
@@ -4767,12 +4767,12 @@
             <span>Back</span>
           </button>
 
-          <!-- Customer Identity (clean, gracefully truncated, zero overlap) -->
+          <!-- Customer Identity (clean, gracefully truncated, single-line) -->
           <div class="min-w-0 flex items-center gap-1.5 overflow-hidden flex-1">
             <div class="hidden sm:flex w-6 h-6 rounded-md bg-zinc-900 text-white items-center justify-center font-bold text-[11px] shrink-0">
               {{ activeCustomerGroup.displayName.charAt(0).toUpperCase() }}
             </div>
-            <h1 class="font-black text-xs sm:text-base text-zinc-900 truncate leading-tight">
+            <h1 class="font-black text-xs sm:text-base text-zinc-900 truncate leading-tight" :title="activeCustomerGroup.displayName">
               {{ activeCustomerGroup.displayName }}
             </h1>
             <span 
@@ -4783,7 +4783,7 @@
           </div>
         </div>
 
-        <!-- Right: Action Buttons (Responsive & Touch-Optimized) -->
+        <!-- Right: Action Buttons (Single Row: Item, Pay, Pack) -->
         <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
           <button 
             @click="openAddCustomerItemModal(activeCustomerGroup.handle, activeCustomerGroup.sessions[0]?.sessionDate || sessionDate)" 
@@ -4792,7 +4792,7 @@
             title="Add a new item for this customer">
             <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
             <span class="hidden sm:inline">Add Item</span>
-            <span class="sm:hidden">+ Item</span>
+            <span class="sm:hidden">Item</span>
           </button>
 
           <button 
@@ -4941,17 +4941,8 @@
               </button>
             </div>
 
-            <div class="flex items-center gap-2.5 flex-wrap">
-              <div class="text-xs text-zinc-500 font-medium">
-                Showing {{ activeCustomerFilteredItems.length }} of {{ activeCustomerAllMinedItems.length }} items across {{ activeCustomerSessionGroups.length }} {{ activeCustomerSessionGroups.length === 1 ? 'session' : 'sessions' }}
-              </div>
-              <button 
-                @click="openAddCustomerItemModal(activeCustomerGroup.handle, activeCustomerGroup.sessions[0]?.sessionDate || sessionDate)"
-                type="button"
-                class="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-black active:bg-zinc-800 text-white text-xs font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer">
-                <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                <span>Add Item</span>
-              </button>
+            <div class="text-xs text-zinc-500 font-medium">
+              Showing {{ activeCustomerFilteredItems.length }} of {{ activeCustomerAllMinedItems.length }} items across {{ activeCustomerSessionGroups.length }} {{ activeCustomerSessionGroups.length === 1 ? 'session' : 'sessions' }}
             </div>
           </div>
 
@@ -5026,7 +5017,7 @@
                       class="px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-black active:bg-zinc-800 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
                       title="Add item to this session">
                       <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
-                      <span>+ Item</span>
+                      <span>Item</span>
                     </button>
 
                     <button 
@@ -5449,15 +5440,43 @@
         <!-- Form Body -->
         <div class="p-4 space-y-3.5 overflow-y-auto flex-1 text-xs overscroll-contain">
 
-          <!-- Customer & Target Session Bar -->
-          <div class="grid grid-cols-2 gap-2 bg-zinc-50 p-2.5 rounded-xl border border-zinc-200 font-mono text-[11px]">
+          <!-- Customer & Target Session Bar (Editable Session Date) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 bg-zinc-50 p-3 rounded-xl border border-zinc-200 font-mono text-[11px]">
             <div>
-              <span class="text-[9px] uppercase font-sans font-bold text-zinc-400 block">Customer</span>
-              <span class="font-bold text-zinc-900 truncate block">@{{ addCustomerItemForm.buyer }}</span>
+              <span class="text-[9px] uppercase font-sans font-bold text-zinc-400 block mb-1">Customer</span>
+              <div class="flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                <span class="font-bold text-zinc-900 truncate block">@{{ (addCustomerItemForm.buyer || '').replace(/^@+/, '') }}</span>
+              </div>
             </div>
             <div>
-              <span class="text-[9px] uppercase font-sans font-bold text-zinc-400 block">Session Date</span>
-              <span class="font-bold text-zinc-800 truncate block">{{ addCustomerItemForm.sessionDate }}</span>
+              <div class="flex items-center justify-between mb-1">
+                <label for="addCustomerSessionDateInput" class="text-[9px] uppercase font-sans font-bold text-zinc-500 tracking-wider">Session Date *</label>
+                <span class="text-[9px] text-zinc-400 font-sans font-medium">Editable</span>
+              </div>
+              <input 
+                id="addCustomerSessionDateInput"
+                v-model="addCustomerItemForm.sessionDate" 
+                type="text" 
+                list="addCustomerSessionDatesList"
+                placeholder="e.g. 0915 or September 15"
+                class="w-full bg-white border border-zinc-300 focus:border-zinc-900 rounded-lg px-2.5 py-1.5 text-xs font-mono font-bold text-zinc-900 focus:outline-none shadow-2xs"
+              />
+              <datalist id="addCustomerSessionDatesList">
+                <option v-for="d in availableSessionDates" :key="d" :value="d">{{ d }}</option>
+              </datalist>
+              <!-- Quick Session Pills -->
+              <div v-if="availableSessionDates && availableSessionDates.length > 0" class="flex flex-wrap gap-1 mt-1.5 font-sans">
+                <button 
+                  v-for="d in availableSessionDates.slice(0, 4)" 
+                  :key="'session-pill-' + d"
+                  type="button"
+                  @click="addCustomerItemForm.sessionDate = d"
+                  class="px-2 py-0.5 rounded text-[10px] font-mono transition-colors cursor-pointer border"
+                  :class="addCustomerItemForm.sessionDate === d ? 'bg-zinc-900 text-white border-zinc-900 font-bold' : 'bg-white hover:bg-zinc-100 text-zinc-600 border-zinc-200'">
+                  {{ d }}
+                </button>
+              </div>
             </div>
           </div>
 
@@ -5554,21 +5573,7 @@
             </div>
           </div>
 
-          <!-- Thermal Sticker Print Toggle -->
-          <div class="flex items-center justify-between p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl">
-            <div class="flex items-center space-x-2">
-              <span class="text-sm">🖨️</span>
-              <div>
-                <p class="font-bold text-xs text-zinc-800">Print Thermal Sticker</p>
-                <p class="text-[10px] text-zinc-500">Auto-print sticker to connected Bluetooth printer</p>
-              </div>
-            </div>
-            <input 
-              v-model="addCustomerItemForm.printSticker" 
-              type="checkbox" 
-              class="w-5 h-5 rounded text-zinc-900 accent-zinc-900 cursor-pointer"
-            />
-          </div>
+
 
         </div>
 
@@ -5587,6 +5592,81 @@
             <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
             <span>Add Item</span>
           </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 1G: PRINT STICKER LABEL PROMPT POP-UP                     -->
+    <!-- =============================================================== -->
+    <div v-if="printStickerPromptModalOpen && lastAddedMinedItem" class="screen-ui fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-fadeIn" @click.self="closePrintStickerPromptModal">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-sm w-full shadow-2xl overflow-hidden animate-scaleUp text-zinc-900">
+        
+        <!-- Header Banner -->
+        <div class="bg-amber-500/10 border-b border-amber-200/70 p-4 text-center">
+          <div class="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center mx-auto shadow-sm mb-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+          </div>
+          <h3 class="font-black text-base text-zinc-900">Print Sticker Label?</h3>
+          <p class="text-xs text-zinc-600 mt-0.5">Item logged successfully to customer basket</p>
+        </div>
+
+        <!-- Details Card -->
+        <div class="p-4 space-y-3">
+          
+          <div class="bg-zinc-50 border border-zinc-200 rounded-xl p-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="px-2 py-0.5 rounded bg-zinc-900 text-white font-mono font-bold text-xs">
+                {{ lastAddedMinedItem.controlCode }}
+              </span>
+              <span class="font-mono font-black text-sm text-emerald-700">
+                {{ activeProfile.currency }}{{ (lastAddedMinedItem.price || 0).toLocaleString() }}
+              </span>
+            </div>
+            
+            <div class="text-xs">
+              <div class="font-bold text-zinc-800">{{ lastAddedMinedItem.description || lastAddedMinedItem.tag || 'Item' }}</div>
+              <div class="text-zinc-500 text-[11px] flex items-center gap-1.5 mt-0.5 font-mono">
+                <span>Customer: @{{ (lastAddedMinedItem.buyer || '').replace(/^@+/, '') }}</span>
+                <span>•</span>
+                <span>Session: {{ lastAddedMinedItem.date }}</span>
+              </div>
+            </div>
+
+            <!-- Optional photo thumbnail if attached -->
+            <div v-if="lastAddedMinedItem.photo" class="pt-1 flex items-center gap-2">
+              <img :src="lastAddedMinedItem.photo" alt="Item photo" class="w-10 h-10 object-cover rounded-lg border border-zinc-200" />
+              <span class="text-[11px] text-zinc-400 font-mono">Photo attached</span>
+            </div>
+          </div>
+
+          <p class="text-xs text-zinc-600 text-center font-medium">
+            Would you like to print a thermal sticker label for this new item now?
+          </p>
+
+          <!-- Action Buttons -->
+          <div class="space-y-2 pt-1">
+            <!-- Primary Print Button -->
+            <button 
+              type="button"
+              @click="confirmPrintStickerLabel"
+              :disabled="isPrintingStickerPrompt"
+              class="w-full h-11 px-4 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs disabled:opacity-50">
+              <svg v-if="isPrintingStickerPrompt" class="w-4 h-4 animate-spin text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path></svg>
+              <svg v-else class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+              <span>{{ isPrintingStickerPrompt ? 'Printing Sticker...' : 'Yes, Print Sticker Label' }}</span>
+            </button>
+
+            <!-- Secondary Skip Button -->
+            <button 
+              type="button"
+              @click="closePrintStickerPromptModal"
+              class="w-full h-10 px-4 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 text-zinc-700 font-bold text-xs transition-colors cursor-pointer flex items-center justify-center">
+              Don't Print (Skip)
+            </button>
+          </div>
+
         </div>
 
       </div>
