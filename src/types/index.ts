@@ -34,6 +34,8 @@ export interface MinedItem {
   packVerified?: boolean;
   packVerifiedAt?: string;
   packedBy?: string;
+  delivered?: boolean;
+  deliveredAt?: string;
 }
 
 export interface PaymentRecord {
@@ -61,6 +63,8 @@ export interface BuyerBasket {
   dateIssued?: string;
   paymentDate?: string;
   isExpanded?: boolean;
+  delivered?: boolean;
+  deliveredAt?: string;
 }
 
 export interface CustomerGroup {
@@ -77,6 +81,8 @@ export interface CustomerGroup {
   isExpanded: boolean;
   latestSessionDate?: string;
   latestSessionSortKey?: string;
+  isAllDelivered?: boolean;
+  deliveredSessionsCount?: number;
 }
 
 export interface LabelLayoutSettings {

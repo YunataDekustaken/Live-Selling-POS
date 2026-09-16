@@ -4546,6 +4546,30 @@ const app = createApp({
       }
     }
 
+    function isSessionDelivered(session?: BuyerBasket | null): boolean {
+      if (!session || !session.items || session.items.length === 0) return false;
+      return session.items.every(it => Boolean(it.delivered));
+    }
+
+    function toggleSessionDelivered(session?: BuyerBasket | null) {
+      if (!session || !session.items || session.items.length === 0) return;
+      const targetState = !isSessionDelivered(session);
+      const targetTime = targetState ? new Date().toISOString() : undefined;
+      const itemIds = new Set(session.items.map(it => it.id));
+
+      allMines.value.forEach(m => {
+        if (itemIds.has(m.id)) {
+          m.delivered = targetState;
+          m.deliveredAt = targetTime;
+          pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
+        }
+      });
+
+      saveAll();
+      playBeep(targetState ? 'success' : 'click', settings.value.soundEnabled);
+      showToast(targetState ? `Tagged session (${session.sessionDate}) for ${session.displayName} as Delivered` : `Marked session (${session.sessionDate}) as In-Transit`);
+    }
+
     const buyerSearchQuery = ref('');
     const buyerFilterStatus = ref('all'); // 'all', 'owing', 'settled', 'credit', 'needs_storage_audit', 'ready_to_invoice', 'ready_to_pack', 'shipped'
 
@@ -4662,6 +4686,7 @@ const app = createApp({
       const list = Object.values(map).map(b => {
         b.balance = b.totalAmount - b.totalPaid;
         b.status = b.balance <= 0 ? 'Paid' : (b.totalPaid > 0 ? 'Partial' : 'Unpaid');
+        b.delivered = isSessionDelivered(b);
         return b;
       });
 
@@ -4708,6 +4733,8 @@ const app = createApp({
         g.totalBalance = g.totalAmount - g.totalPaid;
         g.status = g.totalBalance <= 0 ? 'Paid' : (g.totalPaid > 0 ? 'Partial' : 'Unpaid');
         g.sessionCount = g.sessions.length;
+        g.deliveredSessionsCount = g.sessions.filter(s => s.delivered).length;
+        g.isAllDelivered = g.sessions.length > 0 && g.sessions.every(s => s.delivered);
         // Sort sessions descending by chronological date so the newest session is always index 0
         g.sessions.sort((a, b) => {
           const keyA = getSessionSortKey(a);
@@ -4984,6 +5011,10 @@ const app = createApp({
         list = list.filter(g => g.totalBalance <= 0 && g.sessions.some(s => !isBuyerAllStage2Packed(s)));
       } else if (buyerFilterStatus.value === 'shipped') {
         list = list.filter(g => g.sessions.every(s => isBuyerAllStage2Packed(s)));
+      } else if (buyerFilterStatus.value === 'delivered') {
+        list = list.filter(g => g.sessions.some(s => s.delivered));
+      } else if (buyerFilterStatus.value === 'undelivered') {
+        list = list.filter(g => g.sessions.some(s => !s.delivered));
       }
 
       const key = customerBalancesSortKey.value;
@@ -5095,6 +5126,10 @@ const app = createApp({
         list = list.filter(b => b.balance <= 0 && !isBuyerAllStage2Packed(b));
       } else if (buyerFilterStatus.value === 'shipped') {
         list = list.filter(b => isBuyerAllStage2Packed(b));
+      } else if (buyerFilterStatus.value === 'delivered') {
+        list = list.filter(b => b.delivered);
+      } else if (buyerFilterStatus.value === 'undelivered') {
+        list = list.filter(b => !b.delivered);
       }
       return list;
     });
@@ -8764,6 +8799,8 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       getCustomerActiveSessions,
       getCustomerSettledSessions,
       getVisibleCustomerSessions,
+      isSessionDelivered,
+      toggleSessionDelivered,
       minedItemsSearchQuery,
       minedItemsFilterCategory,
       minedItemsFilterDate,
