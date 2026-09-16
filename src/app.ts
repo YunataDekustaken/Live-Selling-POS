@@ -3658,7 +3658,7 @@ const app = createApp({
         if (selectedPackingInvoiceIds.value.length > 1) {
           selectedPackingInvoiceIds.value.splice(index, 1);
         } else {
-          showToast('At least one session invoice must be selected for packing');
+          showToast(packingWorkflowStage.value === 'stage1' ? 'At least one session invoice must be selected for invoice' : 'At least one session invoice must be selected for packing');
         }
       } else {
         selectedPackingInvoiceIds.value.push(invoiceId);
@@ -3679,6 +3679,15 @@ const app = createApp({
         selectedPackingInvoiceIds.value = paid;
       } else {
         showToast('No paid invoices found for this customer');
+      }
+    }
+
+    function selectUnpaidPackingInvoicesOnly() {
+      const unpaid = activePackingCustomerInvoices.value.filter(i => i.balance > 0).map(i => i.id || '');
+      if (unpaid.length > 0) {
+        selectedPackingInvoiceIds.value = unpaid;
+      } else {
+        showToast('No unpaid invoices found for this customer');
       }
     }
 
@@ -3752,9 +3761,7 @@ const app = createApp({
       showPackingModal.value = true;
 
       const invoices = getCustomerSessionInvoices(buyer.handle);
-      if (stage === 'stage1') {
-        selectedPackingInvoiceIds.value = buyer.id ? [buyer.id] : (invoices[0]?.id ? [invoices[0].id] : []);
-      } else if (selectAllSessions) {
+      if (selectAllSessions) {
         selectedPackingInvoiceIds.value = invoices.map(i => i.id || '');
       } else {
         selectedPackingInvoiceIds.value = buyer.id ? [buyer.id] : invoices.map(i => i.id || '');
@@ -3770,12 +3777,6 @@ const app = createApp({
     function setPackingWorkflowStage(stage: 'stage1' | 'stage2') {
       packingWorkflowStage.value = stage;
       lastScannedResult.value = null;
-      if (stage === 'stage1' && activePackingBuyer.value) {
-        const singleId = activePackingBuyer.value.id;
-        if (singleId) {
-          selectedPackingInvoiceIds.value = [singleId];
-        }
-      }
     }
 
     function closePackingModal() {
@@ -8717,6 +8718,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       isPackingInvoiceSelected,
       selectAllPackingInvoices,
       selectPaidPackingInvoicesOnly,
+      selectUnpaidPackingInvoicesOnly,
       availableSessionDates,
       packingWorkflowStage,
       setPackingWorkflowStage,

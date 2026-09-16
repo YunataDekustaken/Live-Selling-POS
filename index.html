@@ -7945,12 +7945,14 @@
           </div>
         </div>
 
-        <!-- Live Session Invoices Selector (Select which sessions/invoices to include in parcel - ONLY FOR PACKING STAGE) -->
-        <div v-if="packingWorkflowStage === 'stage2' && activePackingCustomerInvoices.length > 0" class="bg-amber-50/80 border-b border-amber-200 px-4 py-2 shrink-0">
+        <!-- Live Session Invoices Selector (Select which sessions/invoices to include - FOR AUDIT & INVOICE OR PACKING) -->
+        <div v-if="activePackingCustomerInvoices.length > 0" class="bg-amber-50/80 border-b border-amber-200 px-4 py-2 shrink-0">
           <div class="flex items-center justify-between mb-1.5 flex-wrap gap-1">
             <div class="flex items-center space-x-1.5">
               <svg class="w-3.5 h-3.5 text-amber-900 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-              <span class="text-xs font-black text-amber-950">Select Sessions to Pack</span>
+              <span class="text-xs font-black text-amber-950">
+                {{ packingWorkflowStage === 'stage1' ? 'Select Sessions to Include in Invoice' : 'Select Sessions to Pack' }}
+              </span>
               <span class="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-200 text-amber-900">
                 {{ selectedPackingInvoiceIds.length }}/{{ activePackingCustomerInvoices.length }} Selected
               </span>
@@ -7963,6 +7965,12 @@
                 Select All
               </button>
               <button 
+                @click="selectUnpaidPackingInvoicesOnly" 
+                type="button" 
+                class="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded font-semibold hover:bg-amber-200 cursor-pointer">
+                Unpaid Only
+              </button>
+              <button 
                 @click="selectPaidPackingInvoicesOnly" 
                 type="button" 
                 class="px-2 py-0.5 bg-emerald-700 text-white rounded font-semibold hover:bg-emerald-800 cursor-pointer">
@@ -7971,7 +7979,7 @@
             </div>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-24 overflow-y-auto pr-0.5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-28 overflow-y-auto pr-0.5">
             <div 
               v-for="inv in activePackingCustomerInvoices" 
               :key="inv.id"
@@ -7991,7 +7999,7 @@
                     {{ inv.sessionDate }}
                   </div>
                   <div class="text-[10px] text-zinc-500">
-                    {{ inv.items.length }} items • {{ activeProfile.currency }}{{ inv.totalAmount }}
+                    {{ inv.items.length }} items • {{ activeProfile.currency }}{{ inv.totalAmount.toLocaleString() }}
                   </div>
                 </div>
               </div>
@@ -7999,7 +8007,7 @@
               <span 
                 class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase shrink-0"
                 :class="inv.balance <= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'">
-                {{ inv.status === 'Paid' ? 'PAID' : 'UNPAID ' + activeProfile.currency + inv.balance }}
+                {{ inv.status === 'Paid' ? 'PAID' : 'UNPAID ' + activeProfile.currency + inv.balance.toLocaleString() }}
               </span>
             </div>
           </div>
