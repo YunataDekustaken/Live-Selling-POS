@@ -140,10 +140,10 @@ export async function generateOnlineInvoiceReceiptImage(
   }
 
   // Footer note
-  estimatedH += 70; // Footer + Timestamp
-  estimatedH += 40; // Bottom padding
+  estimatedH += 80; // Footer + Timestamp
+  estimatedH += 50; // Bottom padding
 
-  const totalH = Math.max(500, Math.ceil(estimatedH));
+  const totalH = Math.max(520, Math.ceil(estimatedH));
 
   // Create Canvas
   const canvas = document.createElement('canvas');
@@ -183,10 +183,10 @@ export async function generateOnlineInvoiceReceiptImage(
   ctx.fillText(storeName, width / 2, y);
   y += 28;
 
-  // Subtitle: INVOICE RECEIPT (Word "OFFICIAL" removed)
+  // Subtitle: INVOICE (Word "Receipt" removed per user request)
   ctx.font = 'bold 13px system-ui, -apple-system, sans-serif';
   ctx.fillStyle = '#71717A';
-  ctx.fillText('INVOICE RECEIPT', width / 2, y);
+  ctx.fillText('INVOICE', width / 2, y);
   y += 20;
 
   // Invoice Number & Date
@@ -232,7 +232,7 @@ export async function generateOnlineInvoiceReceiptImage(
   ctx.textAlign = 'left';
   ctx.fillStyle = '#0F172A';
   ctx.font = 'bold 17px system-ui, -apple-system, sans-serif';
-  const customerLabel = `@${cleanName}`;
+  const customerLabel = cleanName;
   ctx.fillText(customerLabel, pad + 16, custBoxY + 14);
 
   // Subtitle / Handle

@@ -2941,7 +2941,7 @@ const app = createApp({
 
     function openInvoiceModal(buyer: BuyerBasket) {
       if (!isBuyerAllStage1Audited(buyer)) {
-        showToast(`⚠️ Cannot open invoice: Please complete Stage 1 Inbound Audit for all items first!`);
+        showToast(`⚠️ Cannot open invoice: Please complete Inbound Audit for all items first!`);
         openPackingModal(buyer, 'checklist', 'stage1');
         return;
       }
@@ -2957,7 +2957,7 @@ const app = createApp({
     async function triggerInvoicePrint(buyer: BuyerBasket) {
       if (!buyer) return;
       if (!isBuyerAllStage1Audited(buyer)) {
-        showToast(`⚠️ Cannot print invoice: Please complete Stage 1 Inbound Audit for all items first!`);
+        showToast(`⚠️ Cannot print invoice: Please complete Inbound Audit for all items first!`);
         openPackingModal(buyer, 'checklist', 'stage1');
         return;
       }
@@ -3322,7 +3322,7 @@ const app = createApp({
           lastScannedResult.value = {
             text: rawCode,
             status: 'already_scanned',
-            message: `${isStage1 ? 'Stage 1 Already Audited' : 'Stage 2 Already Packed'}: ${matchedItem.controlCode || '#' + matchedItem.controlNum}`,
+            message: `${isStage1 ? 'Already Audited' : 'Already Packed'}: ${matchedItem.controlCode || '#' + matchedItem.controlNum}`,
             item: matchedItem,
             timestamp: Date.now()
           };
@@ -3340,11 +3340,11 @@ const app = createApp({
             lastScannedResult.value = {
               text: rawCode,
               status: 'wrong_customer',
-              message: `⚠️ Stage 1 Audit Required First: ${matchedItem.controlCode || '#' + matchedItem.controlNum}`,
+              message: `⚠️ Audit Required First: ${matchedItem.controlCode || '#' + matchedItem.controlNum}`,
               item: matchedItem,
               timestamp: Date.now()
             };
-            showToast(`⚠️ Cannot pack: Item not yet audited in Stage 1!`);
+            showToast(`⚠️ Cannot pack: Item not yet audited!`);
             return;
           }
           matchedItem.packVerified = true;
@@ -3359,7 +3359,7 @@ const app = createApp({
         lastScannedResult.value = {
           text: rawCode,
           status: 'success',
-          message: `✓ ${isStage1 ? 'Stage 1 Audited (Storage In)' : 'Stage 2 Packed (Warehouse Out)'}: ${matchedItem.controlCode || '#' + matchedItem.controlNum} • ${matchedItem.description || matchedItem.tag || 'Item'} (${activeProfile.value.currency}${matchedItem.price})`,
+          message: `✓ ${isStage1 ? 'Audited (Storage In)' : 'Packed (Warehouse Out)'}: ${matchedItem.controlCode || '#' + matchedItem.controlNum} • ${matchedItem.description || matchedItem.tag || 'Item'} (${activeProfile.value.currency}${matchedItem.price})`,
           item: matchedItem,
           timestamp: Date.now()
         };
@@ -3368,9 +3368,9 @@ const app = createApp({
         const remaining = currentBuyerItems.filter(m => isStage1 ? !isItemStage1Audited(m) : !isItemStage2Packed(m));
         if (remaining.length === 0) {
           if (isStage1) {
-            showToast(`🎉 Stage 1 Complete! All ${currentBuyerItems.length} items audited for ${buyerClean}. Ready to print invoice!`);
+            showToast(`🎉 Audit Complete! All ${currentBuyerItems.length} items audited for ${buyerClean}. Ready to print invoice!`);
           } else {
-            showToast(`🎉 Stage 2 Complete! All ${currentBuyerItems.length} items packed for ${buyerClean}. Ready to seal & print packing slip!`);
+            showToast(`🎉 Pack Complete! All ${currentBuyerItems.length} items packed for ${buyerClean}. Ready to seal & print packing slip!`);
           }
         }
         return;
@@ -3445,7 +3445,7 @@ const app = createApp({
       if (isStage1) {
         const isNow = !isItemStage1Audited(item);
         if (!isNow && isItemStage2Packed(item)) {
-          showToast(`⚠️ Cannot uncheck Stage 1 Audit: This item is already packed in Stage 2! Unpack in Stage 2 first.`);
+          showToast(`⚠️ Cannot uncheck Audit: This item is already packed! Unpack first.`);
           playBeep('error', settings.value.soundEnabled);
           return;
         }
@@ -3456,7 +3456,7 @@ const app = createApp({
         if (isNow) playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
       } else {
         if (!isItemStage1Audited(item)) {
-          showToast(`⚠️ Cannot pack item: Please complete Stage 1 Inbound Audit for this item first!`);
+          showToast(`⚠️ Cannot pack item: Please complete Inbound Audit for this item first!`);
           playBeep('error', settings.value.soundEnabled);
           return;
         }
@@ -3482,7 +3482,7 @@ const app = createApp({
       if (!isStage1) {
         const unAudited = target.items.filter(m => !isItemStage1Audited(m));
         if (unAudited.length > 0) {
-          showToast(`⚠️ Cannot mark all packed: ${unAudited.length} items have not passed Stage 1 Inbound Audit yet!`);
+          showToast(`⚠️ Cannot mark all packed: ${unAudited.length} items have not passed Inbound Audit yet!`);
           playBeep('error', settings.value.soundEnabled);
           return;
         }
@@ -3510,7 +3510,7 @@ const app = createApp({
       saveAll();
       refreshActivePackingBuyer();
       playSuccessBeep(settings.value.scannerRingtone || 'Classic Supermarket');
-      showToast(isStage1 ? `Marked all ${target.items.length} items as Stage 1 Audited!` : `Marked all audited items as Stage 2 Packed!`);
+      showToast(isStage1 ? `Marked all ${target.items.length} items as Audited!` : `Marked all audited items as Packed!`);
     }
 
     function resetVerificationForBuyer(buyer?: BuyerBasket) {
@@ -3541,7 +3541,7 @@ const app = createApp({
       const target = buyer || activePackingCombinedBasket.value;
       if (!target) return;
       if (!isBuyerAllStage2Packed(target)) {
-        showToast(`⚠️ Cannot print packing slip: Please complete Stage 2 Parcel Pack for all items first!`);
+        showToast(`⚠️ Cannot print packing slip: Please complete Parcel Pack for all items first!`);
         openPackingModal(target, 'checklist', 'stage2');
         return;
       }
@@ -3554,14 +3554,14 @@ const app = createApp({
       const isStage1 = packingWorkflowStage.value === 'stage1';
       if (isStage1) {
         if (!isBuyerAllStage1Audited(target)) {
-          showToast(`⚠️ Cannot print invoice: Please scan & audit all items in Stage 1 first!`);
+          showToast(`⚠️ Cannot print invoice: Please scan & audit all items first!`);
           playBeep('error', settings.value.soundEnabled);
           return;
         }
         await triggerInvoicePrint(target);
       } else {
         if (!isBuyerAllStage2Packed(target)) {
-          showToast(`⚠️ Cannot print packing slip: Please pack & scan all items in Stage 2 first!`);
+          showToast(`⚠️ Cannot print packing slip: Please pack & scan all items first!`);
           playBeep('error', settings.value.soundEnabled);
           return;
         }
@@ -5203,6 +5203,175 @@ const app = createApp({
       };
       openPaymentModal(proxyBasket);
     }
+
+    const addCustomerItemModalOpen = ref(false);
+    const addCustomerItemForm = reactive({
+      buyer: '',
+      price: '' as string | number,
+      description: '',
+      tag: '',
+      numberOfItems: '' as string | number,
+      sessionDate: '',
+      photo: '',
+      printSticker: true
+    });
+
+    const addCustomerItemPreviewCode = computed(() => {
+      const prefix = getStorePrefix(activeProfile.value);
+      const dateStr = addCustomerItemForm.sessionDate || sessionDate.value || defaultSessionDate;
+      const currentControlNum = getNextUniqueSequenceNumber(sequenceCounter.value, allMines.value, prefix, dateStr);
+      return formatControlCode(prefix, dateStr, currentControlNum);
+    });
+
+    function openAddCustomerItemModal(buyerHandle?: string, targetSessionDate?: string) {
+      const handle = (buyerHandle || selectedCustomerHandleForDetail.value || '').replace(/^@+/, '');
+      addCustomerItemForm.buyer = handle;
+      addCustomerItemForm.price = '';
+      addCustomerItemForm.description = '';
+      addCustomerItemForm.numberOfItems = '';
+      addCustomerItemForm.tag = '';
+      addCustomerItemForm.photo = '';
+      addCustomerItemForm.sessionDate = targetSessionDate || (activeCustomerGroup.value?.sessions[0]?.sessionDate) || sessionDate.value || defaultSessionDate;
+      addCustomerItemForm.printSticker = settings.value.autoPrint;
+      addCustomerItemModalOpen.value = true;
+    }
+
+    function closeAddCustomerItemModal() {
+      addCustomerItemModalOpen.value = false;
+      addCustomerItemForm.photo = '';
+    }
+
+    function setAddCustomerItemPrice(amount: number) {
+      addCustomerItemForm.price = amount;
+    }
+
+    function adjustAddCustomerItemPrice(delta: number) {
+      const current = parseFloat(String(addCustomerItemForm.price)) || 0;
+      addCustomerItemForm.price = Math.max(0, current + delta);
+    }
+
+    function setAddCustomerItemDescription(desc: string) {
+      addCustomerItemForm.description = desc;
+      if (!addCustomerItemForm.tag) {
+        addCustomerItemForm.tag = desc;
+      }
+    }
+
+    function handleAddCustomerItemPhotoChange(e: Event) {
+      const target = e.target as HTMLInputElement;
+      const file = target?.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const rawUrl = event.target?.result as string;
+        if (!rawUrl) return;
+
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 600;
+          let w = img.width;
+          let h = img.height;
+          if (w > h && w > maxDim) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else if (h > maxDim) {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, w, h);
+            addCustomerItemForm.photo = canvas.toDataURL('image/jpeg', 0.65);
+          }
+        };
+        img.src = rawUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function saveAddCustomerItem() {
+      const buyer = (addCustomerItemForm.buyer || selectedCustomerHandleForDetail.value || '').trim().replace(/^@+/, '');
+      const price = parseFloat(String(addCustomerItemForm.price));
+      const description = (addCustomerItemForm.description || '').trim();
+
+      if (!buyer) {
+        showToast('Please enter customer name');
+        return;
+      }
+      if (isNaN(price) || price <= 0) {
+        showToast(`Please enter a valid price (${activeProfile.value.currency})`);
+        return;
+      }
+
+      const prefix = getStorePrefix(activeProfile.value);
+      const dateStr = addCustomerItemForm.sessionDate || sessionDate.value || defaultSessionDate;
+      const currentControlNum = getNextUniqueSequenceNumber(sequenceCounter.value, allMines.value, prefix, dateStr);
+      const controlCode = formatControlCode(prefix, dateStr, currentControlNum);
+      const tag = addCustomerItemForm.tag.trim() || description || controlCode;
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      
+      // If target session is an existing human date like "September 14, 2026", retain it so it lands in that session
+      let itemDate = dateStr;
+      if (dateStr === sessionDate.value && !dateStr.includes(',')) {
+        itemDate = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      }
+
+      const rawNumItems = parseInt(String(addCustomerItemForm.numberOfItems || '').trim(), 10);
+      const numberOfItems = (!isNaN(rawNumItems) && rawNumItems > 0) ? rawNumItems : undefined;
+
+      const newMine: MinedItem = {
+        id: 'mine_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+        controlCode: controlCode,
+        controlNum: currentControlNum,
+        tag: tag,
+        description: description || tag,
+        price: price,
+        buyer: buyer,
+        photo: addCustomerItemForm.photo || '',
+        date: itemDate,
+        time: timeStr,
+        timestamp: Date.now(),
+        numberOfItems: numberOfItems,
+        quantity: numberOfItems
+      };
+
+      allMines.value.push(newMine);
+      sequenceCounter.value = getNextUniqueSequenceNumber(currentControlNum + 1, allMines.value, prefix, dateStr);
+      saveAll();
+      pushSingleMineToSupabase(newMine, activeProfileId.value, sessionDate.value);
+
+      // Background R2 upload if base64 photo
+      if (newMine.photo && newMine.photo.startsWith('data:image') && isR2Ready.value) {
+        const mineId = newMine.id;
+        const cleanSession = (sessionDate.value || 'live').replace(/[^a-zA-Z0-9_-]/g, '');
+        const cleanStore = (activeProfile.value.id || 'store').replace(/[^a-zA-Z0-9_-]/g, '');
+        const fileKey = `${cleanStore}/${cleanSession}/item_${mineId}.jpg`;
+        uploadToCloudflareR2(fileKey, newMine.photo, r2Form).then(res => {
+          if (res.success && res.url) {
+            const m = allMines.value.find(x => x.id === mineId);
+            if (m) {
+              m.photo = res.url;
+              saveAll();
+              pushSingleMineToSupabase(m, activeProfileId.value, sessionDate.value);
+            }
+          }
+        }).catch(err => console.warn('Background mine photo upload notice:', err));
+      }
+
+      // Print sticker if toggled
+      if (addCustomerItemForm.printSticker) {
+        directPrintStickerBt(newMine);
+      }
+
+      playBeep('success', settings.value.soundEnabled);
+      showToast(`Added ${newMine.controlCode} (${activeProfile.value.currency}${newMine.price.toLocaleString()}) to ${buyer}!`);
+      closeAddCustomerItemModal();
+    }
+
     const renameCustomerModalOpen = ref(false);
     const renameCustomerOldHandle = ref('');
     const renameCustomerNewHandle = ref('');
@@ -5871,7 +6040,7 @@ const app = createApp({
       const cleanName = (onlineReceiptBuyer.value.displayName || onlineReceiptBuyer.value.handle || 'customer').replace(/^@+/, '');
       const filename = `Invoice_Receipt_${cleanName}_${sessionDate.value || 'session'}.png`;
       const title = `${activeProfile.value.name || 'Live POS'} - Invoice Receipt for @${cleanName}`;
-      const text = `Here is your official invoice receipt from ${activeProfile.value.name || 'Live POS'}. Total: ${activeProfile.value.currency}${onlineReceiptBuyer.value.totalAmount.toLocaleString()} • Balance Due: ${activeProfile.value.currency}${Math.abs(onlineReceiptBuyer.value.balance).toLocaleString()}`;
+      const text = `Here is your invoice receipt from ${activeProfile.value.name || 'Live POS'}. Total: ${activeProfile.value.currency}${onlineReceiptBuyer.value.totalAmount.toLocaleString()} • Balance Due: ${activeProfile.value.currency}${Math.abs(onlineReceiptBuyer.value.balance).toLocaleString()}`;
 
       const ok = await shareReceiptPng(onlineReceiptDataUrl.value, filename, title, text);
       if (!ok) {
@@ -7269,6 +7438,16 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       openCustomerDetailPage,
       closeCustomerDetailPage,
       logPaymentForCurrentCustomer,
+      addCustomerItemModalOpen,
+      addCustomerItemForm,
+      addCustomerItemPreviewCode,
+      openAddCustomerItemModal,
+      closeAddCustomerItemModal,
+      setAddCustomerItemPrice,
+      adjustAddCustomerItemPrice,
+      setAddCustomerItemDescription,
+      handleAddCustomerItemPhotoChange,
+      saveAddCustomerItem,
       buyerSearchQuery,
       buyerFilterStatus,
       buyerBasketsList,
