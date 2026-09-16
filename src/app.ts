@@ -145,13 +145,18 @@ const app = createApp({
         initialProfiles = parsed
           .filter((p: Profile) => p && p.id && !deletedProfileIds.has(p.id))
           .map((p: Profile) => {
-            // Guarantee logo isolation: only Leaf & Layer keeps /assets/logo.png by default;
-            // any other profile that inadvertently had Leaf & Layer's logo assigned without custom upload is cleared.
             const isLeaf = p.id === 'prof_main' || (p.name && p.name.toLowerCase().includes('leaf'));
+            const isJoyful = p.id === 'prof_1788794471662' || (p.name && p.name.toLowerCase().includes('joyful'));
+            
             let cleanLogo = p.logoUrl || '';
-            if (!isLeaf && (cleanLogo === '/assets/logo.png' || cleanLogo === '/assets/logo.jpg' || cleanLogo === '/logo.png')) {
+            if (isLeaf && (!cleanLogo || cleanLogo === '/assets/logo.png' || cleanLogo === '/assets/logo.jpg' || cleanLogo === '/logo.png')) {
+              cleanLogo = '/assets/leafandlayer_logo.png';
+            } else if (isJoyful && (!cleanLogo || cleanLogo === '/assets/logo.png' || cleanLogo === '/assets/logo.jpg' || cleanLogo === '/logo.png')) {
+              cleanLogo = '/assets/joyfulsurplus_logo.png';
+            } else if (!isLeaf && !isJoyful && (cleanLogo === '/assets/logo.png' || cleanLogo === '/assets/logo.jpg' || cleanLogo === '/logo.png')) {
               cleanLogo = '';
             }
+
             return {
               ...p,
               logoUrl: cleanLogo
@@ -177,7 +182,17 @@ const app = createApp({
     const activeProfile = computed<Profile>(() => {
       const found = profiles.value.find(p => p.id === activeProfileId.value) || (profiles.value.length > 0 ? profiles.value[0] : defaultProfiles[0]);
       const isLeaf = found.id === 'prof_main' || (found.name && found.name.toLowerCase().includes('leaf'));
-      const fallbackLogo = isLeaf ? '/assets/logo.png' : '';
+      const isJoyful = found.id === 'prof_1788794471662' || (found.name && found.name.toLowerCase().includes('joyful'));
+      
+      let fallbackLogo = '';
+      if (isLeaf) {
+        fallbackLogo = '/assets/leafandlayer_logo.png';
+      } else if (isJoyful) {
+        fallbackLogo = '/assets/joyfulsurplus_logo.png';
+      }
+
+      const activeLogo = (found.logoUrl && found.logoUrl !== '/assets/logo.png') ? found.logoUrl : fallbackLogo;
+
       return {
         id: found.id,
         name: found.name || 'Store',
@@ -190,7 +205,7 @@ const app = createApp({
         quickPrefixes: Array.isArray(found.quickPrefixes) && found.quickPrefixes.length > 0 ? found.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
         defaultCategories: Array.isArray(found.defaultCategories) && found.defaultCategories.length > 0 ? found.defaultCategories : ['General'],
         paymentDetails: found.paymentDetails || '',
-        logoUrl: found.logoUrl !== undefined ? found.logoUrl : fallbackLogo
+        logoUrl: activeLogo
       };
     });
 
@@ -5777,8 +5792,47 @@ const app = createApp({
         const file = target.files[0];
         const reader = new FileReader();
         reader.onload = (event) => {
-          editingProfileForm.logoUrl = (event.target?.result as string) || '';
-          showToast('Store logo selected! Click Save Profile to apply.');
+          const rawData = (event.target?.result as string) || '';
+          if (!rawData) return;
+
+          // Downscale via canvas to ensure reliable persistence within LocalStorage quotas
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const maxDim = 240;
+              let w = img.naturalWidth || img.width;
+              let h = img.naturalHeight || img.height;
+              if (w > maxDim || h > maxDim) {
+                if (w > h) {
+                  h = Math.round((h * maxDim) / w);
+                  w = maxDim;
+                } else {
+                  w = Math.round((w * maxDim) / h);
+                  h = maxDim;
+                }
+              }
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              if (ctx) {
+                ctx.drawImage(img, 0, 0, w, h);
+                const compactDataUrl = canvas.toDataURL('image/png');
+                editingProfileForm.logoUrl = compactDataUrl;
+                showToast('Store logo loaded! Click Save Profile to apply.');
+                return;
+              }
+            } catch (err) {
+              console.warn('Canvas resize fallback:', err);
+            }
+            editingProfileForm.logoUrl = rawData;
+            showToast('Store logo loaded! Click Save Profile to apply.');
+          };
+          img.onerror = () => {
+            editingProfileForm.logoUrl = rawData;
+            showToast('Store logo selected! Click Save Profile to apply.');
+          };
+          img.src = rawData;
         };
         reader.readAsDataURL(file);
       }

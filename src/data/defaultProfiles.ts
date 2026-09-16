@@ -11,7 +11,7 @@ export const defaultProfiles: Profile[] = [
     quickPrefixes: ['A', 'B', 'C', 'D', 'VIP'],
     defaultCategories: ['Plant', 'Pot', 'Pumice'],
     paymentDetails: 'GCash: 0917-123-4567 (LiveStyle PH)\nMaya: 0918-987-6543\nBDO: 0012-3456-7890',
-    logoUrl: '/assets/logo.png'
+    logoUrl: '/assets/leafandlayer_logo.png'
   },
   {
     id: 'prof_crystals',
@@ -35,7 +35,7 @@ export const defaultProfiles: Profile[] = [
     quickPrefixes: ['A', 'B', 'C', 'D', 'VIP'],
     defaultCategories: ['Tops', 'Dresses', 'Bottoms', 'Jackets', 'Accessories'],
     paymentDetails: 'GCash: 09XX-XXX-XXXX\nMaya: 09XX-XXX-XXXX',
-    logoUrl: ''
+    logoUrl: '/assets/joyfulsurplus_logo.png'
   },
   {
     id: 'prof_collectibles',

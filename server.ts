@@ -278,6 +278,7 @@ async function startServer() {
     const profileId = (req.params?.profileId || req.query.profileId || req.query.profile || req.query.p || '').toString().trim();
     const profileName = (req.query.profileName || req.query.name || '').toString().trim().toLowerCase();
     const isLeaf = profileId === 'prof_main' || profileName.includes('leaf') || (!profileId && !profileName);
+    const isJoyful = profileId === 'prof_1788794471662' || profileName.includes('joyful');
 
     const possibleDirs = [
       path.join(process.cwd(), 'assets'),
@@ -302,16 +303,22 @@ async function startServer() {
       );
     }
 
-    // Leaf & Layer specific / legacy default names
+    // Known specific profile logo files
     const leafDefaultNames = [
-      'logo.png', 'logo.jpg', 'logo.jpeg', 'logo.webp', 'logo.svg',
-      'leaf_logo.png', 'leaf_logo.jpg', 'leaf-layer-logo.png',
-      'store_logo.png', 'store_logo.jpg', 'store-logo.png', 'store-logo.jpg'
+      'leafandlayer_logo.png', 'leafandlayer.png', 'leaf_and_layer_logo.png',
+      'logo.png', 'logo.jpg', 'leaf_logo.png', 'leaf_logo.jpg'
+    ];
+    const joyfulDefaultNames = [
+      'joyfulsurplus_logo.png', 'joyfulsurplus.png', 'joyful_surplus_logo.png', 'joyful_logo.png'
     ];
 
-    const candidateNames = isLeaf 
-      ? [...profileSpecificNames, ...leafDefaultNames] 
-      : profileSpecificNames;
+    let candidateNames = [...profileSpecificNames];
+    if (isLeaf) {
+      candidateNames.push(...leafDefaultNames);
+    }
+    if (isJoyful) {
+      candidateNames.push(...joyfulDefaultNames);
+    }
 
     const mimeTypes: Record<string, string> = {
       '.png': 'image/png',

@@ -77,6 +77,7 @@ export async function generateOnlineInvoiceReceiptImage(
 
   // Check for uploaded store logo (strictly isolated to the current business profile)
   const isLeafLayer = profile.id === 'prof_main' || (profile.name && profile.name.toLowerCase().includes('leaf'));
+  const isJoyfulSurplus = profile.id === 'prof_1788794471662' || (profile.name && profile.name.toLowerCase().includes('joyful'));
   const profileSpecificLogoEndpoint = profile.id 
     ? `/api/receipt-logo?profileId=${encodeURIComponent(profile.id)}&name=${encodeURIComponent(profile.name || '')}` 
     : '';
@@ -85,14 +86,16 @@ export async function generateOnlineInvoiceReceiptImage(
     profile.logoUrl,
     layoutConfig?.logoUrl,
     profileSpecificLogoEndpoint,
-    // Only fallback to default Leaf & Layer logo files if the active profile is specifically Leaf & Layer
     ...(isLeafLayer ? [
+      '/assets/leafandlayer_logo.png',
+      '/leafandlayer_logo.png',
       '/assets/logo.png',
-      '/assets/logo.jpg',
-      '/assets/logo.jpeg',
-      '/assets/logo.webp',
-      '/assets/logo.svg',
-      '/logo.png'
+      '/assets/logo.jpg'
+    ] : []),
+    ...(isJoyfulSurplus ? [
+      '/assets/joyfulsurplus_logo.png',
+      '/joyfulsurplus_logo.png',
+      '/assets/joyful_logo.png'
     ] : [])
   ].filter(Boolean) as string[];
 
