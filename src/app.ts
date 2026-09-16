@@ -12,6 +12,7 @@ import type {
   ReceiptLayoutSettings,
   VisualReceiptSection,
   SavedLabelProfile,
+  SavedReceiptProfile,
   VisualLabelElement,
   ImportBackupSnapshot
 } from './types';
@@ -65,6 +66,8 @@ import {
   fetchAppSettingsFromSupabase,
   syncLabelProfilesToSupabase,
   fetchLabelProfilesFromSupabase,
+  syncReceiptProfilesToSupabase,
+  fetchReceiptProfilesFromSupabase,
   pushSinglePhotoToSupabase,
   fetchCloudPhotosForProfile,
   fetchCloudVerificationsForProfile,
@@ -1007,6 +1010,18 @@ const app = createApp({
           await syncLabelProfilesToSupabase(JSON.stringify(customLabelProfiles));
         }
 
+        const customReceiptProfiles = savedReceiptProfiles.value.filter(p => !p.isBuiltIn);
+        const receiptPayload = {
+          profiles: customReceiptProfiles,
+          activePackingProfileId: activePackingProfileId.value,
+          activeInvoiceProfileId: activeInvoiceProfileId.value,
+          packingSections: settings.value.receiptLayout?.customSections || defaultReceiptSections,
+          invoiceSections: settings.value.invoiceLayout?.customSections || defaultInvoiceSections,
+          timestamp: Date.now()
+        };
+        await syncReceiptProfilesToSupabase(JSON.stringify(receiptPayload));
+        await syncAppSettingsToSupabase(JSON.stringify(settings.value));
+
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         lastSyncedAt.value = nowTime;
         localStorage.setItem('live_pos_last_synced', nowTime);
@@ -1477,6 +1492,17 @@ const app = createApp({
           }
         } catch (labelSyncErr) {
           console.warn('Label profiles cloud sync notice:', labelSyncErr);
+        }
+
+        // Sync saved custom PT-210 receipt & packing slip profiles from database
+        try {
+          const cloudReceiptProfilesJson = await fetchReceiptProfilesFromSupabase();
+          if (cloudReceiptProfilesJson) {
+            const parsed = JSON.parse(cloudReceiptProfilesJson);
+            mergeCloudReceiptProfiles(parsed);
+          }
+        } catch (receiptSyncErr) {
+          console.warn('Receipt profiles cloud sync notice:', receiptSyncErr);
         }
 
         const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -2675,6 +2701,533 @@ const app = createApp({
       showToast(`Successfully loaded coordinates: "${importedName}"!`);
     }
 
+    // =========================================================================
+    // PT-210 RECEIPT & PACKING SLIP PROFILES & CLOUD SYNC SYSTEM
+    // =========================================================================
+    const savedReceiptProfiles = ref<SavedReceiptProfile[]>([]);
+    const activePackingProfileId = ref<string>(
+      initialSettings.activePackingProfileId || 
+      (safeGetItem('pos_active_packing_profile_id') as string) || 
+      'packing_standard'
+    );
+    const activeInvoiceProfileId = ref<string>(
+      initialSettings.activeInvoiceProfileId || 
+      (safeGetItem('pos_active_invoice_profile_id') as string) || 
+      'invoice_official'
+    );
+    const showSaveReceiptProfileModal = ref<boolean>(false);
+    const newReceiptProfileName = ref<string>('');
+    const showPasteReceiptCoordinatesModal = ref<boolean>(false);
+    const pasteReceiptCoordinatesText = ref<string>('');
+
+    const currentActiveReceiptProfileId = computed(() => {
+      return designerReceiptSubMode.value === 'packing' ? activePackingProfileId.value : activeInvoiceProfileId.value;
+    });
+
+    const filteredReceiptProfiles = computed(() => {
+      return savedReceiptProfiles.value.filter(p => p.type === designerReceiptSubMode.value);
+    });
+
+    function getBuiltInReceiptProfiles(): SavedReceiptProfile[] {
+      return [
+        // Packing Slip Templates
+        {
+          id: 'packing_standard',
+          name: '📦 Standard Packing Slip (Default)',
+          type: 'packing',
+          createdAt: 1,
+          paperWidth: '58mm',
+          isBuiltIn: true,
+          sections: JSON.parse(JSON.stringify(defaultReceiptSections)),
+          description: 'Standard checklist with item table, totals, QC packer checkbox & signature'
+        },
+        {
+          id: 'packing_detailed_qc',
+          name: '📋 Detailed QC Audit Slip',
+          type: 'packing',
+          createdAt: 2,
+          paperWidth: '58mm',
+          isBuiltIn: true,
+          sections: defaultReceiptSections.map(s => {
+            const copy = { ...s };
+            if (s.id === 'title') copy.customText = 'PARCEL AUDIT & PACKING SLIP';
+            if (s.id === 'paymentDetails') copy.visible = true;
+            return copy;
+          }),
+          description: 'Comprehensive packing slip with payment details and full QC verification'
+        },
+        {
+          id: 'packing_compact',
+          name: '⚡ Compact Fast-Pack Slip',
+          type: 'packing',
+          createdAt: 3,
+          paperWidth: '58mm',
+          isBuiltIn: true,
+          sections: defaultReceiptSections.map(s => {
+            const copy = { ...s };
+            if (s.id === 'sessionDate' || s.id === 'title' || s.id === 'paymentDetails') copy.visible = false;
+            return copy;
+          }),
+          description: 'Minimal fast-pack slip highlighting buyer handle and item checklist'
+        },
+        {
+          id: 'packing_payment_focus',
+          name: '💳 Packing Slip with Balance Info',
+          type: 'packing',
+          createdAt: 4,
+          paperWidth: '58mm',
+          isBuiltIn: true,
+          sections: defaultReceiptSections.map(s => {
+            const copy = { ...s };
+            if (s.id === 'paymentDetails') copy.visible = true;
+            return copy;
+          }),
+          description: 'Packing slip including customer payment accounts & balance breakdown'
+        },
+        // Invoice Receipt Templates
+        {
+          id: 'invoice_official',
+          name: '🧾 Official Tax / Sale Receipt (Default)',
+          type: 'invoice',
+          createdAt: 5,
+          paperWidth: '58mm',
+          isBuiltIn: true,
+          sections: JSON.parse(JSON.stringify(defaultInvoiceSections)),
+          description: 'Official customer invoice with item breakdown, payments, GCash details & footer'
+        },
+        {
+          id: 'invoice_minimal',
+          name: '🏷️ Minimalist Customer Receipt',
+          type: 'invoice',
+          createdAt: 6,
+          paperWidth: '58mm',
+          isBuiltIn: true,
+          sections: defaultInvoiceSections.map(s => {
+            const copy = { ...s };
+            if (s.id === 'sessionDate' || s.id === 'qcCheckbox' || s.id === 'title') copy.visible = false;
+            return copy;
+          }),
+          description: 'Compact receipt for quick in-person or pickup sales'
+        },
+        {
+          id: 'invoice_detailed',
+          name: '📊 Detailed Itemized Invoice',
+          type: 'invoice',
+          createdAt: 7,
+          paperWidth: '58mm',
+          isBuiltIn: true,
+          sections: defaultInvoiceSections.map(s => {
+            const copy = { ...s };
+            if (s.id === 'qcCheckbox') copy.visible = true;
+            return copy;
+          }),
+          description: 'Complete breakdown with QC verification badge and customer support note'
+        }
+      ];
+    }
+
+    function mergeCloudReceiptProfiles(cloudData: any) {
+      if (!cloudData) return;
+      let cloudProfiles: SavedReceiptProfile[] = [];
+      let cloudActivePackingId: string | undefined;
+      let cloudActiveInvoiceId: string | undefined;
+      let cloudPackingSections: VisualReceiptSection[] | undefined;
+      let cloudInvoiceSections: VisualReceiptSection[] | undefined;
+
+      if (Array.isArray(cloudData)) {
+        cloudProfiles = cloudData;
+      } else if (typeof cloudData === 'object') {
+        if (Array.isArray(cloudData.profiles)) {
+          cloudProfiles = cloudData.profiles;
+        }
+        if (cloudData.activePackingProfileId) cloudActivePackingId = cloudData.activePackingProfileId;
+        if (cloudData.activeInvoiceProfileId) cloudActiveInvoiceId = cloudData.activeInvoiceProfileId;
+        if (cloudData.packingSections) cloudPackingSections = cloudData.packingSections;
+        if (cloudData.invoiceSections) cloudInvoiceSections = cloudData.invoiceSections;
+      }
+
+      const builtIns = getBuiltInReceiptProfiles();
+      const currentCustom = savedReceiptProfiles.value.filter(p => !p.isBuiltIn);
+      const profileMap = new Map<string, SavedReceiptProfile>();
+
+      for (const p of currentCustom) {
+        profileMap.set(p.id, p);
+      }
+      for (const cp of cloudProfiles) {
+        if (!cp || !cp.id) continue;
+        profileMap.set(cp.id, cp);
+      }
+
+      const mergedCustom = Array.from(profileMap.values());
+      savedReceiptProfiles.value = [...builtIns, ...mergedCustom];
+      localStorage.setItem('pos_saved_receipt_profiles_v1', JSON.stringify(mergedCustom));
+
+      if (cloudActivePackingId) {
+        activePackingProfileId.value = cloudActivePackingId;
+        settings.value.activePackingProfileId = cloudActivePackingId;
+        localStorage.setItem('pos_active_packing_profile_id', cloudActivePackingId);
+        const matched = savedReceiptProfiles.value.find(p => p.id === cloudActivePackingId);
+        if (matched && matched.sections) {
+          if (!settings.value.receiptLayout) settings.value.receiptLayout = { ...defaultReceiptLayout };
+          settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(matched.sections));
+        }
+      } else if (cloudPackingSections && Array.isArray(cloudPackingSections) && cloudPackingSections.length > 0) {
+        if (!settings.value.receiptLayout) settings.value.receiptLayout = { ...defaultReceiptLayout };
+        settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(cloudPackingSections));
+      }
+
+      if (cloudActiveInvoiceId) {
+        activeInvoiceProfileId.value = cloudActiveInvoiceId;
+        settings.value.activeInvoiceProfileId = cloudActiveInvoiceId;
+        localStorage.setItem('pos_active_invoice_profile_id', cloudActiveInvoiceId);
+        const matched = savedReceiptProfiles.value.find(p => p.id === cloudActiveInvoiceId);
+        if (matched && matched.sections) {
+          if (!settings.value.invoiceLayout) settings.value.invoiceLayout = { ...defaultInvoiceLayout };
+          settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(matched.sections));
+        }
+      } else if (cloudInvoiceSections && Array.isArray(cloudInvoiceSections) && cloudInvoiceSections.length > 0) {
+        if (!settings.value.invoiceLayout) settings.value.invoiceLayout = { ...defaultInvoiceLayout };
+        settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(cloudInvoiceSections));
+      }
+
+      safeSetItem('live_pos_settings', settings.value);
+    }
+
+    function initSavedReceiptProfiles() {
+      try {
+        const raw = localStorage.getItem('pos_saved_receipt_profiles_v1');
+        const builtIns = getBuiltInReceiptProfiles();
+        if (raw) {
+          const userProfiles: SavedReceiptProfile[] = JSON.parse(raw);
+          const merged = [...builtIns];
+          for (const up of userProfiles) {
+            if (!merged.some(m => m.id === up.id)) {
+              merged.push(up);
+            }
+          }
+          savedReceiptProfiles.value = merged;
+        } else {
+          savedReceiptProfiles.value = builtIns;
+        }
+      } catch (err) {
+        console.warn('Failed to load receipt profiles from localStorage:', err);
+        savedReceiptProfiles.value = getBuiltInReceiptProfiles();
+      }
+
+      const savedActivePacking = settings.value.activePackingProfileId || localStorage.getItem('pos_active_packing_profile_id');
+      if (savedActivePacking) {
+        activePackingProfileId.value = savedActivePacking;
+        const matched = savedReceiptProfiles.value.find(p => p.id === savedActivePacking);
+        if (matched && (!settings.value.receiptLayout?.customSections || settings.value.receiptLayout.customSections.length === 0)) {
+          if (!settings.value.receiptLayout) settings.value.receiptLayout = { ...defaultReceiptLayout };
+          settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(matched.sections));
+        }
+      }
+
+      const savedActiveInvoice = settings.value.activeInvoiceProfileId || localStorage.getItem('pos_active_invoice_profile_id');
+      if (savedActiveInvoice) {
+        activeInvoiceProfileId.value = savedActiveInvoice;
+        const matched = savedReceiptProfiles.value.find(p => p.id === savedActiveInvoice);
+        if (matched && (!settings.value.invoiceLayout?.customSections || settings.value.invoiceLayout.customSections.length === 0)) {
+          if (!settings.value.invoiceLayout) settings.value.invoiceLayout = { ...defaultInvoiceLayout };
+          settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(matched.sections));
+        }
+      }
+
+      // Automatically fetch and merge custom PT-210 profiles from Supabase database
+      fetchReceiptProfilesFromSupabase().then(cloudJson => {
+        if (cloudJson) {
+          try {
+            const parsed = JSON.parse(cloudJson);
+            mergeCloudReceiptProfiles(parsed);
+          } catch (e) {
+            console.warn('Failed parsing cloud receipt profiles:', e);
+          }
+        }
+      }).catch(err => {
+        console.warn('Supabase receipt profile initial fetch notice:', err);
+      });
+    }
+
+    function persistUserReceiptProfiles() {
+      const customOnly = savedReceiptProfiles.value.filter(p => !p.isBuiltIn);
+      const payload = {
+        profiles: customOnly,
+        activePackingProfileId: activePackingProfileId.value,
+        activeInvoiceProfileId: activeInvoiceProfileId.value,
+        packingSections: settings.value.receiptLayout?.customSections || defaultReceiptSections,
+        invoiceSections: settings.value.invoiceLayout?.customSections || defaultInvoiceSections,
+        timestamp: Date.now()
+      };
+      const jsonStr = JSON.stringify(customOnly);
+      const payloadJson = JSON.stringify(payload);
+      localStorage.setItem('pos_saved_receipt_profiles_v1', jsonStr);
+      localStorage.setItem('pos_active_packing_profile_id', activePackingProfileId.value);
+      localStorage.setItem('pos_active_invoice_profile_id', activeInvoiceProfileId.value);
+      if (settings.value) {
+        settings.value.activePackingProfileId = activePackingProfileId.value;
+        settings.value.activeInvoiceProfileId = activeInvoiceProfileId.value;
+        safeSetItem('live_pos_settings', settings.value);
+      }
+      // Persist to Supabase database so profiles and active selection are permanently saved in cloud
+      syncReceiptProfilesToSupabase(payloadJson).catch(err => {
+        console.warn('Supabase receipt profile sync notice:', err);
+      });
+      syncAppSettingsToSupabase(JSON.stringify(settings.value)).catch(err => {
+        console.warn('Supabase settings sync notice:', err);
+      });
+    }
+
+    function loadReceiptProfile(profileId: string) {
+      const profile = savedReceiptProfiles.value.find(p => p.id === profileId);
+      if (!profile) return;
+      const isPacking = profile.type === 'packing';
+      if (isPacking) {
+        activePackingProfileId.value = profile.id;
+        if (!settings.value.receiptLayout) settings.value.receiptLayout = { ...defaultReceiptLayout };
+        settings.value.activePackingProfileId = profile.id;
+        settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(profile.sections));
+        if (profile.paperWidth) settings.value.receiptLayout.paperWidth = profile.paperWidth;
+        localStorage.setItem('pos_active_packing_profile_id', profile.id);
+      } else {
+        activeInvoiceProfileId.value = profile.id;
+        if (!settings.value.invoiceLayout) settings.value.invoiceLayout = { ...defaultInvoiceLayout };
+        settings.value.activeInvoiceProfileId = profile.id;
+        settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(profile.sections));
+        if (profile.paperWidth) settings.value.invoiceLayout.paperWidth = profile.paperWidth;
+        localStorage.setItem('pos_active_invoice_profile_id', profile.id);
+      }
+      saveSettings(true);
+      persistUserReceiptProfiles();
+      showToast(`Loaded PT-210 ${isPacking ? 'Packing Slip' : 'Invoice'} template: "${profile.name}" (synced across devices)`);
+    }
+
+    function openSaveReceiptProfileModal() {
+      const isPacking = designerReceiptSubMode.value === 'packing';
+      const count = savedReceiptProfiles.value.filter(p => !p.isBuiltIn && p.type === designerReceiptSubMode.value).length + 1;
+      newReceiptProfileName.value = `My ${isPacking ? 'Packing Slip' : 'Invoice'} Template ${count}`;
+      showSaveReceiptProfileModal.value = true;
+    }
+
+    function confirmSaveCurrentReceiptProfile() {
+      const name = newReceiptProfileName.value.trim();
+      if (!name) {
+        showToast('Please enter a template name');
+        return;
+      }
+      const isPacking = designerReceiptSubMode.value === 'packing';
+      const sections = JSON.parse(JSON.stringify(receiptSectionsList.value));
+      const newProfile: SavedReceiptProfile = {
+        id: 'rcpt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        name: name,
+        type: isPacking ? 'packing' : 'invoice',
+        createdAt: Date.now(),
+        paperWidth: (isPacking ? settings.value.receiptLayout?.paperWidth : settings.value.invoiceLayout?.paperWidth) || '58mm',
+        isBuiltIn: false,
+        sections: sections,
+        description: `Custom ${isPacking ? 'packing slip' : 'invoice'} layout with ${sections.filter((s: any) => s.visible).length} sections`
+      };
+      savedReceiptProfiles.value.push(newProfile);
+      if (isPacking) {
+        activePackingProfileId.value = newProfile.id;
+        settings.value.activePackingProfileId = newProfile.id;
+        localStorage.setItem('pos_active_packing_profile_id', newProfile.id);
+      } else {
+        activeInvoiceProfileId.value = newProfile.id;
+        settings.value.activeInvoiceProfileId = newProfile.id;
+        localStorage.setItem('pos_active_invoice_profile_id', newProfile.id);
+      }
+      saveSettings(false);
+      persistUserReceiptProfiles();
+      showSaveReceiptProfileModal.value = false;
+      showToast(`Template "${name}" saved & synced to all devices!`);
+    }
+
+    function deleteUserReceiptProfile(profileId: string) {
+      const prof = savedReceiptProfiles.value.find(p => p.id === profileId);
+      if (!prof || prof.isBuiltIn) return;
+      const isPacking = prof.type === 'packing';
+      savedReceiptProfiles.value = savedReceiptProfiles.value.filter(p => p.id !== profileId);
+      if (isPacking && activePackingProfileId.value === profileId) {
+        activePackingProfileId.value = 'packing_standard';
+        settings.value.activePackingProfileId = 'packing_standard';
+        localStorage.setItem('pos_active_packing_profile_id', 'packing_standard');
+        if (settings.value.receiptLayout) {
+          settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
+        }
+      } else if (!isPacking && activeInvoiceProfileId.value === profileId) {
+        activeInvoiceProfileId.value = 'invoice_official';
+        settings.value.activeInvoiceProfileId = 'invoice_official';
+        localStorage.setItem('pos_active_invoice_profile_id', 'invoice_official');
+        if (settings.value.invoiceLayout) {
+          settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(defaultInvoiceSections));
+        }
+      }
+      saveSettings(false);
+      persistUserReceiptProfiles();
+      showToast(`Template "${prof.name}" deleted from database & device.`);
+    }
+
+    function downloadReceiptCoordinates() {
+      const isPacking = designerReceiptSubMode.value === 'packing';
+      const sections = receiptSectionsList.value;
+      const activeId = currentActiveReceiptProfileId.value;
+      const activeProf = savedReceiptProfiles.value.find(p => p.id === activeId);
+      const title = activeProf ? activeProf.name : (isPacking ? 'Packing Slip Template' : 'Invoice Template');
+
+      const exportData = {
+        appName: 'LiveSeller POS',
+        fileType: 'pt210_receipt_template',
+        version: 1,
+        type: isPacking ? 'packing' : 'invoice',
+        templateName: title,
+        paperWidth: isPacking ? settings.value.receiptLayout?.paperWidth : settings.value.invoiceLayout?.paperWidth,
+        exportedAt: new Date().toISOString(),
+        sections: sections
+      };
+
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeName = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'pt210_template';
+      a.href = url;
+      a.download = `${safeName}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`Downloaded template for "${title}"!`);
+    }
+
+    function copyReceiptCoordinatesJson() {
+      const isPacking = designerReceiptSubMode.value === 'packing';
+      const sections = receiptSectionsList.value;
+      const exportData = {
+        appName: 'LiveSeller POS',
+        fileType: 'pt210_receipt_template',
+        version: 1,
+        type: isPacking ? 'packing' : 'invoice',
+        templateName: isPacking ? 'Packing Slip Template' : 'Invoice Template',
+        paperWidth: isPacking ? settings.value.receiptLayout?.paperWidth : settings.value.invoiceLayout?.paperWidth,
+        sections: sections
+      };
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      navigator.clipboard.writeText(jsonStr).then(() => {
+        showToast('Template JSON copied to clipboard!');
+      }).catch(() => {
+        showToast('Failed to copy. Please use Download button.');
+      });
+    }
+
+    function handleReceiptProfileFileImport(file: File) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const text = e.target?.result as string;
+          loadReceiptCoordinatesFromJsonString(text, file.name.replace(/\.json$/i, ''));
+        } catch (err: any) {
+          showToast(`Invalid template file: ${err.message || err}`);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function onReceiptProfileFileInputChange(event: Event) {
+      const target = event.target as HTMLInputElement;
+      const file = target?.files?.[0];
+      if (file) {
+        handleReceiptProfileFileImport(file);
+        target.value = '';
+      }
+    }
+
+    function onReceiptProfileFileDrop(event: DragEvent) {
+      const file = event.dataTransfer?.files?.[0];
+      if (file) {
+        handleReceiptProfileFileImport(file);
+      }
+    }
+
+    function loadReceiptCoordinatesFromJsonString(jsonStr: string, defaultName = 'Imported Template') {
+      const parsed = JSON.parse(jsonStr);
+      let sections: VisualReceiptSection[] | null = null;
+      let templateType: 'packing' | 'invoice' = designerReceiptSubMode.value;
+      let importedName = defaultName;
+      let paperWidth: '58mm' | '80mm' = '58mm';
+
+      if (Array.isArray(parsed)) {
+        sections = parsed;
+      } else if (parsed && Array.isArray(parsed.sections)) {
+        sections = parsed.sections;
+        if (parsed.type === 'packing' || parsed.type === 'invoice') templateType = parsed.type;
+        if (parsed.templateName) importedName = parsed.templateName;
+        if (parsed.paperWidth) paperWidth = parsed.paperWidth;
+      } else if (parsed && Array.isArray(parsed.customSections)) {
+        sections = parsed.customSections;
+        if (parsed.type === 'packing' || parsed.type === 'invoice') templateType = parsed.type;
+        if (parsed.templateName) importedName = parsed.templateName;
+        if (parsed.paperWidth) paperWidth = parsed.paperWidth;
+      }
+
+      if (!sections || sections.length === 0) {
+        throw new Error('No valid receipt sections found in JSON.');
+      }
+
+      const defaultSecs = templateType === 'packing' ? defaultReceiptSections : defaultInvoiceSections;
+      const mergedSections = defaultSecs.map(def => {
+        const found = sections!.find(s => s.id === def.id);
+        if (found) {
+          return {
+            ...def,
+            ...found,
+            visible: typeof found.visible === 'boolean' ? found.visible : def.visible,
+            fontSize: found.fontSize || def.fontSize,
+            fontWeight: found.fontWeight || def.fontWeight,
+            align: found.align || def.align,
+            showDividerBelow: typeof found.showDividerBelow === 'boolean' ? found.showDividerBelow : def.showDividerBelow,
+            customText: found.customText !== undefined ? found.customText : def.customText
+          };
+        }
+        return { ...def };
+      });
+
+      if (templateType === 'packing') {
+        if (!settings.value.receiptLayout) settings.value.receiptLayout = { ...defaultReceiptLayout };
+        settings.value.receiptLayout.customSections = mergedSections;
+        settings.value.receiptLayout.paperWidth = paperWidth;
+      } else {
+        if (!settings.value.invoiceLayout) settings.value.invoiceLayout = { ...defaultInvoiceLayout };
+        settings.value.invoiceLayout.customSections = mergedSections;
+        settings.value.invoiceLayout.paperWidth = paperWidth;
+      }
+
+      const newProf: SavedReceiptProfile = {
+        id: 'rcpt_' + Date.now(),
+        name: importedName,
+        type: templateType,
+        createdAt: Date.now(),
+        paperWidth: paperWidth,
+        isBuiltIn: false,
+        sections: mergedSections,
+        description: `Imported ${templateType} template with ${mergedSections.filter(s => s.visible).length} active sections`
+      };
+
+      savedReceiptProfiles.value.push(newProf);
+      if (templateType === 'packing') {
+        activePackingProfileId.value = newProf.id;
+        settings.value.activePackingProfileId = newProf.id;
+      } else {
+        activeInvoiceProfileId.value = newProf.id;
+        settings.value.activeInvoiceProfileId = newProf.id;
+      }
+
+      saveSettings(true);
+      persistUserReceiptProfiles();
+      showToast(`Successfully loaded PT-210 template: "${importedName}"!`);
+    }
+
     function setElementAlign(elem: VisualLabelElement, newAlign: 'left' | 'center' | 'right') {
       if (!elem || elem.align === newAlign) return;
       const canvasW = designerCanvasWidth.value;
@@ -2892,6 +3445,7 @@ const app = createApp({
       list[target] = tmp;
       list.forEach((sec, idx) => { sec.order = idx + 1; });
       saveSettings(true);
+      persistUserReceiptProfiles();
     }
 
     function toggleReceiptSectionVisibility(secId: string) {
@@ -2899,6 +3453,7 @@ const app = createApp({
       if (sec) {
         sec.visible = !sec.visible;
         saveSettings(true);
+        persistUserReceiptProfiles();
       }
     }
 
@@ -2907,6 +3462,7 @@ const app = createApp({
       if (sec) {
         sec.showDividerBelow = !sec.showDividerBelow;
         saveSettings(true);
+        persistUserReceiptProfiles();
       }
     }
 
@@ -2914,13 +3470,19 @@ const app = createApp({
       if (designerReceiptSubMode.value === 'packing') {
         if (settings.value.receiptLayout) {
           settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
+          activePackingProfileId.value = 'packing_standard';
+          settings.value.activePackingProfileId = 'packing_standard';
           saveSettings(true);
+          persistUserReceiptProfiles();
           showToast('Packing slip layout reset to default sections');
         }
       } else {
         if (settings.value.invoiceLayout) {
           settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(defaultInvoiceSections));
+          activeInvoiceProfileId.value = 'invoice_official';
+          settings.value.activeInvoiceProfileId = 'invoice_official';
           saveSettings(true);
+          persistUserReceiptProfiles();
           showToast('Invoice layout reset to default sections');
         }
       }
@@ -7572,6 +8134,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
 
     onMounted(() => {
       initSavedLabelProfiles();
+      initSavedReceiptProfiles();
       setupAndroidBackNavigation();
       checkAndApplyDailyRollover();
       syncActiveStoreForm();
@@ -8119,6 +8682,25 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       onProfileFileInputChange,
       onProfileFileDrop,
       loadCoordinatesFromJsonString,
+      savedReceiptProfiles,
+      activePackingProfileId,
+      activeInvoiceProfileId,
+      currentActiveReceiptProfileId,
+      filteredReceiptProfiles,
+      showSaveReceiptProfileModal,
+      newReceiptProfileName,
+      showPasteReceiptCoordinatesModal,
+      pasteReceiptCoordinatesText,
+      loadReceiptProfile,
+      openSaveReceiptProfileModal,
+      confirmSaveCurrentReceiptProfile,
+      deleteUserReceiptProfile,
+      downloadReceiptCoordinates,
+      copyReceiptCoordinatesJson,
+      handleReceiptProfileFileImport,
+      onReceiptProfileFileInputChange,
+      onReceiptProfileFileDrop,
+      loadReceiptCoordinatesFromJsonString,
       setElementAlign,
       lastR2Backup,
       r2BackupHistory,

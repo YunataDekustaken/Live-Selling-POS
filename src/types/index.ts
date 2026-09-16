@@ -140,6 +140,17 @@ export interface SavedLabelProfile {
   description?: string;
 }
 
+export interface SavedReceiptProfile {
+  id: string;
+  name: string;
+  type: 'packing' | 'invoice';
+  createdAt: number;
+  paperWidth?: '58mm' | '80mm';
+  isBuiltIn?: boolean;
+  sections: VisualReceiptSection[];
+  description?: string;
+}
+
 export interface VisualReceiptSection {
   id: string; // 'storeName' | 'title' | 'sessionDate' | 'buyer' | 'status' | 'itemsTable' | 'totals' | 'qcCheckbox' | 'paymentDetails' | 'footer'
   name: string;
@@ -196,6 +207,8 @@ export interface AppSettings {
   labelPrinterName?: string;
   activePrinterType?: 'receipt_pt210' | 'label_pt265' | 'auto';
   activeLabelProfileId?: string;
+  activePackingProfileId?: string;
+  activeInvoiceProfileId?: string;
   securityPin?: string;
   requirePasscode?: boolean;
   autoR2DailyBackup?: boolean;
