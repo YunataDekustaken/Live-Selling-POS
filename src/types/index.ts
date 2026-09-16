@@ -75,6 +75,8 @@ export interface CustomerGroup {
   sessionCount: number;
   sessions: BuyerBasket[];
   isExpanded: boolean;
+  latestSessionDate?: string;
+  latestSessionSortKey?: string;
 }
 
 export interface LabelLayoutSettings {

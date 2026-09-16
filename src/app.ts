@@ -10,6 +10,7 @@ import type {
   LiveMiningForm,
   LabelLayoutSettings,
   ReceiptLayoutSettings,
+  VisualReceiptSection,
   SavedLabelProfile,
   VisualLabelElement,
   ImportBackupSnapshot
@@ -1405,10 +1406,16 @@ const app = createApp({
               }
               if (parsed.receiptLayout && typeof parsed.receiptLayout === 'object') {
                 settings.value.receiptLayout = { ...defaultReceiptLayout, ...parsed.receiptLayout };
+                if (!settings.value.receiptLayout.customSections || settings.value.receiptLayout.customSections.length === 0) {
+                  settings.value.receiptLayout.customSections = JSON.parse(JSON.stringify(defaultReceiptSections));
+                }
                 changed = true;
               }
               if (parsed.invoiceLayout && typeof parsed.invoiceLayout === 'object') {
                 settings.value.invoiceLayout = { ...defaultInvoiceLayout, ...parsed.invoiceLayout };
+                if (!settings.value.invoiceLayout.customSections || settings.value.invoiceLayout.customSections.length === 0) {
+                  settings.value.invoiceLayout.customSections = JSON.parse(JSON.stringify(defaultInvoiceSections));
+                }
                 changed = true;
               }
               if (parsed.labelPrinterName && parsed.labelPrinterName !== settings.value.labelPrinterName) {
@@ -2203,6 +2210,22 @@ const app = createApp({
         }
         return settings.value.invoiceLayout.customSections;
       }
+    });
+
+    const activePackingSlipSections = computed<VisualReceiptSection[]>(() => {
+      const layout = settings.value.receiptLayout || defaultReceiptLayout;
+      const secs = (layout.customSections && layout.customSections.length > 0)
+        ? layout.customSections
+        : defaultReceiptSections;
+      return [...secs].sort((a, b) => (a.order || 0) - (b.order || 0));
+    });
+
+    const activeInvoiceSections = computed<VisualReceiptSection[]>(() => {
+      const layout = settings.value.invoiceLayout || defaultInvoiceLayout;
+      const secs = (layout.customSections && layout.customSections.length > 0)
+        ? layout.customSections
+        : defaultInvoiceSections;
+      return [...secs].sort((a, b) => (a.order || 0) - (b.order || 0));
     });
 
     const selectedReceiptSection = computed(() => {
@@ -4056,16 +4079,258 @@ const app = createApp({
         g.totalBalance = g.totalAmount - g.totalPaid;
         g.status = g.totalBalance <= 0 ? 'Paid' : (g.totalPaid > 0 ? 'Partial' : 'Unpaid');
         g.sessionCount = g.sessions.length;
-        g.sessions.sort((a, b) => (b.sessionDate || '').localeCompare(a.sessionDate || ''));
+        // Sort sessions descending by chronological date so the newest session is always index 0
+        g.sessions.sort((a, b) => {
+          const keyA = getSessionSortKey(a);
+          const keyB = getSessionSortKey(b);
+          return keyB.localeCompare(keyA);
+        });
+        const latestSess = g.sessions[0];
+        g.latestSessionDate = getCustomerDisplayLatestDate(g);
+        g.latestSessionSortKey = latestSess ? getSessionSortKey(latestSess) : '00000000';
         g.isExpanded = isCustomerExpanded(g.handle);
         return g;
       });
 
-      return list.sort((a, b) => b.totalBalance - a.totalBalance || b.totalItemsCount - a.totalItemsCount);
+      return list.sort((a, b) => {
+        const keyA = a.latestSessionSortKey || '00000000';
+        const keyB = b.latestSessionSortKey || '00000000';
+        const dateCmp = keyB.localeCompare(keyA);
+        if (dateCmp !== 0) return dateCmp;
+        const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+        const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      });
     });
 
+    // CUSTOMER BALANCES SORTING
+    // Default sort: Customer with latest session date first, then alphabetical order (A to Z)
+    const customerBalancesSortKey = ref<string>(
+      (safeGetItem('live_pos_customer_sort_' + activeProfileId.value) as string) || 'latest_session_alpha'
+    );
+
+    watch(customerBalancesSortKey, (newVal) => {
+      if (newVal) {
+        safeSetItem('live_pos_customer_sort_' + activeProfileId.value, newVal);
+      }
+    });
+
+    function normalizeSessionDateForSorting(d?: string): string {
+      return parseDateStringToYYYYMMDD(d);
+    }
+
+    function parseDateStringToYYYYMMDD(d?: string): string {
+      if (!d) return '00000000';
+      const trimmed = d.trim();
+      if (!trimmed || trimmed.toLowerCase() === 'general session') return '00000001';
+
+      const lower = trimmed.toLowerCase();
+      if (lower === 'today') {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${y}${m}${day}`;
+      }
+
+      if (lower === 'yesterday') {
+        const prev = new Date();
+        prev.setDate(prev.getDate() - 1);
+        const y = prev.getFullYear();
+        const m = String(prev.getMonth() + 1).padStart(2, '0');
+        const day = String(prev.getDate()).padStart(2, '0');
+        return `${y}${m}${day}`;
+      }
+
+      const MONTH_MAP: Record<string, string> = {
+        jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+        jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+      };
+
+      // Month name first: e.g. "September 15, 2026", "Sep 15 2026", "September 15"
+      const mdyMatch = trimmed.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s+(\d{4}))?/i);
+      if (mdyMatch) {
+        const month = MONTH_MAP[mdyMatch[1].toLowerCase().slice(0, 3)] || '01';
+        const day = mdyMatch[2].padStart(2, '0');
+        const year = mdyMatch[3] || String(new Date().getFullYear());
+        return `${year}${month}${day}`;
+      }
+
+      // Day first then Month name: e.g. "15 September 2026", "15 Sep 2026"
+      const dmyMatch = trimmed.match(/(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?(?:,?\s+(\d{4}))?/i);
+      if (dmyMatch) {
+        const day = dmyMatch[1].padStart(2, '0');
+        const month = MONTH_MAP[dmyMatch[2].toLowerCase().slice(0, 3)] || '01';
+        const year = dmyMatch[3] || String(new Date().getFullYear());
+        return `${year}${month}${day}`;
+      }
+
+      // ISO YYYY-MM-DD or YYYY/MM/DD
+      const isoMatch = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+      if (isoMatch) {
+        const year = isoMatch[1];
+        const month = isoMatch[2].padStart(2, '0');
+        const day = isoMatch[3].padStart(2, '0');
+        return `${year}${month}${day}`;
+      }
+
+      // US format MM/DD/YYYY or MM-DD-YYYY
+      const usMatch = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+      if (usMatch) {
+        const month = usMatch[1].padStart(2, '0');
+        const day = usMatch[2].padStart(2, '0');
+        const year = usMatch[3];
+        return `${year}${month}${day}`;
+      }
+
+      // Exact 4-digit MMDD (e.g. "0915", "0912")
+      const mmddMatch = trimmed.match(/^([01]\d)([0-3]\d)$/);
+      if (mmddMatch) {
+        const m = parseInt(mmddMatch[1], 10);
+        const day = parseInt(mmddMatch[2], 10);
+        if (m >= 1 && m <= 12 && day >= 1 && day <= 31) {
+          const year = String(new Date().getFullYear());
+          return `${year}${mmddMatch[1]}${mmddMatch[2]}`;
+        }
+      }
+
+      // Prefixed control/session code containing 4-digit MMDD (e.g. "L0915-001", "#0915-001", "INV-0915")
+      const codeMatch = trimmed.match(/[a-zA-Z#_-]?([01]\d)([0-3]\d)(?:-\d+)?/);
+      if (codeMatch) {
+        const m = parseInt(codeMatch[1], 10);
+        const day = parseInt(codeMatch[2], 10);
+        if (m >= 1 && m <= 12 && day >= 1 && day <= 31) {
+          const year = String(new Date().getFullYear());
+          return `${year}${codeMatch[1]}${codeMatch[2]}`;
+        }
+      }
+
+      // Standard Date.parse fallback
+      const parsed = Date.parse(trimmed);
+      if (!isNaN(parsed)) {
+        const dt = new Date(parsed);
+        const year = dt.getFullYear();
+        if (year >= 2020 && year <= 2050) {
+          const month = String(dt.getMonth() + 1).padStart(2, '0');
+          const day = String(dt.getDate()).padStart(2, '0');
+          return `${year}${month}${day}`;
+        }
+      }
+
+      return '00000001';
+    }
+
+    function getSessionSortKey(s: BuyerBasket): string {
+      // 1. Try sessionDate
+      if (s.sessionDate) {
+        const k = parseDateStringToYYYYMMDD(s.sessionDate);
+        if (k && k !== '00000000' && k !== '00000001') return k;
+      }
+
+      // 2. Try items
+      if (s.items && s.items.length > 0) {
+        let bestKey = '';
+        for (const m of s.items) {
+          if (m.date) {
+            const k = parseDateStringToYYYYMMDD(m.date);
+            if (k && k > bestKey && k !== '00000001') bestKey = k;
+          }
+          if (m.controlCode) {
+            const k = parseDateStringToYYYYMMDD(m.controlCode);
+            if (k && k > bestKey && k !== '00000001') bestKey = k;
+          }
+          if (m.timestamp && m.timestamp > 0) {
+            const dt = new Date(m.timestamp);
+            const y = dt.getFullYear();
+            if (y >= 2020 && y <= 2050) {
+              const k = `${y}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`;
+              if (k > bestKey) bestKey = k;
+            }
+          }
+        }
+        if (bestKey) return bestKey;
+      }
+
+      // 3. Try payments
+      if (s.payments && s.payments.length > 0) {
+        let bestKey = '';
+        for (const p of s.payments) {
+          if (p.date) {
+            const k = parseDateStringToYYYYMMDD(p.date);
+            if (k && k > bestKey && k !== '00000001') bestKey = k;
+          }
+          if (p.timestamp && p.timestamp > 0) {
+            const dt = new Date(p.timestamp);
+            const y = dt.getFullYear();
+            if (y >= 2020 && y <= 2050) {
+              const k = `${y}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`;
+              if (k > bestKey) bestKey = k;
+            }
+          }
+        }
+        if (bestKey) return bestKey;
+      }
+
+      return '00000000';
+    }
+
+    function getCustomerDisplayLatestDate(group: CustomerGroup): string {
+      if (!group.sessions || group.sessions.length === 0) return '';
+      // Sessions are already sorted newest first
+      for (const s of group.sessions) {
+        const rawDate = (s.sessionDate || '').trim();
+        if (rawDate && rawDate.toLowerCase() !== 'general session') {
+          return rawDate;
+        }
+        if (s.items && s.items.length > 0) {
+          for (const m of s.items) {
+            if (m.date && m.date.trim() && m.date.toLowerCase() !== 'general session') {
+              return m.date.trim();
+            }
+          }
+        }
+      }
+      return group.sessions[0]?.sessionDate || 'General Session';
+    }
+
+    function getCustomerLatestSessionDate(group: CustomerGroup): string {
+      return getCustomerDisplayLatestDate(group);
+    }
+
+    function setCustomerBalancesSort(key: string) {
+      customerBalancesSortKey.value = key;
+    }
+
+    function toggleCustomerBalancesSort(column: 'customer' | 'session' | 'amount' | 'balance') {
+      if (column === 'session') {
+        if (customerBalancesSortKey.value === 'latest_session_alpha') {
+          setCustomerBalancesSort('oldest_session_alpha');
+        } else {
+          setCustomerBalancesSort('latest_session_alpha');
+        }
+      } else if (column === 'customer') {
+        if (customerBalancesSortKey.value === 'name_asc') {
+          setCustomerBalancesSort('name_desc');
+        } else {
+          setCustomerBalancesSort('name_asc');
+        }
+      } else if (column === 'amount') {
+        if (customerBalancesSortKey.value === 'amount_desc') {
+          setCustomerBalancesSort('amount_asc');
+        } else {
+          setCustomerBalancesSort('amount_desc');
+        }
+      } else if (column === 'balance') {
+        if (customerBalancesSortKey.value === 'balance_desc') {
+          setCustomerBalancesSort('balance_asc');
+        } else {
+          setCustomerBalancesSort('balance_desc');
+        }
+      }
+    }
+
     const filteredGroupedCustomers = computed<CustomerGroup[]>(() => {
-      let list = groupedCustomersList.value;
+      let list = [...groupedCustomersList.value];
 
       const q = buyerSearchQuery.value.trim().toLowerCase();
       if (q) {
@@ -4092,7 +4357,93 @@ const app = createApp({
         list = list.filter(g => g.sessions.every(s => isBuyerAllStage2Packed(s)));
       }
 
-      return list;
+      const key = customerBalancesSortKey.value;
+      const sorted = [...list];
+
+      if (key === 'latest_session_alpha') {
+        return sorted.sort((a, b) => {
+          const keyA = a.latestSessionSortKey || normalizeSessionDateForSorting(a.latestSessionDate);
+          const keyB = b.latestSessionSortKey || normalizeSessionDateForSorting(b.latestSessionDate);
+          const dateCmp = keyB.localeCompare(keyA);
+          if (dateCmp !== 0) return dateCmp;
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+      } else if (key === 'oldest_session_alpha') {
+        return sorted.sort((a, b) => {
+          const keyA = a.latestSessionSortKey || normalizeSessionDateForSorting(a.latestSessionDate);
+          const keyB = b.latestSessionSortKey || normalizeSessionDateForSorting(b.latestSessionDate);
+          const dateCmp = keyA.localeCompare(keyB);
+          if (dateCmp !== 0) return dateCmp;
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+      } else if (key === 'name_asc') {
+        return sorted.sort((a, b) => {
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+      } else if (key === 'name_desc') {
+        return sorted.sort((a, b) => {
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameB.localeCompare(nameA, undefined, { sensitivity: 'base' });
+        });
+      } else if (key === 'balance_desc') {
+        return sorted.sort((a, b) => {
+          const balCmp = b.totalBalance - a.totalBalance;
+          if (balCmp !== 0) return balCmp;
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+      } else if (key === 'balance_asc') {
+        return sorted.sort((a, b) => {
+          const balCmp = a.totalBalance - b.totalBalance;
+          if (balCmp !== 0) return balCmp;
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+      } else if (key === 'amount_desc') {
+        return sorted.sort((a, b) => {
+          const amtCmp = b.totalAmount - a.totalAmount;
+          if (amtCmp !== 0) return amtCmp;
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+      } else if (key === 'amount_asc') {
+        return sorted.sort((a, b) => {
+          const amtCmp = a.totalAmount - b.totalAmount;
+          if (amtCmp !== 0) return amtCmp;
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+      } else if (key === 'items_desc') {
+        return sorted.sort((a, b) => {
+          const itmCmp = b.totalItemsCount - a.totalItemsCount;
+          if (itmCmp !== 0) return itmCmp;
+          const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+          const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+          return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+        });
+      }
+
+      // Default fallback
+      return sorted.sort((a, b) => {
+        const keyA = a.latestSessionSortKey || normalizeSessionDateForSorting(a.latestSessionDate);
+        const keyB = b.latestSessionSortKey || normalizeSessionDateForSorting(b.latestSessionDate);
+        const dateCmp = keyB.localeCompare(keyA);
+        if (dateCmp !== 0) return dateCmp;
+        const nameA = (a.displayName || a.handle.replace(/^@+/, '')).trim().toLowerCase();
+        const nameB = (b.displayName || b.handle.replace(/^@+/, '')).trim().toLowerCase();
+        return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
+      });
     });
 
     const filteredBuyerBaskets = computed(() => {
@@ -4727,6 +5078,9 @@ const app = createApp({
           settings.value.storeName = activeProfile.value.name;
           settings.value.paymentDetails = activeProfile.value.paymentDetails;
         }
+
+        const storedSort = safeGetItem('live_pos_customer_sort_' + profId);
+        customerBalancesSortKey.value = (storedSort as string) || 'latest_session_alpha';
       } catch (e) {
         console.error('Error loading profile data:', e);
       }
@@ -7485,6 +7839,10 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       filteredBuyerBaskets,
       groupedCustomersList,
       filteredGroupedCustomers,
+      customerBalancesSortKey,
+      setCustomerBalancesSort,
+      toggleCustomerBalancesSort,
+      getCustomerLatestSessionDate,
       isCustomerExpanded,
       toggleCustomerExpand,
       showSettledSessionsMap,
@@ -7635,6 +7993,8 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       labelElementsList,
       selectedLabelElement,
       receiptSectionsList,
+      activePackingSlipSections,
+      activeInvoiceSections,
       selectedReceiptSection,
       selectDesignerElement,
       onElementPointerDown,

@@ -37,7 +37,7 @@
     line-height: 1.1;
   }
 
-  /* Consolidated Packing Slip (PT-210 58mm Roll) */
+  /* Consolidated Packing Slip (PT-210 58mm / 80mm Roll) */
   .print-packing-slip {
     display: block !important;
     position: absolute;
@@ -54,7 +54,12 @@
     print-color-adjust: exact;
   }
 
-  /* Consolidated Customer Invoice (PT-210 58mm Roll) */
+  .print-packing-slip.paper-80mm {
+    width: 80mm !important;
+    padding: 3mm 3mm !important;
+  }
+
+  /* Consolidated Customer Invoice (PT-210 58mm / 80mm Roll) */
   .print-invoice {
     display: block !important;
     position: absolute;
@@ -69,6 +74,28 @@
     page-break-inside: avoid !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+
+  .print-invoice.paper-80mm {
+    width: 80mm !important;
+    padding: 3mm 3mm !important;
+  }
+
+  .print-section {
+    page-break-inside: avoid !important;
+    box-sizing: border-box !important;
+  }
+
+  .print-divider {
+    border-bottom: 1px dashed #000000 !important;
+    margin: 1.5mm 0 !important;
+    width: 100% !important;
+  }
+
+  .print-divider-solid {
+    border-bottom: 1.5px solid #000000 !important;
+    margin: 1.5mm 0 !important;
+    width: 100% !important;
   }
 }
 
