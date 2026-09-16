@@ -6683,11 +6683,13 @@ const app = createApp({
       }
     }
 
-    function copyInvoiceLink(buyer: BuyerBasket) {
+    function copyInvoiceLink(buyer: BuyerBasket, selectedDates?: string[]) {
       if (!buyer) return;
       const cleanName = (buyer.displayName || buyer.handle || 'customer').replace(/^@+/, '').trim();
       const itemCount = (buyer.items && buyer.items.length) ? buyer.items.length : 1;
-      const sessionCode = sessionDate.value || '0911';
+      const sessionCode = (selectedDates && selectedDates.length > 0)
+        ? selectedDates.join('-')
+        : (buyer.sessionDate || sessionDate.value || '0911');
       const invoiceSlug = `INV-${sessionCode}-${cleanName.toUpperCase().replace(/\s+/g, '_')}`;
       const profileId = activeProfileId.value || 'prof_main';
       
@@ -6696,12 +6698,172 @@ const app = createApp({
         : window.location.href.split('#')[0].split('?')[0];
 
       const pathname = window.location.pathname || '/';
+      const sessionsParam = (selectedDates && selectedDates.length > 0)
+        ? `&sessions=${encodeURIComponent(selectedDates.join(','))}`
+        : '';
       // Include both query params AND hash for 100% compatibility across TikTok chat, Instagram, Safari, and Chrome
-      const checkoutUrl = `${origin}${pathname}?buyer=${encodeURIComponent(cleanName)}&profile=${encodeURIComponent(profileId)}#/order/${invoiceSlug}`;
+      const checkoutUrl = `${origin}${pathname}?buyer=${encodeURIComponent(cleanName)}&profile=${encodeURIComponent(profileId)}${sessionsParam}#/order/${invoiceSlug}`;
 
-      const message = `Hi ${cleanName}! Thank you for mining with us tonight! 🎉 Here is your checkout link with all ${itemCount} item photos, total breakdown, and GCash details: ${checkoutUrl}. Please settle within 24 hours!`;
+      const sessionNotice = (selectedDates && selectedDates.length > 1)
+        ? `Sessions: #${selectedDates.join(', #')}`
+        : `Session #${sessionCode}`;
 
-      fallbackCopyText(message, `Copied checkout link message for ${cleanName}!`);
+      const message = `Hi ${cleanName}! Thank you for mining with us! 🎉 Here is your checkout link with all ${itemCount} item photos (${sessionNotice}), total breakdown, and GCash details: ${checkoutUrl}. Please settle promptly!`;
+
+      fallbackCopyText(message, `Copied checkout link message for ${cleanName} (${itemCount} items)!`);
+    }
+
+    // =========================================================================
+    // SESSION SELECTION POP-UP (FOR CUSTOMER LINK & PHOTO LIST)
+    // =========================================================================
+    const sessionSelectModalOpen = ref(false);
+    const sessionSelectAction = ref<'link' | 'photo_list'>('link');
+    const sessionSelectCustomerHandle = ref<string>('');
+    const selectedSessionIdsForAction = ref<string[]>([]);
+
+    const sessionSelectCustomerInvoices = computed<BuyerBasket[]>(() => {
+      if (!sessionSelectCustomerHandle.value) return [];
+      return getCustomerSessionInvoices(sessionSelectCustomerHandle.value);
+    });
+
+    const sessionSelectCustomerName = computed<string>(() => {
+      const invs = sessionSelectCustomerInvoices.value;
+      if (invs.length > 0) {
+        return (invs[0].displayName || invs[0].handle || sessionSelectCustomerHandle.value).replace(/^@+/, '');
+      }
+      return sessionSelectCustomerHandle.value.replace(/^@+/, '');
+    });
+
+    const sessionSelectCombinedBasket = computed<BuyerBasket>(() => {
+      const invs = sessionSelectCustomerInvoices.value;
+      const selectedInvs = invs.filter(inv => selectedSessionIdsForAction.value.includes(inv.id || ''));
+      const targetInvs = selectedInvs.length > 0 ? selectedInvs : (invs.length > 0 ? [invs[0]] : []);
+
+      const itemsMap: MinedItem[] = [];
+      const paymentsMap: PaymentRecord[] = [];
+      let totalAmount = 0;
+      let totalPaid = 0;
+      const datesSet = new Set<string>();
+
+      for (const inv of targetInvs) {
+        if (inv.sessionDate) datesSet.add(inv.sessionDate);
+        for (const it of inv.items) {
+          if (!itemsMap.some(existing => existing.id === it.id)) {
+            itemsMap.push(it);
+          }
+        }
+        for (const pay of inv.payments) {
+          if (!paymentsMap.some(existing => existing.id === pay.id)) {
+            paymentsMap.push(pay);
+          }
+        }
+        totalAmount += inv.totalAmount;
+        totalPaid += inv.totalPaid;
+      }
+
+      const balance = totalAmount - totalPaid;
+      const status = balance <= 0 ? 'Paid' : (totalPaid > 0 ? 'Partial' : 'Unpaid');
+      const sessionDateStr = Array.from(datesSet).join(', ') || sessionDate.value;
+
+      return {
+        id: invs[0]?.id || '',
+        handle: sessionSelectCustomerHandle.value,
+        displayName: sessionSelectCustomerName.value,
+        sessionDate: sessionDateStr,
+        dateIssued: sessionDateStr,
+        items: itemsMap,
+        payments: paymentsMap,
+        totalAmount,
+        totalPaid,
+        balance,
+        status
+      };
+    });
+
+    function promptSessionSelectForCustomer(buyerOrGroupOrHandle: any, action: 'link' | 'photo_list' = 'link') {
+      if (!buyerOrGroupOrHandle) return;
+      
+      let handle = '';
+      if (typeof buyerOrGroupOrHandle === 'string') {
+        handle = buyerOrGroupOrHandle;
+      } else if (buyerOrGroupOrHandle.handle) {
+        handle = buyerOrGroupOrHandle.handle;
+      } else if (buyerOrGroupOrHandle.displayName) {
+        handle = buyerOrGroupOrHandle.displayName;
+      }
+
+      if (!handle) return;
+      sessionSelectCustomerHandle.value = handle;
+      sessionSelectAction.value = action;
+
+      // Get all session invoices for this customer
+      const invs = getCustomerSessionInvoices(handle);
+      
+      // Select all sessions by default so user can quickly confirm or toggle
+      selectedSessionIdsForAction.value = invs.map(inv => inv.id || '');
+      sessionSelectModalOpen.value = true;
+    }
+
+    function closeSessionSelectModal() {
+      sessionSelectModalOpen.value = false;
+    }
+
+    function toggleSessionSelectionForAction(invoiceId: string) {
+      const idx = selectedSessionIdsForAction.value.indexOf(invoiceId);
+      if (idx > -1) {
+        selectedSessionIdsForAction.value.splice(idx, 1);
+      } else {
+        selectedSessionIdsForAction.value.push(invoiceId);
+      }
+    }
+
+    function isSessionSelectedForAction(invoiceId: string): boolean {
+      return selectedSessionIdsForAction.value.includes(invoiceId);
+    }
+
+    function selectAllSessionsForAction() {
+      selectedSessionIdsForAction.value = sessionSelectCustomerInvoices.value.map(inv => inv.id || '');
+    }
+
+    function selectUnpaidSessionsOnlyForAction() {
+      const unpaid = sessionSelectCustomerInvoices.value.filter(inv => inv.balance > 0);
+      if (unpaid.length === 0) {
+        showToast('All sessions are already settled for this customer');
+        selectAllSessionsForAction();
+        return;
+      }
+      selectedSessionIdsForAction.value = unpaid.map(inv => inv.id || '');
+    }
+
+    function selectPaidSessionsOnlyForAction() {
+      const paid = sessionSelectCustomerInvoices.value.filter(inv => inv.balance <= 0);
+      if (paid.length === 0) {
+        showToast('No paid sessions found for this customer');
+        selectAllSessionsForAction();
+        return;
+      }
+      selectedSessionIdsForAction.value = paid.map(inv => inv.id || '');
+    }
+
+    function executeSessionSelectionAction() {
+      if (selectedSessionIdsForAction.value.length === 0) {
+        showToast('Please select at least one session');
+        return;
+      }
+
+      const combined = sessionSelectCombinedBasket.value;
+      const selectedInvs = sessionSelectCustomerInvoices.value.filter(inv => 
+        selectedSessionIdsForAction.value.includes(inv.id || '')
+      );
+      const selectedDates = Array.from(new Set(selectedInvs.map(inv => inv.sessionDate).filter(Boolean)));
+
+      closeSessionSelectModal();
+
+      if (sessionSelectAction.value === 'link') {
+        copyInvoiceLink(combined, selectedDates);
+      } else if (sessionSelectAction.value === 'photo_list') {
+        generatePhotoCollage(combined);
+      }
     }
 
     async function resolveCustomerCheckoutFromUrl(forceFetch = false) {
@@ -6712,6 +6874,8 @@ const app = createApp({
       let queryBuyer = urlParams.get('buyer') || urlParams.get('b') || urlParams.get('customer') || '';
       let queryProfile = urlParams.get('profile') || urlParams.get('p') || '';
       let queryOrder = urlParams.get('order') || urlParams.get('invoice') || '';
+      const querySessions = urlParams.get('sessions') || '';
+      const allowedSessions = querySessions ? querySessions.split(',').map(s => s.trim().toLowerCase()).filter(Boolean) : [];
 
       if (!queryBuyer && !queryOrder && (hash.includes('/order/') || hash.includes('/invoice/'))) {
         const slug = hash.split('/order/')[1] || hash.split('/invoice/')[1] || '';
@@ -6732,7 +6896,7 @@ const app = createApp({
       let targetBuyerName = queryBuyer ? queryBuyer.trim().replace(/^@+/, '') : '';
       if (!targetBuyerName && queryOrder) {
         // INV-0911-MARIA_SANTOS -> MARIA_SANTOS -> Maria Santos
-        const cleaned = queryOrder.replace(/^INV-[0-9]+-?/i, '');
+        const cleaned = queryOrder.replace(/^INV-[0-9\-]+-?/i, '');
         targetBuyerName = cleaned.replace(/_/g, ' ').trim();
       }
 
@@ -6748,19 +6912,48 @@ const app = createApp({
 
       // 1. Try finding in local memory if already populated and not forceFetch
       if (!forceFetch) {
-        const found = buyerBasketsList.value.find(b => {
-          const bNormHandle = normalize(b.handle);
-          const bNormName = normalize(b.displayName);
-          return (
-            (targetNormalized && (bNormHandle.includes(targetNormalized) || targetNormalized.includes(bNormHandle))) ||
-            (targetNormalized && (bNormName.includes(targetNormalized) || targetNormalized.includes(bNormName)))
-          );
-        });
+        const matchingInvoices = getCustomerSessionInvoices(targetBuyerName);
+        if (matchingInvoices.length > 0) {
+          const filteredInvs = allowedSessions.length > 0 
+            ? matchingInvoices.filter(inv => allowedSessions.includes((inv.sessionDate || '').toLowerCase()))
+            : matchingInvoices;
+          
+          const targetInvs = filteredInvs.length > 0 ? filteredInvs : matchingInvoices;
+          const mergedItems: MinedItem[] = [];
+          const mergedPayments: PaymentRecord[] = [];
+          let totalAmt = 0;
+          let totalPaid = 0;
+          const dateList: string[] = [];
 
-        if (found && found.items && found.items.length > 0) {
-          customerCheckoutData.value = found;
-          customerCheckoutLoading.value = false;
-          return;
+          for (const inv of targetInvs) {
+            if (inv.sessionDate && !dateList.includes(inv.sessionDate)) dateList.push(inv.sessionDate);
+            for (const it of inv.items) {
+              if (!mergedItems.some(existing => existing.id === it.id)) mergedItems.push(it);
+            }
+            for (const pay of inv.payments) {
+              if (!mergedPayments.some(existing => existing.id === pay.id)) mergedPayments.push(pay);
+            }
+            totalAmt += inv.totalAmount;
+            totalPaid += inv.totalPaid;
+          }
+
+          if (mergedItems.length > 0) {
+            customerCheckoutData.value = {
+              id: targetInvs[0]?.id || '',
+              handle: targetBuyerName,
+              displayName: targetInvs[0]?.displayName || targetBuyerName,
+              sessionDate: dateList.join(', ') || sessionDate.value,
+              dateIssued: dateList.join(', ') || sessionDate.value,
+              items: mergedItems,
+              payments: mergedPayments,
+              totalAmount: totalAmt,
+              totalPaid: totalPaid,
+              balance: totalAmt - totalPaid,
+              status: (totalAmt - totalPaid) <= 0 ? 'Paid' : 'Unpaid'
+            };
+            customerCheckoutLoading.value = false;
+            return;
+          }
         }
       }
 
@@ -6786,7 +6979,8 @@ const app = createApp({
             const matchingMines: MinedItem[] = [];
             for (const rm of remoteMines) {
               const rowBuyerNorm = normalize(rm.buyer);
-              if (rowBuyerNorm && (rowBuyerNorm.includes(targetNormalized) || targetNormalized.includes(rowBuyerNorm))) {
+              const sessionMatches = allowedSessions.length === 0 || allowedSessions.includes((rm.session_date || '').toLowerCase());
+              if (sessionMatches && rowBuyerNorm && (rowBuyerNorm.includes(targetNormalized) || targetNormalized.includes(rowBuyerNorm))) {
                 const photo = cloudPhotos[rm.id] || rm.photo || '';
                 const tag = rm.tag || '';
                 const desc = (tag && tag !== rm.control_code && tag !== 'Decor') ? tag : (rm.description || '');
@@ -8769,7 +8963,22 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       verifyAllItemsForBuyer,
       resetVerificationForBuyer,
       printThermalPackingSlip,
-      markBuyerAsPackedAndPrint
+      markBuyerAsPackedAndPrint,
+      sessionSelectModalOpen,
+      sessionSelectAction,
+      sessionSelectCustomerHandle,
+      sessionSelectCustomerName,
+      selectedSessionIdsForAction,
+      sessionSelectCustomerInvoices,
+      sessionSelectCombinedBasket,
+      promptSessionSelectForCustomer,
+      closeSessionSelectModal,
+      toggleSessionSelectionForAction,
+      isSessionSelectedForAction,
+      selectAllSessionsForAction,
+      selectUnpaidSessionsOnlyForAction,
+      selectPaidSessionsOnlyForAction,
+      executeSessionSelectionAction
     };
   }
 });

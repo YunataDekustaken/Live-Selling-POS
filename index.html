@@ -1932,7 +1932,7 @@
                           <span>Pack All</span>
                         </button>
                         <button 
-                          @click="copyInvoiceLink(group.sessions[0])"
+                          @click="promptSessionSelectForCustomer(group, 'link')"
                           type="button"
                           class="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-black text-white font-bold text-[11px] transition-colors shadow-2xs cursor-pointer flex items-center gap-1">
                           <svg class="w-3 h-3 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
@@ -2151,7 +2151,7 @@
               </button>
 
               <button 
-                @click="copyInvoiceLink(group.sessions[0])"
+                @click="promptSessionSelectForCustomer(group, 'link')"
                 type="button"
                 class="h-8 rounded-lg bg-zinc-50 hover:bg-zinc-100 active:bg-zinc-200 text-zinc-800 font-bold text-xs flex items-center justify-center gap-1.5 border border-zinc-200 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
                 title="Copy checkout receipt link">
@@ -2160,7 +2160,7 @@
               </button>
 
               <button 
-                @click="generatePhotoCollage(group.sessions[0])"
+                @click="promptSessionSelectForCustomer(group, 'photo_list')"
                 type="button"
                 class="h-8 rounded-lg bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-900 font-bold text-xs flex items-center justify-center gap-1.5 border border-purple-200 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
                 title="Generate photo list of mined items">
@@ -5055,7 +5055,7 @@
           </button>
 
           <button 
-            @click="copyInvoiceLink(activeCustomerGroup.sessions[0])" 
+            @click="promptSessionSelectForCustomer(activeCustomerGroup, 'link')" 
             type="button"
             class="hidden sm:flex h-9 px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-black active:bg-zinc-800 text-white font-bold text-xs items-center gap-1 shadow-2xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
             title="Copy checkout receipt link">
@@ -7428,7 +7428,7 @@
           <div class="grid grid-cols-3 gap-2">
             <!-- 1. Copy Invoice Link -->
             <button 
-              @click="copyInvoiceLink(activeInvoiceBuyer)"
+              @click="promptSessionSelectForCustomer(activeInvoiceBuyer, 'link')"
               type="button"
               class="h-10 px-3 rounded-xl bg-zinc-900 hover:bg-black active:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-all shadow-xs cursor-pointer min-w-0"
               title="Copy checkout receipt link for customer">
@@ -7438,7 +7438,7 @@
 
             <!-- 2. Photo List -->
             <button 
-              @click="generatePhotoCollage(activeInvoiceBuyer)"
+              @click="promptSessionSelectForCustomer(activeInvoiceBuyer, 'photo_list')"
               type="button"
               class="h-10 px-3 rounded-xl bg-white hover:bg-zinc-100 active:bg-zinc-200 text-zinc-900 border border-zinc-300 font-bold text-xs flex items-center justify-center space-x-1.5 transition-all shadow-2xs cursor-pointer min-w-0"
               title="Generate clean photo list image">
@@ -7496,6 +7496,168 @@
               title="Preview customer invoice page in browser">
               <svg class="w-3.5 h-3.5 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
               <span class="truncate">Preview Page</span>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- =============================================================== -->
+    <!-- MODAL 3B: SESSION SELECTION POP-UP (FOR LINK & PHOTO LIST)      -->
+    <!-- =============================================================== -->
+    <div v-if="sessionSelectModalOpen" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn" @click.self="closeSessionSelectModal">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3.5 bg-white">
+          <div class="flex items-center space-x-2.5 min-w-0">
+            <div 
+              class="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm shrink-0"
+              :class="sessionSelectAction === 'link' ? 'bg-zinc-900 text-amber-400' : 'bg-purple-900 text-purple-200'">
+              <svg v-if="sessionSelectAction === 'link'" class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+              <svg v-else class="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+            </div>
+            <div class="min-w-0">
+              <h3 class="font-black text-sm text-zinc-900 leading-tight">
+                {{ sessionSelectAction === 'link' ? 'Select Sessions for Link' : 'Select Sessions for Photo List' }}
+              </h3>
+              <p class="text-xs text-zinc-500 font-mono truncate">
+                Customer: <span class="font-bold text-zinc-900">@{{ sessionSelectCustomerName }}</span>
+              </p>
+            </div>
+          </div>
+          <button 
+            @click="closeSessionSelectModal" 
+            class="w-8 h-8 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 flex items-center justify-center transition-colors cursor-pointer"
+            title="Close">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+
+        <!-- Filter & Info Subheader -->
+        <div class="px-4 py-2.5 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between flex-wrap gap-2 text-xs">
+          <span class="text-[11px] font-semibold text-zinc-600">
+            Choose sessions to include:
+          </span>
+          <div class="flex items-center space-x-1.5">
+            <button 
+              @click="selectAllSessionsForAction" 
+              type="button" 
+              class="px-2 py-0.5 rounded-md bg-white hover:bg-zinc-100 border border-zinc-200 text-[10px] font-bold text-zinc-700 transition-colors cursor-pointer shadow-2xs">
+              All ({{ sessionSelectCustomerInvoices.length }})
+            </button>
+            <button 
+              @click="selectUnpaidSessionsOnlyForAction" 
+              type="button" 
+              class="px-2 py-0.5 rounded-md bg-white hover:bg-amber-50 border border-amber-200 text-[10px] font-bold text-amber-900 transition-colors cursor-pointer shadow-2xs">
+              Unpaid Only
+            </button>
+            <button 
+              @click="selectPaidSessionsOnlyForAction" 
+              type="button" 
+              class="px-2 py-0.5 rounded-md bg-white hover:bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-900 transition-colors cursor-pointer shadow-2xs">
+              Paid Only
+            </button>
+          </div>
+        </div>
+
+        <!-- Scrollable Session Cards Checklist -->
+        <div class="p-3 sm:p-4 overflow-y-auto space-y-2 flex-1 max-h-[50vh]">
+          <div 
+            v-for="inv in sessionSelectCustomerInvoices" 
+            :key="inv.id"
+            @click="toggleSessionSelectionForAction(inv.id)"
+            class="p-3 rounded-xl border transition-all cursor-pointer select-none flex items-start space-x-3"
+            :class="isSessionSelectedForAction(inv.id) ? 'bg-amber-50/40 border-amber-400 ring-1 ring-amber-400/30 shadow-xs' : 'bg-white border-zinc-200 hover:border-zinc-300 opacity-70'">
+            
+            <!-- Checkbox -->
+            <div class="pt-0.5">
+              <input 
+                type="checkbox" 
+                :checked="isSessionSelectedForAction(inv.id)" 
+                @click.stop="toggleSessionSelectionForAction(inv.id)"
+                class="w-4 h-4 rounded border-zinc-300 text-zinc-900 focus:ring-zinc-900 cursor-pointer"
+              />
+            </div>
+
+            <!-- Session Details -->
+            <div class="flex-1 min-w-0 space-y-1">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center space-x-2">
+                  <span class="font-mono font-bold text-xs bg-zinc-100 text-zinc-900 px-2 py-0.5 rounded border border-zinc-200">
+                    #{{ inv.sessionDate || sessionDate }}
+                  </span>
+                  <span class="text-xs font-semibold text-zinc-700">
+                    {{ inv.items.length }} {{ inv.items.length === 1 ? 'item' : 'items' }}
+                  </span>
+                </div>
+                <span 
+                  class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border"
+                  :class="getStatusBadgeClass(inv.balance)">
+                  {{ inv.balance > 0 ? ('OWING ' + activeProfile.currency + inv.balance.toLocaleString()) : 'PAID' }}
+                </span>
+              </div>
+
+              <!-- Price & Payment Summary -->
+              <div class="flex items-center justify-between text-xs font-mono pt-0.5">
+                <span class="text-zinc-500">Mined: <strong class="text-zinc-900">{{ activeProfile.currency }}{{ inv.totalAmount.toLocaleString() }}</strong></span>
+                <span v-if="inv.totalPaid > 0" class="text-emerald-700 font-semibold">Paid: {{ activeProfile.currency }}{{ inv.totalPaid.toLocaleString() }}</span>
+              </div>
+
+              <!-- Preview tags -->
+              <div class="flex flex-wrap gap-1 pt-1">
+                <span 
+                  v-for="it in inv.items.slice(0, 4)" 
+                  :key="it.id"
+                  class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-100/80 border border-zinc-200 text-zinc-700">
+                  {{ it.controlCode || it.tag }}
+                </span>
+                <span v-if="inv.items.length > 4" class="text-[10px] font-mono px-1 py-0.5 text-zinc-400">
+                  +{{ inv.items.length - 4 }} more
+                </span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Footer with Selection Summary & Action Buttons -->
+        <div class="border-t border-zinc-200 p-3 sm:p-4 bg-zinc-50 space-y-2.5">
+          
+          <!-- Summary Info Bar -->
+          <div class="bg-white border border-zinc-200 rounded-xl p-2.5 flex items-center justify-between text-xs font-mono shadow-2xs">
+            <div class="text-zinc-600">
+              <span class="text-zinc-400">Selected:</span> 
+              <strong class="text-zinc-900 ml-1">{{ selectedSessionIdsForAction.length }} of {{ sessionSelectCustomerInvoices.length }} sessions</strong>
+              <span class="text-zinc-400 mx-1">•</span>
+              <strong class="text-zinc-900">{{ sessionSelectCombinedBasket.items.length }} items</strong>
+            </div>
+            <div class="text-right">
+              <span class="font-bold text-zinc-900" :class="getBalanceColorClass(sessionSelectCombinedBasket.balance)">
+                {{ activeProfile.currency }}{{ Math.abs(sessionSelectCombinedBasket.balance).toLocaleString() }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Main Action Buttons -->
+          <div class="grid grid-cols-2 gap-2">
+            <button 
+              @click="closeSessionSelectModal" 
+              type="button" 
+              class="h-10 px-3 rounded-xl bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-300 font-bold text-xs transition-colors cursor-pointer">
+              Cancel
+            </button>
+            <button 
+              @click="executeSessionSelectionAction" 
+              type="button" 
+              :disabled="selectedSessionIdsForAction.length === 0"
+              class="h-10 px-3 rounded-xl text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              :class="sessionSelectAction === 'link' ? 'bg-zinc-900 hover:bg-black active:bg-zinc-800' : 'bg-purple-900 hover:bg-purple-950 active:bg-purple-900'">
+              <svg v-if="sessionSelectAction === 'link'" class="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+              <svg v-else class="w-3.5 h-3.5 text-purple-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span class="truncate">{{ sessionSelectAction === 'link' ? 'Copy Link (' + sessionSelectCombinedBasket.items.length + ' pcs)' : 'Generate Photo List' }}</span>
             </button>
           </div>
 
