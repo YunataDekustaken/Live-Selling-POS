@@ -430,36 +430,13 @@
       <!-- =============================================================== -->
       <!-- CUSTOMER PUBLIC CHECKOUT & MINED PHOTOS VIEW                    -->
       <!-- =============================================================== -->
-      <div v-if="isCustomerCheckoutView" class="max-w-xl mx-auto space-y-4 pb-12 animate-fadeIn">
-        
-        <!-- Top Banner: Shows Live Checkout indicator; allows Staff Login or return for authenticated merchants -->
-        <div class="bg-zinc-900 text-white rounded-xl px-4 py-2.5 flex items-center justify-between shadow-sm">
-          <div class="flex items-center space-x-2 text-xs min-w-0">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
-            <span class="font-bold truncate">{{ customerCheckoutData?.displayName || 'Customer' }}'s Order Invoice</span>
-            <span v-if="customerCheckoutData?.items" class="text-zinc-400 text-[11px] hidden sm:inline">({{ customerCheckoutData.items.length }} mined items)</span>
-          </div>
-          <div class="flex items-center space-x-2 shrink-0">
-            <button 
-              v-if="isAdminAuthenticated"
-              @click="closeCustomerCheckoutView()" 
-              class="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 transition-colors cursor-pointer">
-              ← Back to Admin
-            </button>
-            <button 
-              v-else
-              @click="showStaffLoginModal = true; loginPinInput = ''; loginErrorMsg = ''"
-              class="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px] font-medium text-zinc-300 transition-colors cursor-pointer flex items-center space-x-1">
-              <span>🔒 Staff Login</span>
-            </button>
-          </div>
-        </div>
+      <div v-if="isCustomerCheckoutView" class="max-w-xl mx-auto space-y-4 pt-2 pb-12 animate-fadeIn">
 
-        <!-- 1. LOADING STATE (e.g. When opened from TikTok link while syncing items and cloud photos) -->
+        <!-- 1. LOADING STATE (e.g. When opened from link while syncing items and cloud photos) -->
         <div v-if="customerCheckoutLoading" class="bg-white border border-zinc-200 rounded-2xl p-8 sm:p-12 text-center space-y-4 shadow-sm">
-          <div class="w-12 h-12 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <div class="w-10 h-10 border-3 border-zinc-900 border-t-transparent rounded-full animate-spin mx-auto"></div>
           <div class="space-y-1">
-            <h3 class="font-bold text-zinc-900 text-base">Loading Your Mined Photos & Invoice...</h3>
+            <h3 class="font-bold text-zinc-900 text-sm">Loading Your Mined Photos & Invoice...</h3>
             <p class="text-xs text-zinc-500 max-w-sm mx-auto leading-relaxed">
               Connecting to live stream basket and downloading photos.
             </p>
@@ -468,18 +445,19 @@
 
         <!-- 2. ERROR / NOT FOUND STATE -->
         <div v-else-if="customerCheckoutError && (!customerCheckoutData || !customerCheckoutData.items || customerCheckoutData.items.length === 0)" class="bg-white border border-zinc-200 rounded-2xl p-6 sm:p-8 text-center space-y-4 shadow-sm">
-          <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center mx-auto text-2xl">
-            📦
+          <div class="w-12 h-12 bg-zinc-100 text-zinc-500 rounded-2xl flex items-center justify-center mx-auto">
+            <svg class="w-6 h-6 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
           </div>
           <div class="space-y-1">
-            <h3 class="font-bold text-zinc-900 text-base">Invoice In Preparation</h3>
+            <h3 class="font-bold text-zinc-900 text-sm">Invoice In Preparation</h3>
             <p class="text-xs text-zinc-500 max-w-sm mx-auto leading-relaxed">{{ customerCheckoutError }}</p>
           </div>
           <div class="pt-2 flex justify-center space-x-2">
             <button 
               @click="resolveCustomerCheckoutFromUrl(true)"
-              class="px-4 py-2 bg-zinc-900 text-white text-xs font-bold rounded-xl hover:bg-black transition-colors cursor-pointer shadow-xs">
-              🔄 Tap to Refresh
+              class="px-4 py-2 bg-zinc-900 text-white text-xs font-bold rounded-xl hover:bg-black transition-colors cursor-pointer shadow-xs flex items-center space-x-1.5">
+              <svg class="w-3.5 h-3.5 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              <span>Tap to Refresh</span>
             </button>
           </div>
         </div>
@@ -487,39 +465,47 @@
         <!-- 3. CUSTOMER INVOICE CARD (When loaded) -->
         <div v-else-if="customerCheckoutData" class="bg-white border border-zinc-200 rounded-2xl shadow-sm overflow-hidden">
           
-          <!-- Header -->
-          <div class="bg-gradient-to-r from-zinc-900 via-zinc-800 to-zinc-900 text-white p-5 space-y-3">
-            <div class="flex items-start justify-between">
-              <div>
-                <span class="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">Live Stream Checkout</span>
-                <h1 class="text-xl font-black tracking-tight text-white mt-0.5">{{ activeProfile.name || settings.storeName }}</h1>
-                <p class="text-xs text-zinc-300 font-mono mt-0.5">{{ activeProfile.category }} • Session #{{ sessionDate }}</p>
+          <!-- Minimalist White Header -->
+          <div class="p-5 sm:p-6 border-b border-zinc-100 space-y-4 bg-white">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <span class="text-[10px] font-mono uppercase tracking-widest text-zinc-400 font-semibold">Live Stream Invoice</span>
+                <h1 class="text-xl font-bold tracking-tight text-zinc-900 mt-0.5 truncate">{{ activeProfile.name || settings.storeName }}</h1>
+                <p class="text-xs text-zinc-500 font-mono mt-0.5">{{ activeProfile.category }} • Session #{{ sessionDate }}</p>
               </div>
-              <span 
-                class="px-3 py-1 rounded-full text-xs font-mono font-bold uppercase border bg-white/10 text-white border-white/20">
-                {{ getStatusText(customerCheckoutData.balance) }}
-              </span>
+              <div class="flex flex-col items-end shrink-0 space-y-1">
+                <span class="px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-zinc-900 text-white">
+                  @{{ (customerCheckoutData.displayName || customerCheckoutData.handle).replace(/^@+/, '') }}
+                </span>
+                <span 
+                  class="px-2 py-0.5 rounded-md text-[11px] font-mono font-semibold border"
+                  :class="customerCheckoutData.balance <= 0 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-zinc-50 text-zinc-700 border-zinc-200'">
+                  {{ getStatusText(customerCheckoutData.balance) }}
+                </span>
+              </div>
             </div>
 
             <!-- Greeting Banner -->
-            <div class="bg-white/10 backdrop-blur-xs rounded-xl p-3 border border-white/10">
-              <p class="text-xs text-zinc-100 font-medium leading-relaxed">
-                🎉 Hi <strong class="text-amber-300">{{ (customerCheckoutData.displayName || customerCheckoutData.handle).replace(/^@+/, '') }}</strong>! Thank you for mining with us tonight! Below are the photos of all your mined items, total breakdown, and GCash payment details.
+            <div class="bg-zinc-50 border border-zinc-200/80 rounded-xl p-3.5">
+              <p class="text-xs text-zinc-700 font-medium leading-relaxed">
+                Hi <strong class="text-zinc-900 font-bold">{{ (customerCheckoutData.displayName || customerCheckoutData.handle).replace(/^@+/, '') }}</strong>, thank you for mining with us tonight! Below are the photos of your mined items, invoice summary, and payment details.
               </p>
             </div>
           </div>
 
           <!-- Section 1: Item Photos Gallery -->
-          <div class="p-4 sm:p-5 space-y-3 border-b border-zinc-200">
+          <div class="p-4 sm:p-5 space-y-3 border-b border-zinc-100">
             <div class="flex items-center justify-between">
               <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-800 flex items-center space-x-1.5">
-                <span>📸 Mined Item Photos</span>
-                <span class="px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-700 font-mono text-[11px] font-semibold">{{ customerCheckoutData.items.length }} pcs</span>
+                <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                <span>Mined Item Photos</span>
+                <span class="px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-700 font-mono text-[11px] font-semibold">{{ customerCheckoutData.items.length }} pcs</span>
               </h2>
               <button 
                 @click="generatePhotoCollage(customerCheckoutData)"
-                class="text-xs font-bold text-purple-700 hover:text-purple-900 flex items-center space-x-1">
-                <span>🖼️ View 1-Tap Collage</span>
+                class="text-xs font-bold text-zinc-800 hover:text-black flex items-center space-x-1 cursor-pointer">
+                <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span>View Photo List</span>
               </button>
             </div>
 
@@ -528,7 +514,7 @@
               <div 
                 v-for="(item, idx) in customerCheckoutData.items" 
                 :key="item.id"
-                class="group bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden flex flex-col hover:border-zinc-400 transition-all shadow-xs">
+                class="group bg-zinc-50 border border-zinc-200 rounded-xl overflow-hidden flex flex-col hover:border-zinc-400 transition-all shadow-2xs">
                 
                 <!-- Photo Container with zoom on click -->
                 <div class="relative aspect-square bg-zinc-100 overflow-hidden cursor-pointer" @click="openPhotoZoom(item.photo, (item.controlNum ? '#' + item.controlNum : item.controlCode) + ' - ' + (item.description || item.tag))">
@@ -539,15 +525,15 @@
                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                   />
                   <div v-else class="w-full h-full flex flex-col items-center justify-center text-zinc-400 text-xs p-2 text-center">
-                    <span class="text-2xl mb-1">📸</span>
+                    <svg class="w-6 h-6 text-zinc-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     <span class="font-mono text-[10px]">Photo captured</span>
                   </div>
 
                   <!-- Overlay Badge: Control Number & Price -->
-                  <div class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/75 text-white font-mono text-[10px] font-bold backdrop-blur-xs">
+                  <div class="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/80 text-white font-mono text-[10px] font-bold">
                     {{ item.controlNum ? '#' + item.controlNum : item.controlCode }}
                   </div>
-                  <div class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-zinc-900/90 text-white font-mono text-[11px] font-bold shadow-xs">
+                  <div class="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded bg-zinc-900/90 text-white font-mono text-[11px] font-bold shadow-2xs">
                     {{ activeProfile.currency }}{{ item.price.toLocaleString() }}
                   </div>
                 </div>
@@ -562,8 +548,11 @@
           </div>
 
           <!-- Section 2: Financial Breakdown Table -->
-          <div class="p-4 sm:p-5 space-y-3 border-b border-zinc-200">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-800">📋 Invoice Summary</h2>
+          <div class="p-4 sm:p-5 space-y-3 border-b border-zinc-100">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-800 flex items-center space-x-1.5">
+              <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              <span>Invoice Summary</span>
+            </h2>
             
             <div class="border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-200 text-xs font-mono">
               <div v-for="(it, i) in customerCheckoutData.items" :key="it.id" class="p-2.5 flex items-center justify-between bg-zinc-50/50">
@@ -586,48 +575,45 @@
                 <span>Payments Recorded:</span>
                 <span class="font-bold">-{{ activeProfile.currency }}{{ customerCheckoutData.totalPaid.toLocaleString() }}</span>
               </div>
-              <div class="flex justify-between text-base font-black pt-2 border-t border-zinc-200 text-zinc-900">
+              <div class="flex justify-between text-sm font-bold pt-2 border-t border-zinc-200 text-zinc-900">
                 <span>Total Amount Due:</span>
-                <span class="text-red-600">{{ activeProfile.currency }}{{ Math.abs(customerCheckoutData.balance).toLocaleString() }}</span>
+                <span class="text-zinc-900 font-black text-base">{{ activeProfile.currency }}{{ Math.abs(customerCheckoutData.balance).toLocaleString() }}</span>
               </div>
             </div>
           </div>
 
           <!-- Section 3: GCash / Bank Remittance Instructions -->
-          <div class="p-4 sm:p-5 space-y-3 bg-amber-50/40 border-b border-zinc-200">
+          <div class="p-4 sm:p-5 space-y-3 bg-zinc-50/50 border-b border-zinc-100">
             <div class="flex items-center justify-between">
-              <h2 class="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center space-x-1.5">
-                <span>💳 GCash & Payment Instructions</span>
+              <h2 class="text-xs font-bold uppercase tracking-wider text-zinc-800 flex items-center space-x-1.5">
+                <svg class="w-4 h-4 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                <span>Payment Details</span>
               </h2>
               <button 
                 @click="copyGcashInstructions" 
-                class="px-2.5 py-1 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-900 text-xs font-bold transition-colors">
-                Copy GCash Details
+                class="px-2.5 py-1 rounded-lg bg-white hover:bg-zinc-100 border border-zinc-300 text-zinc-800 text-xs font-semibold transition-colors flex items-center space-x-1 cursor-pointer shadow-2xs">
+                <svg class="w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                <span>Copy Details</span>
               </button>
             </div>
 
-            <div class="bg-white border border-amber-200 rounded-xl p-3 font-mono text-xs text-zinc-800 whitespace-pre-line leading-relaxed shadow-xs">
+            <div class="bg-white border border-zinc-200 rounded-xl p-3.5 font-mono text-xs text-zinc-800 whitespace-pre-line leading-relaxed shadow-2xs">
               {{ activeProfile.paymentDetails || settings.paymentDetails || 'GCash: 0917-123-4567 (Maria Santos)\nBDO: 1234-5678-9012 (Maria Santos)\nPlease send screenshot of proof of payment within 24 hours!' }}
             </div>
 
-            <div class="text-[11px] text-zinc-500 font-sans">
-              ⚠️ <strong>Reminder:</strong> Please settle within 24 hours to secure your mined items!
+            <div class="text-[11px] text-zinc-500 font-sans flex items-center space-x-1.5">
+              <svg class="w-3.5 h-3.5 text-zinc-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span>Please settle within 24 hours to secure your mined items.</span>
             </div>
           </div>
 
-          <!-- Footer Actions for Buyer -->
-          <div class="p-4 bg-zinc-50 flex flex-col sm:flex-row gap-2">
+          <!-- Footer Action for Buyer -->
+          <div class="p-4 bg-zinc-50 flex flex-col gap-2">
             <button 
               @click="generatePhotoCollage(customerCheckoutData)"
-              class="flex-1 py-3 px-4 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xs">
-              <svg class="w-4 h-4 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <span>Download Item Photos Collage</span>
-            </button>
-            <button 
-              @click="copyInvoiceLink(customerCheckoutData)"
-              class="flex-1 py-3 px-4 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xs">
-              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
-              <span>Share / Copy Link</span>
+              class="w-full py-3.5 px-4 rounded-xl bg-zinc-900 hover:bg-black active:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xs cursor-pointer">
+              <svg class="w-4 h-4 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              <span>Download Photo List</span>
             </button>
           </div>
 
@@ -2177,9 +2163,9 @@
                 @click="generatePhotoCollage(group.sessions[0])"
                 type="button"
                 class="h-8 rounded-lg bg-purple-50 hover:bg-purple-100 active:bg-purple-200 text-purple-900 font-bold text-xs flex items-center justify-center gap-1.5 border border-purple-200 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
-                title="Generate photo collage of mined items">
+                title="Generate photo list of mined items">
                 <svg class="w-3.5 h-3.5 text-purple-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                <span>Collage</span>
+                <span>Photo List</span>
               </button>
             </div>
 
@@ -7228,96 +7214,108 @@
     <!-- =============================================================== -->
     <!-- MODAL 3: CUSTOMER INVOICE & MINED ITEMS BREAKDOWN MODAL        -->
     <!-- =============================================================== -->
-    <div v-if="invoiceModalOpen && activeInvoiceBuyer" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/40 backdrop-blur-xs animate-fadeIn">
-      <div class="bg-white border border-zinc-200 rounded-xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div v-if="invoiceModalOpen && activeInvoiceBuyer" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fadeIn">
+      <div class="bg-white border border-zinc-200 rounded-2xl max-w-xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         
-        <!-- Modal Top Navigation Bar -->
-        <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 bg-zinc-50/80">
-          <div class="flex items-center space-x-2">
-            <span class="font-bold text-sm text-zinc-900">Customer Invoice</span>
-            <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-zinc-200 text-zinc-800 font-semibold">
-              #INV-{{ sessionDate }}-{{ (activeInvoiceBuyer.displayName || activeInvoiceBuyer.handle).replace(/^@+/, '').toUpperCase() }}
-            </span>
-          </div>
-          <button @click="closeInvoiceModal" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none cursor-pointer">✕</button>
-        </div>
-
-        <!-- Scrollable Invoice Document Content -->
-        <div class="p-4 overflow-y-auto space-y-4 flex-1 text-xs">
-          
-          <!-- Invoice Header -->
-          <div class="border-b border-zinc-200 pb-3 flex items-start justify-between">
-            <div>
-              <div class="font-black text-base text-zinc-900 tracking-tight uppercase">{{ activeProfile.name || settings.storeName }}</div>
-              <div class="text-[11px] text-zinc-500 font-mono mt-0.5">{{ activeProfile.category }} • Session #{{ sessionDate }}</div>
+        <!-- Modal Top Bar: Customer Name, Status Badge & Close -->
+        <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 bg-white">
+          <div class="flex items-center space-x-2.5 min-w-0">
+            <div class="w-8 h-8 rounded-xl bg-zinc-900 text-white flex items-center justify-center font-black text-xs shrink-0">
+              {{ (activeInvoiceBuyer.displayName || activeInvoiceBuyer.handle).replace(/^@+/, '').charAt(0).toUpperCase() }}
             </div>
-            <div class="text-right">
-              <span 
-                class="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold uppercase border"
-                :class="getStatusBadgeClass(activeInvoiceBuyer.balance)">
-                {{ getStatusText(activeInvoiceBuyer.balance) }}
-              </span>
-              <div class="text-[10px] text-zinc-400 font-mono mt-1">Generated: {{ sessionStartTime }}</div>
-            </div>
-          </div>
-
-          <!-- Customer Info Card -->
-          <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Billed Customer</div>
-              <div class="flex items-center space-x-2 mt-0.5">
-                <span class="font-bold text-base text-zinc-900 font-mono">{{ (activeInvoiceBuyer.displayName || activeInvoiceBuyer.handle).replace(/^@+/, '') }}</span>
+            <div class="min-w-0">
+              <div class="flex items-center space-x-1.5">
+                <span class="font-bold text-sm text-zinc-900 font-mono truncate">
+                  @{{ (activeInvoiceBuyer.displayName || activeInvoiceBuyer.handle).replace(/^@+/, '') }}
+                </span>
                 <button 
                   @click="openRenameCustomerModal(activeInvoiceBuyer.handle)" 
                   type="button" 
                   title="Rename Customer / Fix Typo" 
-                  class="px-2 py-0.5 rounded bg-zinc-200 hover:bg-zinc-300 text-zinc-800 text-[10px] font-bold flex items-center space-x-1 transition-colors cursor-pointer">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  <span>Rename</span>
+                  class="p-1 rounded hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 transition-colors cursor-pointer">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                 </button>
               </div>
+              <p class="text-[11px] text-zinc-500 font-mono">
+                Session #{{ sessionDate }} • {{ activeInvoiceBuyer.items.length }} {{ activeInvoiceBuyer.items.length === 1 ? 'item' : 'items' }}
+              </p>
             </div>
-            <div class="flex items-center space-x-3 sm:text-right">
-              <div>
-                <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Mined Items</div>
-                <div class="font-bold text-base text-zinc-900 font-mono">{{ activeInvoiceBuyer.items.length }} pcs</div>
-              </div>
-              <div class="border-l border-zinc-200 pl-3">
-                <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Packing QC</div>
-                <button 
-                  @click="openPackingModal(activeInvoiceBuyer)"
-                  type="button"
-                  class="mt-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold flex items-center space-x-1 border cursor-pointer transition-colors"
-                  :class="isBuyerAllPacked(activeInvoiceBuyer) ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200' : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'">
-                  <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                  <span v-if="isBuyerAllPacked(activeInvoiceBuyer)">100% Packed</span>
-                  <span v-else>{{ getBuyerPackedCount(activeInvoiceBuyer) }}/{{ activeInvoiceBuyer.items.length }} Verified</span>
-                </button>
-              </div>
+          </div>
+          <div class="flex items-center space-x-2 shrink-0">
+            <span 
+              class="px-2.5 py-1 rounded-full text-xs font-mono font-bold uppercase border"
+              :class="getStatusBadgeClass(activeInvoiceBuyer.balance)">
+              {{ getStatusText(activeInvoiceBuyer.balance) }}
+            </span>
+            <button 
+              @click="closeInvoiceModal" 
+              class="w-8 h-8 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 flex items-center justify-center transition-colors cursor-pointer"
+              title="Close">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Scrollable Document Content -->
+        <div class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+          
+          <!-- Consolidated 3-Column Summary Card (Mined, Paid, QC) -->
+          <div class="grid grid-cols-3 gap-2 bg-zinc-50 border border-zinc-200 rounded-xl p-3 font-mono text-center">
+            <div class="space-y-0.5">
+              <span class="text-[10px] text-zinc-500 uppercase font-sans font-semibold block">Total Mined</span>
+              <span class="font-bold text-sm sm:text-base text-zinc-900 block">{{ activeProfile.currency }}{{ activeInvoiceBuyer.totalAmount.toLocaleString() }}</span>
+              <span class="text-[10px] text-zinc-400 block">{{ activeInvoiceBuyer.items.length }} pcs</span>
+            </div>
+            
+            <div class="space-y-0.5 border-x border-zinc-200">
+              <span class="text-[10px] text-zinc-500 uppercase font-sans font-semibold block">Total Paid</span>
+              <span class="font-bold text-sm sm:text-base text-emerald-700 block">{{ activeProfile.currency }}{{ activeInvoiceBuyer.totalPaid.toLocaleString() }}</span>
+              <button 
+                v-if="activeInvoiceBuyer.balance > 0"
+                @click="openPaymentModal(activeInvoiceBuyer)" 
+                type="button" 
+                class="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline cursor-pointer">
+                + Add Pay
+              </button>
+              <span v-else class="text-[10px] text-emerald-600 block">Settled</span>
+            </div>
+
+            <div class="space-y-0.5">
+              <span class="text-[10px] text-zinc-500 uppercase font-sans font-semibold block">Packing QC</span>
+              <button 
+                @click="openPackingModal(activeInvoiceBuyer)"
+                type="button"
+                class="inline-flex items-center justify-center gap-1 font-bold text-xs px-2 py-0.5 rounded-full border transition-colors cursor-pointer mt-0.5"
+                :class="isBuyerAllPacked(activeInvoiceBuyer) ? 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200' : 'bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200'">
+                <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                <span>{{ isBuyerAllPacked(activeInvoiceBuyer) ? '100%' : getBuyerPackedCount(activeInvoiceBuyer) + '/' + activeInvoiceBuyer.items.length }}</span>
+              </button>
+              <span class="text-[10px] text-zinc-400 block">Checklist</span>
             </div>
           </div>
 
-          <!-- Section: What Did They Mine (Itemized Table) -->
-          <div class="space-y-1.5">
-            <div class="flex items-center justify-between font-semibold text-zinc-700 uppercase text-[11px] px-0.5">
-              <div class="flex items-center space-x-2">
-                <span>What They Mined ({{ activeInvoiceBuyer.items.length }} Items)</span>
-                <button 
-                  @click="openAddInvoiceItemModal(activeInvoiceBuyer.handle)" 
-                  type="button" 
-                  class="px-2 py-0.5 rounded-md bg-zinc-900 hover:bg-black text-white text-[10px] font-bold transition-colors flex items-center space-x-1 cursor-pointer">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                  <span>Add Item</span>
-                </button>
+          <!-- Section: Mined Items -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between font-semibold text-zinc-700 text-xs px-0.5">
+              <div class="flex items-center space-x-1.5">
+                <svg class="w-4 h-4 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                <span class="uppercase tracking-wider text-[11px] font-bold">Mined Items ({{ activeInvoiceBuyer.items.length }})</span>
               </div>
-              <span>Price ({{ activeProfile.currency }})</span>
+              <button 
+                @click="openAddInvoiceItemModal(activeInvoiceBuyer.handle)" 
+                type="button" 
+                class="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-black text-white text-[11px] font-bold transition-colors flex items-center space-x-1 cursor-pointer shadow-2xs">
+                <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>Add Item</span>
+              </button>
             </div>
 
-            <div class="border border-zinc-200 rounded-lg overflow-hidden divide-y divide-zinc-200">
+            <div class="border border-zinc-200 rounded-xl overflow-hidden divide-y divide-zinc-200">
               <div 
                 v-for="(item, idx) in activeInvoiceBuyer.items" 
                 :key="item.id"
-                class="p-2.5 flex items-center justify-between bg-white hover:bg-zinc-50/50">
+                class="p-2.5 flex items-center justify-between bg-white hover:bg-zinc-50 transition-colors">
+                
                 <div class="flex items-center space-x-2.5 min-w-0">
                   <span class="text-zinc-400 font-mono text-xs w-4 shrink-0">{{ idx + 1 }}.</span>
                   
@@ -7326,7 +7324,7 @@
                     v-if="item.photo" 
                     type="button" 
                     @click="openPhotoZoom(item.photo, (item.controlCode || (item.controlNum ? '#' + item.controlNum : '')) + ' - ' + (item.description || item.tag))" 
-                    class="relative w-10 h-10 rounded-lg overflow-hidden border border-zinc-300 shrink-0 hover:opacity-85 transition-opacity" 
+                    class="relative w-10 h-10 rounded-lg overflow-hidden border border-zinc-300 shrink-0 hover:opacity-85 transition-opacity cursor-pointer" 
                     title="View photo">
                     <img :src="item.photo" :alt="item.controlCode" class="w-full h-full object-cover" />
                   </button>
@@ -7347,69 +7345,61 @@
                     </div>
                   </div>
                 </div>
+
                 <div class="flex items-center space-x-2 font-mono shrink-0 pl-2">
                   <span class="font-bold text-sm text-zinc-900">{{ activeProfile.currency }}{{ item.price.toLocaleString() }}</span>
                   <!-- Edit Item Button -->
                   <button 
                     @click="openEditMineModal(item)" 
                     title="Edit Item Details" 
-                    class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 text-xs">
+                    class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 text-xs transition-colors cursor-pointer">
                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   </button>
-                  <button @click="undoMine(item)" title="Void item" class="text-zinc-300 hover:text-red-600 p-1 text-xs">✕</button>
+                  <button 
+                    @click="undoMine(item)" 
+                    title="Void item" 
+                    class="text-zinc-300 hover:text-red-600 p-1 text-xs transition-colors cursor-pointer">✕</button>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Financial Totals Summary -->
-          <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-1.5 font-mono text-xs">
-            <div class="flex justify-between text-zinc-600">
-              <span>Mined Subtotal:</span>
-              <span class="font-bold text-zinc-900">{{ activeProfile.currency }}{{ activeInvoiceBuyer.totalAmount.toLocaleString() }}</span>
-            </div>
-            <div class="flex justify-between text-emerald-800">
-              <span>Total Payments Recorded:</span>
-              <span class="font-bold">{{ activeProfile.currency }}{{ activeInvoiceBuyer.totalPaid.toLocaleString() }}</span>
-            </div>
-            <div class="flex justify-between text-sm font-bold pt-1.5 border-t border-zinc-200" :class="getBalanceColorClass(activeInvoiceBuyer.balance)">
-              <span>Net Balance Due:</span>
-              <span>{{ activeProfile.currency }}{{ Math.abs(activeInvoiceBuyer.balance).toLocaleString() }}</span>
-            </div>
-          </div>
-
-          <!-- Payment History (if any payments logged) -->
-          <div v-if="activeInvoiceBuyer.payments && activeInvoiceBuyer.payments.length > 0" class="space-y-1">
-            <div class="flex items-center justify-between font-semibold text-zinc-700 uppercase text-[11px] px-0.5">
-              <span>Recorded Payments</span>
+          <!-- Section: Recorded Payments (if any) -->
+          <div v-if="activeInvoiceBuyer.payments && activeInvoiceBuyer.payments.length > 0" class="space-y-1.5">
+            <div class="flex items-center justify-between font-semibold text-zinc-700 text-xs px-0.5">
+              <div class="flex items-center space-x-1.5">
+                <svg class="w-4 h-4 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                <span class="uppercase tracking-wider text-[11px] font-bold">Payments</span>
+              </div>
               <button 
                 @click="openPaymentModal(activeInvoiceBuyer)" 
                 type="button" 
-                class="text-[10px] text-emerald-700 hover:text-emerald-900 font-bold cursor-pointer">
+                class="text-[11px] text-emerald-700 hover:text-emerald-900 font-bold cursor-pointer">
                 + Add Payment
               </button>
             </div>
-            <div class="border border-zinc-200 rounded-lg p-2.5 bg-white space-y-2 font-mono text-[11px]">
-              <div v-for="p in activeInvoiceBuyer.payments" :key="p.id" class="flex items-center justify-between text-emerald-800 border-b border-zinc-100 last:border-0 pb-1 last:pb-0">
+            
+            <div class="border border-zinc-200 rounded-xl p-3 bg-white space-y-2 font-mono text-[11px]">
+              <div v-for="p in activeInvoiceBuyer.payments" :key="p.id" class="flex items-center justify-between text-emerald-800 border-b border-zinc-100 last:border-0 pb-1.5 last:pb-0">
                 <div class="min-w-0 pr-2">
-                  <span class="font-semibold">{{ p.method }}</span>
+                  <span class="font-bold">{{ p.method }}</span>
                   <span v-if="p.ref" class="text-zinc-500"> ({{ p.ref }})</span>
                   <span class="text-zinc-400 text-[10px] block">{{ p.date || sessionDate }} {{ p.time }}</span>
                 </div>
                 <div class="flex items-center space-x-2 shrink-0">
-                  <span class="font-bold text-emerald-700">+{{ activeProfile.currency }}{{ p.amount.toLocaleString() }}</span>
+                  <span class="font-bold text-emerald-700 text-xs">+{{ activeProfile.currency }}{{ p.amount.toLocaleString() }}</span>
                   <button 
                     @click="openEditPaymentModal(p)" 
                     type="button" 
                     title="Edit Payment" 
-                    class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900">
+                    class="p-1 rounded bg-zinc-100 hover:bg-zinc-200 text-zinc-600 hover:text-zinc-900 transition-colors cursor-pointer">
                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   </button>
                   <button 
                     @click="deletePayment(p)" 
                     type="button" 
                     title="Delete Payment" 
-                    class="p-1 rounded bg-zinc-100 hover:bg-red-50 text-zinc-400 hover:text-red-700">
+                    class="p-1 rounded bg-zinc-100 hover:bg-red-50 text-zinc-400 hover:text-red-700 transition-colors cursor-pointer">
                     ✕
                   </button>
                 </div>
@@ -7417,113 +7407,95 @@
             </div>
           </div>
 
-          <!-- Customer Comments / Remarks -->
-          <div class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-1">
-            <label class="block text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Customer Comment / Remarks</label>
+          <!-- Customer Remarks Input -->
+          <div class="space-y-1">
+            <label class="block text-[10px] text-zinc-500 font-semibold uppercase tracking-wider px-0.5">Notes / Remarks</label>
             <input 
               :value="customerNotes[activeInvoiceBuyer.handle] || ''"
               @input="updateCustomerNote(activeInvoiceBuyer.handle, $event.target.value)"
               type="text" 
-              placeholder="e.g. Paid via GCash on 08/06, Hold for shipping..." 
-              class="w-full bg-white border border-zinc-300 rounded px-2.5 py-1.5 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900"
+              placeholder="e.g. Paid via GCash, Ship via J&T on Monday..." 
+              class="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-900 focus:bg-white transition-colors"
             />
-          </div>
-
-          <!-- Payment Details / Store Accounts -->
-          <div v-if="activeProfile.paymentDetails || settings.paymentDetails" class="bg-zinc-50 border border-zinc-200 rounded-lg p-3 space-y-1">
-            <div class="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Payment Instructions ({{ activeProfile.name }})</div>
-            <div class="font-mono text-[11px] text-zinc-800 whitespace-pre-line leading-relaxed">{{ activeProfile.paymentDetails || settings.paymentDetails }}</div>
           </div>
 
         </div>
 
-        <!-- Invoice Action Footer -->
-        <div class="border-t border-zinc-200 p-3 bg-zinc-50 space-y-2">
+        <!-- Overhauled Clean & Organized Action Footer -->
+        <div class="border-t border-zinc-200 p-3 sm:p-4 bg-zinc-50/80 space-y-2">
           
-          <!-- Primary Row: Copy Invoice Link, Pack & Verify, and Generate Photo Collage -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <!-- 1. Copy Invoice Link (with photos, breakdown, payment template) -->
+          <!-- Row 1: Customer Deliverables (Link & Images) -->
+          <div class="grid grid-cols-3 gap-2">
+            <!-- 1. Copy Invoice Link -->
             <button 
               @click="copyInvoiceLink(activeInvoiceBuyer)"
               type="button"
-              class="h-10 px-3 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xs cursor-pointer min-w-0">
-              <svg class="w-4 h-4 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+              class="h-10 px-3 rounded-xl bg-zinc-900 hover:bg-black active:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-all shadow-xs cursor-pointer min-w-0"
+              title="Copy checkout receipt link for customer">
+              <svg class="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
               <span class="truncate">Copy Link</span>
             </button>
 
-            <!-- 2. Pack & Verify (Scanner + Checklist) -->
-            <button 
-              @click="openPackingModal(activeInvoiceBuyer)"
-              type="button"
-              class="h-10 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xs cursor-pointer min-w-0">
-              <svg class="w-4 h-4 text-amber-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-              <span class="truncate">Pack & Verify ({{ getBuyerPackedCount(activeInvoiceBuyer) }}/{{ activeInvoiceBuyer.items.length }})</span>
-            </button>
-
-            <!-- 3. Generate Photo Collage (1-Tap Image) -->
+            <!-- 2. Photo List -->
             <button 
               @click="generatePhotoCollage(activeInvoiceBuyer)"
               type="button"
-              class="h-10 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center space-x-2 transition-all shadow-xs cursor-pointer min-w-0">
-              <svg class="w-4 h-4 text-purple-200 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <span class="truncate">Photo Collage</span>
-            </button>
-          </div>
-
-          <!-- Secondary Row: Secondary Actions -->
-          <div class="grid grid-cols-2 sm:grid-cols-6 gap-2">
-            <!-- 3. Preview Customer Checkout View -->
-            <button 
-              @click="previewCustomerPage(activeInvoiceBuyer)"
-              type="button"
-              class="h-9 px-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-200 font-medium text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0">
-              <svg class="w-3.5 h-3.5 text-zinc-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-              <span class="truncate">Preview</span>
+              class="h-10 px-3 rounded-xl bg-white hover:bg-zinc-100 active:bg-zinc-200 text-zinc-900 border border-zinc-300 font-bold text-xs flex items-center justify-center space-x-1.5 transition-all shadow-2xs cursor-pointer min-w-0"
+              title="Generate clean photo list image">
+              <svg class="w-3.5 h-3.5 text-zinc-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span class="truncate">Photo List</span>
             </button>
 
-            <!-- 4. Print Thermal Invoice -->
-            <button 
-              @click="triggerInvoicePrint(activeInvoiceBuyer)"
-              type="button"
-              class="h-9 px-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-200 font-medium text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0">
-              <svg class="w-3.5 h-3.5 text-zinc-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-              <span class="truncate">Print Invoice</span>
-            </button>
-
-            <!-- 5. Send Online Receipt (Image/PNG) -->
+            <!-- 3. Receipt PNG -->
             <button 
               @click="openOnlineReceiptModal(activeInvoiceBuyer)"
               type="button"
-              class="h-9 px-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-200 font-medium text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0">
-              <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              class="h-10 px-3 rounded-xl bg-white hover:bg-zinc-100 active:bg-zinc-200 text-zinc-900 border border-zinc-300 font-bold text-xs flex items-center justify-center space-x-1.5 transition-all shadow-2xs cursor-pointer min-w-0"
+              title="Generate PNG receipt graphic">
+              <svg class="w-3.5 h-3.5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               <span class="truncate">Receipt PNG</span>
             </button>
+          </div>
 
-            <!-- 6. Print Packing Slip (PT-210) -->
+          <!-- Row 2: Physical Operations & Printing -->
+          <div class="grid grid-cols-3 gap-2">
+            <!-- 1. Print Thermal Invoice -->
+            <button 
+              @click="triggerInvoicePrint(activeInvoiceBuyer)"
+              type="button"
+              class="h-9 px-2 rounded-xl bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 font-semibold text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0"
+              title="Print standard thermal invoice receipt">
+              <svg class="w-3.5 h-3.5 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+              <span class="truncate">Thermal Invoice</span>
+            </button>
+
+            <!-- 2. Print Thermal Packing Slip -->
             <button 
               @click="printThermalPackingSlip(activeInvoiceBuyer)"
               type="button"
-              class="h-9 px-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-200 font-medium text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0">
-              <svg class="w-3.5 h-3.5 text-zinc-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-              <span class="truncate">Pack Slip</span>
+              class="h-9 px-2 rounded-xl bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 font-semibold text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0"
+              title="Print thermal packing sticker / slip">
+              <svg class="w-3.5 h-3.5 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+              <span class="truncate">Packing Slip</span>
             </button>
 
-            <!-- 7. Record Payment (if owing balance) -->
+            <!-- 3. Record Pay (if balance owing) or Preview Link -->
             <button 
               v-if="activeInvoiceBuyer.balance > 0"
               @click="closeInvoiceModal(); openPaymentModal(activeInvoiceBuyer)"
               type="button"
-              class="h-9 px-2 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white font-medium text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0">
-              <span class="truncate">Record Pay</span>
+              class="h-9 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0 shadow-2xs">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+              <span class="truncate">Log Pay</span>
             </button>
-
-            <!-- 8. Close Modal -->
             <button 
-              @click="closeInvoiceModal" 
-              type="button" 
-              :class="activeInvoiceBuyer.balance > 0 ? '' : 'col-span-2 sm:col-span-1'"
-              class="h-9 px-2 rounded-lg bg-zinc-200 hover:bg-zinc-300 text-zinc-800 font-medium text-xs text-center transition-colors cursor-pointer min-w-0">
-              <span class="truncate">Close</span>
+              v-else
+              @click="previewCustomerPage(activeInvoiceBuyer)"
+              type="button"
+              class="h-9 px-2 rounded-xl bg-white hover:bg-zinc-100 text-zinc-700 border border-zinc-200 font-semibold text-xs flex items-center justify-center space-x-1 transition-colors cursor-pointer min-w-0"
+              title="Preview customer invoice page in browser">
+              <svg class="w-3.5 h-3.5 text-zinc-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+              <span class="truncate">Preview Page</span>
             </button>
           </div>
 
@@ -7569,31 +7541,31 @@
         <!-- Header -->
         <div class="flex items-center justify-between border-b border-zinc-200 px-4 py-3 bg-zinc-50">
           <div class="flex items-center space-x-2">
-            <span class="font-bold text-sm text-zinc-900">Mined Items Photo Collage</span>
-            <span class="px-2 py-0.5 rounded text-[11px] font-mono bg-purple-100 text-purple-800 font-bold">
-              {{ (collageBuyer.displayName || collageBuyer.handle).replace(/^@+/, '') }}
+            <span class="font-bold text-sm text-zinc-900">Mined Items Photo List</span>
+            <span class="px-2 py-0.5 rounded-full text-[11px] font-mono bg-zinc-900 text-white font-bold">
+              @{{ (collageBuyer.displayName || collageBuyer.handle).replace(/^@+/, '') }}
             </span>
           </div>
-          <button @click="collageModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none">✕</button>
+          <button @click="collageModalOpen = false" class="text-zinc-400 hover:text-zinc-700 p-1 text-base leading-none cursor-pointer">✕</button>
         </div>
 
         <!-- Collage Image Preview Area -->
         <div class="p-4 overflow-y-auto flex-1 bg-zinc-100 flex flex-col items-center justify-center space-y-3">
           <div v-if="isGeneratingCollage" class="py-16 text-center space-y-2">
-            <div class="inline-block w-8 h-8 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-            <p class="text-xs font-semibold text-zinc-600">Rendering high-res photo collage...</p>
+            <div class="inline-block w-8 h-8 border-4 border-zinc-900 border-t-transparent rounded-full animate-spin"></div>
+            <p class="text-xs font-semibold text-zinc-600">Generating minimalist photo list...</p>
           </div>
 
           <div v-else-if="collageDataUrl" class="w-full flex justify-center">
             <img 
               :src="collageDataUrl" 
-              alt="Mined items collage" 
+              alt="Mined items photo list" 
               class="max-h-[60vh] max-w-full rounded-xl shadow-lg border border-zinc-300 object-contain bg-white" 
             />
           </div>
 
           <p class="text-[11px] text-zinc-500 text-center font-mono">
-            {{ collageBuyer.items.length }} mined items compiled with control numbers, tags, prices, and remittance details.
+            {{ collageBuyer.items.length }} mined items compiled as a clean photo showcase to send alongside customer invoice receipts.
           </p>
         </div>
 
@@ -7603,7 +7575,7 @@
           <button 
             @click="downloadCollageImage" 
             type="button" 
-            class="py-2.5 px-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs">
+            class="py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-black active:bg-zinc-800 text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs cursor-pointer">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
             <span>Download PNG</span>
           </button>
@@ -7612,8 +7584,8 @@
           <button 
             @click="copyCollageImage" 
             type="button" 
-            class="py-2.5 px-3 rounded-xl bg-zinc-900 hover:bg-black text-white font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-xs">
-            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+            class="py-2.5 px-3 rounded-xl bg-white hover:bg-zinc-50 active:bg-zinc-100 text-zinc-900 border border-zinc-300 font-bold text-xs flex items-center justify-center space-x-1.5 transition-colors shadow-2xs cursor-pointer">
+            <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
             <span>Copy Image</span>
           </button>
 
@@ -7621,7 +7593,7 @@
           <button 
             @click="collageModalOpen = false" 
             type="button" 
-            class="py-2.5 px-3 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-semibold text-xs text-center transition-colors">
+            class="py-2.5 px-3 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 text-zinc-700 font-semibold text-xs text-center transition-colors cursor-pointer">
             Close
           </button>
         </div>
