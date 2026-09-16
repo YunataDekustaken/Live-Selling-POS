@@ -273,59 +273,85 @@ async function startServer() {
   app.use('/assets', express.static(path.join(process.cwd(), 'public', 'assets')));
   app.use('/assets', express.static(path.join(process.cwd(), 'assets')));
 
-  // Check and stream uploaded store logo if present in assets
-  app.get('/api/receipt-logo', (req, res) => {
+  // Check and stream uploaded store logo if present in assets, strictly isolated per business profile
+  app.get(['/api/receipt-logo', '/api/profile-logo/:profileId?'], (req, res) => {
+    const profileId = (req.params?.profileId || req.query.profileId || req.query.profile || req.query.p || '').toString().trim();
+    const profileName = (req.query.profileName || req.query.name || '').toString().trim().toLowerCase();
+    const isLeaf = profileId === 'prof_main' || profileName.includes('leaf') || (!profileId && !profileName);
+
     const possibleDirs = [
       path.join(process.cwd(), 'assets'),
       path.join(process.cwd(), 'public', 'assets'),
       path.join(process.cwd(), 'public')
     ];
 
-    const commonNames = [
+    const cleanName = profileName.replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+
+    // Candidate file patterns for this profile
+    const profileSpecificNames: string[] = [];
+    if (profileId) {
+      profileSpecificNames.push(
+        `logo_${profileId}.png`, `logo_${profileId}.jpg`, `logo_${profileId}.jpeg`, `logo_${profileId}.webp`, `logo_${profileId}.svg`,
+        `${profileId}_logo.png`, `${profileId}_logo.jpg`, `${profileId}.png`, `${profileId}.jpg`
+      );
+    }
+    if (cleanName) {
+      profileSpecificNames.push(
+        `logo_${cleanName}.png`, `logo_${cleanName}.jpg`, `logo_${cleanName}.jpeg`, `logo_${cleanName}.webp`,
+        `${cleanName}_logo.png`, `${cleanName}_logo.jpg`, `${cleanName}.png`, `${cleanName}.jpg`
+      );
+    }
+
+    // Leaf & Layer specific / legacy default names
+    const leafDefaultNames = [
       'logo.png', 'logo.jpg', 'logo.jpeg', 'logo.webp', 'logo.svg',
+      'leaf_logo.png', 'leaf_logo.jpg', 'leaf-layer-logo.png',
       'store_logo.png', 'store_logo.jpg', 'store-logo.png', 'store-logo.jpg'
     ];
+
+    const candidateNames = isLeaf 
+      ? [...profileSpecificNames, ...leafDefaultNames] 
+      : profileSpecificNames;
+
+    const mimeTypes: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+      '.svg': 'image/svg+xml'
+    };
 
     for (const dir of possibleDirs) {
       if (!fs.existsSync(dir)) continue;
 
-      // 1. Check known common names first
-      for (const name of commonNames) {
+      // 1. Check exact candidate file names
+      for (const name of candidateNames) {
         const fullPath = path.join(dir, name);
         if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
           const ext = path.extname(fullPath).toLowerCase();
-          const mimeTypes: Record<string, string> = {
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg',
-            '.jpeg': 'image/jpeg',
-            '.webp': 'image/webp',
-            '.svg': 'image/svg+xml'
-          };
           res.setHeader('Content-Type', mimeTypes[ext] || 'image/png');
           res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           return fs.createReadStream(fullPath).pipe(res);
         }
       }
 
-      // 2. If inside assets directory, look for any uploaded image file
-      if (dir.endsWith('assets')) {
+      // 2. Check profile-specific prefix match in assets directory
+      if (dir.endsWith('assets') && (profileId || cleanName)) {
         try {
           const files = fs.readdirSync(dir);
           for (const file of files) {
+            const lowerFile = file.toLowerCase();
             const ext = path.extname(file).toLowerCase();
             if (['.png', '.jpg', '.jpeg', '.webp', '.svg'].includes(ext)) {
-              const fullPath = path.join(dir, file);
-              if (fs.statSync(fullPath).isFile()) {
-                const mimeTypes: Record<string, string> = {
-                  '.png': 'image/png',
-                  '.jpg': 'image/jpeg',
-                  '.jpeg': 'image/jpeg',
-                  '.webp': 'image/webp',
-                  '.svg': 'image/svg+xml'
-                };
-                res.setHeader('Content-Type', mimeTypes[ext] || 'image/png');
-                res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-                return fs.createReadStream(fullPath).pipe(res);
+              const matchesProfile = (profileId && lowerFile.includes(profileId.toLowerCase())) ||
+                                     (cleanName && lowerFile.includes(cleanName));
+              if (matchesProfile) {
+                const fullPath = path.join(dir, file);
+                if (fs.statSync(fullPath).isFile()) {
+                  res.setHeader('Content-Type', mimeTypes[ext] || 'image/png');
+                  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+                  return fs.createReadStream(fullPath).pipe(res);
+                }
               }
             }
           }
@@ -335,7 +361,7 @@ async function startServer() {
       }
     }
 
-    return res.status(404).json({ hasLogo: false, message: 'No logo file found in assets' });
+    return res.status(404).json({ hasLogo: false, message: `No logo file found for profile ${profileId || profileName || 'default'}` });
   });
 
   // Vite middleware for development

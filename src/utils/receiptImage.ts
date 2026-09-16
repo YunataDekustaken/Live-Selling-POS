@@ -75,19 +75,25 @@ export async function generateOnlineInvoiceReceiptImage(
   const pad = 28;
   const innerW = width - (pad * 2);
 
-  // Check for uploaded store logo (from profile settings, server assets, or candidate paths)
+  // Check for uploaded store logo (strictly isolated to the current business profile)
+  const isLeafLayer = profile.id === 'prof_main' || (profile.name && profile.name.toLowerCase().includes('leaf'));
+  const profileSpecificLogoEndpoint = profile.id 
+    ? `/api/receipt-logo?profileId=${encodeURIComponent(profile.id)}&name=${encodeURIComponent(profile.name || '')}` 
+    : '';
+
   const logoCandidates: string[] = [
     profile.logoUrl,
     layoutConfig?.logoUrl,
-    '/api/receipt-logo',
-    '/assets/logo.png',
-    '/assets/logo.jpg',
-    '/assets/logo.jpeg',
-    '/assets/logo.webp',
-    '/assets/logo.svg',
-    '/logo.png',
-    '/logo.jpg',
-    '/logo.svg',
+    profileSpecificLogoEndpoint,
+    // Only fallback to default Leaf & Layer logo files if the active profile is specifically Leaf & Layer
+    ...(isLeafLayer ? [
+      '/assets/logo.png',
+      '/assets/logo.jpg',
+      '/assets/logo.jpeg',
+      '/assets/logo.webp',
+      '/assets/logo.svg',
+      '/logo.png'
+    ] : [])
   ].filter(Boolean) as string[];
 
   let logoImg: HTMLImageElement | null = null;

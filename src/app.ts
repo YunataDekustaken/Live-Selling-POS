@@ -142,7 +142,21 @@ const app = createApp({
     if (savedProfiles) {
       const parsed = safeParseJson(savedProfiles, null);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        initialProfiles = parsed.filter((p: Profile) => p && p.id && !deletedProfileIds.has(p.id));
+        initialProfiles = parsed
+          .filter((p: Profile) => p && p.id && !deletedProfileIds.has(p.id))
+          .map((p: Profile) => {
+            // Guarantee logo isolation: only Leaf & Layer keeps /assets/logo.png by default;
+            // any other profile that inadvertently had Leaf & Layer's logo assigned without custom upload is cleared.
+            const isLeaf = p.id === 'prof_main' || (p.name && p.name.toLowerCase().includes('leaf'));
+            let cleanLogo = p.logoUrl || '';
+            if (!isLeaf && (cleanLogo === '/assets/logo.png' || cleanLogo === '/assets/logo.jpg' || cleanLogo === '/logo.png')) {
+              cleanLogo = '';
+            }
+            return {
+              ...p,
+              logoUrl: cleanLogo
+            };
+          });
       }
     }
     if (initialProfiles.length === 0) {
@@ -161,33 +175,23 @@ const app = createApp({
     );
 
     const activeProfile = computed<Profile>(() => {
-      const found = profiles.value.find(p => p.id === activeProfileId.value);
-      if (found) {
-        return {
-          ...defaultProfiles[0],
-          ...found,
-          currency: found.currency || '₱',
-          codePrefix: (found.codePrefix && found.codePrefix !== '#' && found.codePrefix !== '-') 
-            ? found.codePrefix 
-            : (found.name ? (found.name.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L') : 'L'),
-          quickPrefixes: Array.isArray(found.quickPrefixes) && found.quickPrefixes.length > 0 ? found.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
-          defaultCategories: Array.isArray(found.defaultCategories) && found.defaultCategories.length > 0 ? found.defaultCategories : ['General']
-        };
-      }
-      if (profiles.value.length > 0) {
-        const first = profiles.value[0];
-        return {
-          ...defaultProfiles[0],
-          ...first,
-          currency: first.currency || '₱',
-          codePrefix: (first.codePrefix && first.codePrefix !== '#' && first.codePrefix !== '-') 
-            ? first.codePrefix 
-            : (first.name ? (first.name.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L') : 'L'),
-          quickPrefixes: Array.isArray(first.quickPrefixes) && first.quickPrefixes.length > 0 ? first.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
-          defaultCategories: Array.isArray(first.defaultCategories) && first.defaultCategories.length > 0 ? first.defaultCategories : ['General']
-        };
-      }
-      return defaultProfiles[0];
+      const found = profiles.value.find(p => p.id === activeProfileId.value) || (profiles.value.length > 0 ? profiles.value[0] : defaultProfiles[0]);
+      const isLeaf = found.id === 'prof_main' || (found.name && found.name.toLowerCase().includes('leaf'));
+      const fallbackLogo = isLeaf ? '/assets/logo.png' : '';
+      return {
+        id: found.id,
+        name: found.name || 'Store',
+        category: found.category || 'Retail',
+        currency: found.currency || '₱',
+        codePrefix: (found.codePrefix && found.codePrefix !== '#' && found.codePrefix !== '-') 
+          ? found.codePrefix 
+          : (found.name ? (found.name.replace(/[^A-Za-z0-9]/g, '').charAt(0).toUpperCase() || 'L') : 'L'),
+        color: found.color || 'emerald',
+        quickPrefixes: Array.isArray(found.quickPrefixes) && found.quickPrefixes.length > 0 ? found.quickPrefixes : ['A', 'B', 'C', 'D', 'VIP'],
+        defaultCategories: Array.isArray(found.defaultCategories) && found.defaultCategories.length > 0 ? found.defaultCategories : ['General'],
+        paymentDetails: found.paymentDetails || '',
+        logoUrl: found.logoUrl !== undefined ? found.logoUrl : fallbackLogo
+      };
     });
 
     // --- Control Code Format & Duplicate Prevention Engine ---
