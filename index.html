@@ -2388,19 +2388,19 @@
       <!-- =============================================================== -->
       <div v-if="currentTab === 'mined_items'" class="space-y-3.5">
         
-        <!-- Summary Stats Strip -->
+        <!-- Summary Stats Strip (Synced to Active Date Filter) -->
         <div class="grid grid-cols-3 gap-2 bg-white border border-zinc-200 rounded-xl p-3 shadow-xs text-center">
           <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
             <div class="text-[10px] text-zinc-500 font-semibold uppercase">Total Mined Items</div>
-            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ allMines.length }} pcs</div>
+            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ minedItemsStats.totalItems }} pcs</div>
           </div>
           <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
             <div class="text-[10px] text-zinc-500 font-semibold uppercase">Gross Value</div>
-            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}</div>
+            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ activeProfile.currency }}{{ minedItemsStats.totalValue.toLocaleString() }}</div>
           </div>
           <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
             <div class="text-[10px] text-zinc-500 font-semibold uppercase">Active Customers</div>
-            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ sessionStats.uniqueBuyers }} buyers</div>
+            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ minedItemsStats.uniqueBuyers }} buyers</div>
           </div>
         </div>
 
@@ -2430,16 +2430,34 @@
             <!-- Compact Action Controls -->
             <div class="flex items-center space-x-1.5 flex-wrap sm:flex-nowrap gap-y-1.5 shrink-0">
               
-              <!-- Date Filter Popover Trigger Button -->
+              <!-- Quick Scope Switcher: All Dates vs Today -->
+              <div class="inline-flex p-0.5 rounded-xl bg-zinc-100 border border-zinc-200 shrink-0">
+                <button 
+                  type="button" 
+                  @click="applyDatePreset('all')"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                  :class="minedItemsFilterDate === 'all' ? 'bg-white text-zinc-900 shadow-2xs font-bold' : 'text-zinc-500 hover:text-zinc-800'">
+                  All Dates
+                </button>
+                <button 
+                  type="button" 
+                  @click="applyDatePreset('today')"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                  :class="minedItemsFilterDate === 'today' ? 'bg-white text-zinc-900 shadow-2xs font-bold' : 'text-zinc-500 hover:text-zinc-800'">
+                  Today
+                </button>
+              </div>
+
+              <!-- Date Filter Popover Trigger Button (Range / Custom) -->
               <button 
                 @click="openMinedDateFilterModal" 
                 type="button" 
                 title="Filter by Date or Date Range"
-                class="px-2.5 py-2 rounded-xl text-xs font-medium whitespace-nowrap transition-colors flex items-center space-x-1.5 cursor-pointer shadow-2xs border"
-                :class="minedItemsFilterDate !== 'all' || minedItemsDateFrom || minedItemsDateTo ? 'bg-zinc-900 text-white border-zinc-900 font-semibold' : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'">
-                <svg class="w-3.5 h-3.5" :class="minedItemsFilterDate !== 'all' ? 'text-amber-400' : 'text-zinc-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                <span>{{ dateRangeLabel || 'All Dates' }}</span>
-                <span v-if="minedItemsFilterDate !== 'all'" @click.stop="clearDateRangeFilter" class="ml-1 text-[10px] text-zinc-400 hover:text-white" title="Reset date filter">✕</span>
+                class="px-2.5 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors flex items-center space-x-1.5 cursor-pointer shadow-2xs border"
+                :class="(minedItemsFilterDate !== 'all' && minedItemsFilterDate !== 'today') ? 'bg-zinc-900 text-white border-zinc-900 font-semibold' : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'">
+                <svg class="w-3.5 h-3.5" :class="(minedItemsFilterDate !== 'all' && minedItemsFilterDate !== 'today') ? 'text-amber-400' : 'text-zinc-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                <span>{{ (minedItemsFilterDate !== 'all' && minedItemsFilterDate !== 'today') ? dateRangeLabel : 'Custom Date' }}</span>
+                <span v-if="minedItemsFilterDate !== 'all' && minedItemsFilterDate !== 'today'" @click.stop="clearDateRangeFilter" class="ml-1 text-[10px] text-zinc-400 hover:text-white" title="Reset date filter">✕</span>
               </button>
 
               <!-- Compact Sort Dropdown -->
@@ -2998,13 +3016,16 @@
                       </div>
                     </div>
 
-                    <!-- 2. Barcode Element -->
-                    <div v-else-if="elem.id === 'barcode'" class="w-full h-full flex flex-col items-center justify-center bg-white border border-zinc-300 rounded p-1">
-                      <div class="w-full h-3/4 flex items-center justify-between overflow-hidden">
-                        <div v-for="n in 36" :key="n" class="h-full bg-black" :style="{ width: (n % 3 === 0 ? '3px' : '1.5px') }"></div>
-                      </div>
-                      <div class="text-[9px] font-mono font-bold text-center tracking-wider text-black">
-                        *{{ samplePreviewItem.controlNum || '001' }}*
+                    <!-- 2. Barcode Element (Code 128 Subset B) -->
+                    <div v-else-if="elem.id === 'barcode'" class="w-full h-full flex flex-col items-center justify-center bg-white p-0.5 overflow-hidden select-none pointer-events-none">
+                      <img 
+                        v-if="samplePreviewBarcodeDataUrl" 
+                        :src="samplePreviewBarcodeDataUrl" 
+                        alt="Code 128 Barcode" 
+                        class="w-full h-full object-contain pointer-events-none" 
+                      />
+                      <div v-else class="w-full h-full bg-zinc-900 flex items-center justify-center text-white text-[9px] font-mono">
+                        Code 128B
                       </div>
                     </div>
 
@@ -3037,6 +3058,10 @@
                       </template>
                       <template v-else-if="elem.id === 'price'">
                         {{ (elem.prefix === 'P' ? '₱' : (elem.prefix !== undefined ? elem.prefix : (activeProfile.currency || '₱'))) + samplePreviewItem.price.toLocaleString() + (elem.suffix || '') }}
+                      </template>
+                      <template v-else-if="elem.id === 'priceTag'">
+                        <span class="font-black">{{ (elem.prefix === 'P' ? '₱' : (elem.prefix !== undefined ? elem.prefix : (activeProfile.currency || '₱'))) + samplePreviewItem.price.toLocaleString() }}</span>
+                        <span v-if="samplePreviewItem.tag" class="font-normal font-sans text-zinc-900"> - {{ samplePreviewItem.tag }}</span>
                       </template>
                       <template v-else-if="elem.id === 'storeName'">
                         {{ (elem.prefix || '') + (activeProfile.name || 'Store') + (elem.suffix || '') }}
@@ -8081,118 +8106,64 @@
     </div>
 
     <!-- =============================================================== -->
-    <!-- MODAL 8: AUDIT & PACKING MODAL (MINIMALIST & ORGANIZED)        -->
+    <!-- MODAL 8: DEDICATED FULL-SCREEN AUDIT & PACKING PAGE               -->
     <!-- =============================================================== -->
-    <div v-if="showPackingModal && activePackingBuyer" class="screen-ui fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-fadeIn overflow-y-auto" @click.self="closePackingModal">
-      <div class="bg-white border border-zinc-200 rounded-2xl max-w-xl sm:max-w-2xl w-full shadow-2xl max-h-[96vh] sm:max-h-[92vh] flex flex-col my-auto overflow-hidden text-zinc-900">
-        
-        <!-- Pinned Header: Minimalist, Crisp, High-Contrast -->
-        <div class="border-b border-zinc-200 bg-white px-4 py-3 shrink-0">
-          <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center space-x-3 min-w-0">
-              <div class="w-9 h-9 rounded-xl bg-zinc-900 text-white flex items-center justify-center shrink-0">
-                <svg v-if="packingWorkflowStage === 'stage1'" class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
-                <svg v-else class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+    <div v-if="showPackingModal && activePackingBuyer" class="screen-ui fixed inset-0 z-50 bg-white flex flex-col w-screen h-screen overflow-hidden text-zinc-900 animate-fadeIn">
+      
+      <!-- Pinned Header: Minimalist, Crisp, High-Contrast & Zero Wasted Space -->
+      <div class="border-b border-zinc-200 bg-white px-4 py-3 shrink-0">
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center space-x-3 min-w-0">
+            <button 
+              @click="closePackingModal" 
+              type="button"
+              class="w-9 h-9 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 flex items-center justify-center transition-colors cursor-pointer shrink-0" 
+              title="Close and Return">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-zinc-500 font-sans">
+                  {{ packingWorkflowStage === 'stage1' ? 'Storage Room Audit' : 'Parcel Packing QC' }}
+                </span>
+                <span class="text-zinc-300">•</span>
+                <h3 class="font-bold text-sm sm:text-base text-zinc-900 font-mono truncate">
+                  {{ (activePackingCombinedBasket.displayName || activePackingCombinedBasket.handle).replace(/^@+/, '') }}
+                </h3>
+                <span 
+                  class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border shrink-0"
+                  :class="isBuyerAllPacked(activePackingCombinedBasket) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'">
+                  {{ getBuyerPackedCount(activePackingCombinedBasket) }}/{{ activePackingCombinedBasket.items.length }} {{ packingWorkflowStage === 'stage1' ? 'Audited' : 'Packed' }}
+                </span>
               </div>
-              <div class="min-w-0">
-                <div class="flex items-center gap-2">
-                  <h3 class="font-bold text-sm sm:text-base text-zinc-900 font-mono truncate">
-                    {{ (activePackingCombinedBasket.displayName || activePackingCombinedBasket.handle).replace(/^@+/, '') }}
-                  </h3>
-                  <span 
-                    class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider border shrink-0"
-                    :class="isBuyerAllPacked(activePackingCombinedBasket) ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'">
-                    {{ isBuyerAllPacked(activePackingCombinedBasket) ? (packingWorkflowStage === 'stage1' ? 'Audited' : 'Packed') : (packingWorkflowStage === 'stage1' ? 'Auditing' : 'Packing') }}
-                  </span>
-                </div>
-                <div class="text-[11px] text-zinc-500 font-mono mt-0.5 flex items-center gap-1.5 truncate">
-                  <span>{{ activePackingCombinedBasket.sessionDate || sessionDate }}</span>
-                  <span class="text-zinc-300">•</span>
-                  <span>{{ activePackingCombinedBasket.items.length }} {{ activePackingCombinedBasket.items.length === 1 ? 'item' : 'items' }}</span>
-                </div>
+              <div class="text-[11px] text-zinc-500 font-mono mt-0.5 flex items-center gap-2 truncate">
+                <span>{{ activePackingCombinedBasket.sessionDate || sessionDate }}</span>
+                <span class="text-zinc-300">•</span>
+                <span class="font-semibold text-zinc-800">{{ activeProfile.currency }}{{ activePackingCombinedBasket.totalAmount.toLocaleString() }}</span>
+                <span class="text-zinc-300">•</span>
+                <span :class="activePackingCombinedBasket.balance > 0 ? 'text-amber-700 font-semibold' : 'text-emerald-600 font-semibold'">
+                  <span v-if="activePackingCombinedBasket.balance > 0">Unpaid ({{ activeProfile.currency }}{{ Math.abs(activePackingCombinedBasket.balance).toLocaleString() }})</span>
+                  <span v-else>Settled</span>
+                </span>
               </div>
             </div>
+          </div>
 
-            <!-- Segmented Stage Switcher & Close -->
-            <div class="flex items-center space-x-2 shrink-0">
-              <div class="inline-flex p-0.5 rounded-xl bg-zinc-100 border border-zinc-200 shrink-0">
-                <button 
-                  @click="setPackingWorkflowStage('stage1')"
-                  type="button"
-                  class="px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
-                  :class="packingWorkflowStage === 'stage1' ? 'bg-white text-zinc-900 shadow-2xs font-bold' : 'text-zinc-500 hover:text-zinc-800'">
-                  <span>Audit</span>
-                  <span v-if="isBuyerAllStage1Audited(activePackingCombinedBasket)" class="text-emerald-600 font-bold text-[10px]">✓</span>
-                </button>
-                <button 
-                  @click="setPackingWorkflowStage('stage2')"
-                  type="button"
-                  class="px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1"
-                  :class="packingWorkflowStage === 'stage2' ? 'bg-white text-zinc-900 shadow-2xs font-bold' : 'text-zinc-500 hover:text-zinc-800'">
-                  <span>Pack</span>
-                  <span v-if="isBuyerAllStage2Packed(activePackingCombinedBasket)" class="text-emerald-600 font-bold text-[10px]">✓</span>
-                </button>
-              </div>
-
-              <button 
-                @click="closePackingModal" 
-                class="w-8 h-8 rounded-xl hover:bg-zinc-100 text-zinc-400 hover:text-zinc-700 flex items-center justify-center transition-colors cursor-pointer" 
-                title="Close">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-              </button>
-            </div>
+          <!-- Close Action -->
+          <div class="flex items-center space-x-2 shrink-0">
+            <button 
+              @click="closePackingModal" 
+              class="px-3 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer" 
+              title="Close">
+              <span>Close</span>
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
           </div>
         </div>
+      </div>
 
-        <!-- 3-Column Overview Banner (Aligned with Customer Invoice Modal) -->
-        <div class="px-4 py-3 bg-zinc-50 border-b border-zinc-200 shrink-0">
-          <div class="grid grid-cols-3 gap-2 bg-white border border-zinc-200 rounded-xl p-2.5 font-mono text-center shadow-2xs">
-            <div class="space-y-0.5">
-              <span class="text-[10px] text-zinc-500 uppercase font-sans font-semibold block">Total Mined</span>
-              <span class="font-bold text-xs sm:text-sm text-zinc-900 block">{{ activeProfile.currency }}{{ activePackingCombinedBasket.totalAmount.toLocaleString() }}</span>
-              <span class="text-[10px] text-zinc-400 block">{{ activePackingCombinedBasket.items.length }} pcs</span>
-            </div>
-
-            <div class="space-y-0.5 border-x border-zinc-200">
-              <span class="text-[10px] text-zinc-500 uppercase font-sans font-semibold block">Balance</span>
-              <span 
-                class="font-bold text-xs sm:text-sm block"
-                :class="activePackingCombinedBasket.balance <= 0 ? 'text-emerald-700' : 'text-amber-800'">
-                {{ activeProfile.currency }}{{ Math.abs(activePackingCombinedBasket.balance).toLocaleString() }}
-              </span>
-              <span class="text-[10px] block" :class="activePackingCombinedBasket.balance <= 0 ? 'text-emerald-600 font-semibold' : 'text-amber-700'">
-                <span v-if="activePackingCombinedBasket.balance <= 0">Settled</span>
-                <span v-else>Unpaid</span>
-              </span>
-            </div>
-
-            <div class="space-y-0.5">
-              <span class="text-[10px] text-zinc-500 uppercase font-sans font-semibold block">
-                {{ packingWorkflowStage === 'stage1' ? 'Audit Status' : 'Pack Status' }}
-              </span>
-              <span 
-                class="font-bold text-xs sm:text-sm block"
-                :class="isBuyerAllPacked(activePackingCombinedBasket) ? 'text-emerald-700' : 'text-amber-800'">
-                {{ getBuyerPackedCount(activePackingCombinedBasket) }} / {{ activePackingCombinedBasket.items.length }}
-              </span>
-              <span class="text-[10px] font-sans font-bold block" :class="isBuyerAllPacked(activePackingCombinedBasket) ? 'text-emerald-600' : 'text-zinc-400'">
-                {{ activePackingCombinedBasket.items.length > 0 ? Math.round((getBuyerPackedCount(activePackingCombinedBasket) / activePackingCombinedBasket.items.length) * 100) : 0 }}% Complete
-              </span>
-            </div>
-          </div>
-
-          <!-- Thin Clean Progress Bar -->
-          <div class="w-full bg-zinc-200/70 h-1.5 rounded-full mt-2.5 overflow-hidden">
-            <div 
-              class="h-full transition-all duration-300 ease-out rounded-full"
-              :class="isBuyerAllPacked(activePackingCombinedBasket) ? 'bg-emerald-500' : 'bg-amber-500'"
-              :style="{ width: activePackingCombinedBasket.items.length > 0 ? (getBuyerPackedCount(activePackingCombinedBasket) / activePackingCombinedBasket.items.length * 100) + '%' : '0%' }">
-            </div>
-          </div>
-        </div>
-
-        <!-- Session Invoices Filter Bar (Minimalist & Collapsible) -->
-        <div v-if="activePackingCustomerInvoices.length > 1" class="border-b border-zinc-200 bg-zinc-50 px-4 py-2 shrink-0">
+      <!-- Session Invoices Filter Bar (Minimalist & Collapsible) -->
+      <div v-if="activePackingCustomerInvoices.length > 1" class="border-b border-zinc-200 bg-zinc-50 px-4 py-2 shrink-0">
           <div class="flex items-center justify-between text-xs">
             <div class="flex items-center space-x-2 min-w-0">
               <span class="text-[11px] font-medium text-zinc-600 truncate">
@@ -8615,7 +8586,6 @@
         </div>
 
       </div>
-    </div>
 
     <!-- =============================================================== -->
     <!-- MODAL 3: UNIFIED DESIGNER REDIRECT                               -->
@@ -9186,71 +9156,63 @@
     </div>
 
     <!-- =============================================================== -->
-    <!-- PRINT TEMPLATE: 50x30mm THERMAL STICKER PRINT (ACTIVE ON PRINT) -->
+    <!-- PRINT TEMPLATE: 30x20mm / 40x30mm THERMAL STICKER PRINT (ACTIVE ON PRINT) -->
     <!-- =============================================================== -->
     <div v-if="activeStickerToPrint" class="print-thermal-sticker">
-      <!-- Top Line: Header with Control Code -->
-      <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid #000; padding-bottom: 0.5mm;">
-        <span style="font-size: 13pt; font-weight: 900; letter-spacing: -0.5px;">{{ activeStickerToPrint.controlCode }}</span>
-        <span style="font-size: 8pt; font-weight: 700;">{{ activeStickerToPrint.time }}</span>
-      </div>
-
-      <!-- Center Buyer Live Handle prominently displayed -->
-      <div style="text-align: center; margin: 0.8mm 0; line-height: 1.1;">
-        <div style="font-size: 12pt; font-weight: 900; text-transform: none; word-break: break-all;">
-          {{ activeStickerToPrint.buyer }}
+      <!-- Modern Code 128 B Retail Template (Matching User Template Image) -->
+      <template v-if="activeLabelProfileId === 'code128_retail' || (settings.labelLayout?.customElements && settings.labelLayout.customElements.some(e => e.id === 'barcode' && e.visible && e.height >= 40))">
+        <!-- 1. Top: Buyer Handle Large & Bold -->
+        <div style="font-size: 13pt; font-weight: 900; line-height: 1.1; margin-bottom: 0.5mm; text-align: left; text-transform: none; word-break: break-all;">
+          {{ (activeStickerToPrint.buyer || '').replace(/^@+/, '') }}
         </div>
-      </div>
 
-      <!-- Item Code & Price -->
-      <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #000; padding-top: 0.8mm; margin-bottom: 0.8mm;">
-        <span style="font-size: 10.5pt; font-weight: 900;">{{ (activeStickerToPrint.description && activeStickerToPrint.description !== activeStickerToPrint.controlCode && activeStickerToPrint.description !== 'Decor') ? activeStickerToPrint.description : activeStickerToPrint.controlCode }}</span>
-        <span style="font-size: 11pt; font-weight: 900;">{{ activeProfile.currency }}{{ activeStickerToPrint.price }}</span>
-      </div>
+        <!-- 2. Sub-header: Price + Tag Inline -->
+        <div style="display: flex; align-items: baseline; font-size: 9.5pt; margin-bottom: 0.8mm; line-height: 1.1;">
+          <strong style="font-weight: 900;">{{ activeProfile.currency }}{{ (activeStickerToPrint.price || 0).toLocaleString() }}</strong>
+          <span v-if="activeStickerToPrint.tag || (activeStickerToPrint.description && activeStickerToPrint.description !== activeStickerToPrint.controlCode)" style="font-weight: 500; margin-left: 1.2mm;">
+            - {{ activeStickerToPrint.tag || activeStickerToPrint.description }}
+          </span>
+        </div>
 
-      <!-- Monospace CSS/SVG Barcode Representation -->
-      <div style="text-align: center; margin-top: auto;">
-        <div style="display: flex; justify-content: center; align-items: flex-end; height: 4.5mm; overflow: hidden; margin-bottom: 0.3mm;">
-          <!-- High-contrast crisp barcode lines -->
-          <svg style="width: 44mm; height: 4.5mm;" viewBox="0 0 160 20" preserveAspectRatio="none">
-            <rect x="0" y="0" width="160" height="20" fill="#fff" />
-            <g fill="#000">
-              <rect x="5" y="0" width="2" height="20" />
-              <rect x="9" y="0" width="1" height="20" />
-              <rect x="12" y="0" width="3" height="20" />
-              <rect x="18" y="0" width="1" height="20" />
-              <rect x="22" y="0" width="4" height="20" />
-              <rect x="28" y="0" width="2" height="20" />
-              <rect x="33" y="0" width="1" height="20" />
-              <rect x="37" y="0" width="3" height="20" />
-              <rect x="43" y="0" width="2" height="20" />
-              <rect x="48" y="0" width="4" height="20" />
-              <rect x="55" y="0" width="1" height="20" />
-              <rect x="59" y="0" width="3" height="20" />
-              <rect x="65" y="0" width="2" height="20" />
-              <rect x="70" y="0" width="4" height="20" />
-              <rect x="77" y="0" width="1" height="20" />
-              <rect x="82" y="0" width="3" height="20" />
-              <rect x="88" y="0" width="2" height="20" />
-              <rect x="93" y="0" width="4" height="20" />
-              <rect x="100" y="0" width="1" height="20" />
-              <rect x="104" y="0" width="3" height="20" />
-              <rect x="110" y="0" width="2" height="20" />
-              <rect x="115" y="0" width="4" height="20" />
-              <rect x="122" y="0" width="1" height="20" />
-              <rect x="126" y="0" width="3" height="20" />
-              <rect x="132" y="0" width="2" height="20" />
-              <rect x="137" y="0" width="3" height="20" />
-              <rect x="143" y="0" width="1" height="20" />
-              <rect x="147" y="0" width="3" height="20" />
-              <rect x="153" y="0" width="2" height="20" />
-            </g>
-          </svg>
+        <!-- 3. Code 128 (Subset B) Barcode -->
+        <div style="text-align: center; margin: 0.2mm 0 0.4mm 0; width: 100%; display: flex; justify-content: center;" v-html="getCode128Svg(activeStickerToPrint.controlCode, 180, 26)"></div>
+
+        <!-- 4. Bottom Line: Control Code (Left) & Time (Right) -->
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: auto; padding-top: 0.3mm;">
+          <span style="font-size: 10pt; font-weight: 900; letter-spacing: -0.3px;">{{ activeStickerToPrint.controlCode }}</span>
+          <span style="font-size: 8.5pt; font-weight: 600;">{{ activeStickerToPrint.time }}</span>
         </div>
-        <div style="font-size: 6.5pt; font-family: monospace; font-weight: bold; letter-spacing: 1px;">
-          *{{ activeStickerToPrint.controlCode }}*
+      </template>
+
+      <!-- Standard / Classic Thermal Sticker Layout -->
+      <template v-else>
+        <!-- Top Line: Header with Control Code -->
+        <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1.5px solid #000; padding-bottom: 0.5mm;">
+          <span style="font-size: 13pt; font-weight: 900; letter-spacing: -0.5px;">{{ activeStickerToPrint.controlCode }}</span>
+          <span style="font-size: 8pt; font-weight: 700;">{{ activeStickerToPrint.time }}</span>
         </div>
-      </div>
+
+        <!-- Center Buyer Live Handle prominently displayed -->
+        <div style="text-align: center; margin: 0.8mm 0; line-height: 1.1;">
+          <div style="font-size: 12pt; font-weight: 900; text-transform: none; word-break: break-all;">
+            {{ activeStickerToPrint.buyer }}
+          </div>
+        </div>
+
+        <!-- Item Code & Price -->
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #000; padding-top: 0.8mm; margin-bottom: 0.8mm;">
+          <span style="font-size: 10.5pt; font-weight: 900;">{{ (activeStickerToPrint.description && activeStickerToPrint.description !== activeStickerToPrint.controlCode && activeStickerToPrint.description !== 'Decor') ? activeStickerToPrint.description : activeStickerToPrint.controlCode }}</span>
+          <span style="font-size: 11pt; font-weight: 900;">{{ activeProfile.currency }}{{ activeStickerToPrint.price }}</span>
+        </div>
+
+        <!-- Real Code 128 (Subset B) Barcode Representation -->
+        <div style="text-align: center; margin-top: auto;">
+          <div style="display: flex; justify-content: center; align-items: flex-end; height: 5mm; overflow: hidden; margin-bottom: 0.3mm;" v-html="getCode128Svg(activeStickerToPrint.controlCode, 180, 20)"></div>
+          <div style="font-size: 6.5pt; font-family: monospace; font-weight: bold; letter-spacing: 1px;">
+            *{{ activeStickerToPrint.controlCode }}*
+          </div>
+        </div>
+      </template>
     </div>
 
     <!-- =============================================================== -->

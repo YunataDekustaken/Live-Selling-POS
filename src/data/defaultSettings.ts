@@ -6,12 +6,13 @@ export const defaultLabelElements: VisualLabelElement[] = [
   { id: 'buyer', name: 'Customer Name', visible: true, x: 8, y: 44, fontSize: 15, fontWeight: 'bold', align: 'left', fontFamily: 'sans' },
   { id: 'tag', name: 'Item / Tag', visible: true, x: 8, y: 78, fontSize: 15, fontWeight: 'bold', align: 'left', fontFamily: 'sans' },
   { id: 'price', name: 'Price', visible: true, x: 8, y: 114, fontSize: 18, fontWeight: 'black', align: 'left', prefix: '₱', fontFamily: 'sans' },
+  { id: 'priceTag', name: 'Price + Tag (Inline)', visible: false, x: 8, y: 35, fontSize: 16, fontWeight: 'bold', align: 'left', prefix: '₱', fontFamily: 'sans' },
   { id: 'qrCode', name: '2D QR Code', visible: true, x: 144, y: 42, width: 88, height: 88, fontSize: 12, fontWeight: 'normal', align: 'center' },
   { id: 'storeName', name: 'Store Name', visible: false, x: 8, y: 4, fontSize: 10, fontWeight: 'bold', align: 'left', fontFamily: 'sans' },
   { id: 'sessionDate', name: 'Session Date', visible: false, x: 232, y: 30, fontSize: 12, fontWeight: 'normal', align: 'right', prefix: '#', fontFamily: 'sans' },
   { id: 'footerText', name: 'Footer Note', visible: false, x: 120, y: 144, fontSize: 10, fontWeight: 'normal', align: 'center', fontFamily: 'sans' },
   { id: 'divider', name: 'Divider Line', visible: false, x: 8, y: 36, width: 224, height: 1, fontSize: 10, fontWeight: 'normal', align: 'left' },
-  { id: 'barcode', name: '1D Barcode', visible: false, x: 20, y: 92, width: 200, height: 38, fontSize: 10, fontWeight: 'normal', align: 'center' }
+  { id: 'barcode', name: '1D Barcode (Code 128B)', visible: false, x: 8, y: 58, width: 224, height: 64, fontSize: 10, fontWeight: 'normal', align: 'center' }
 ];
 
 export const defaultReceiptSections: VisualReceiptSection[] = [

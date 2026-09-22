@@ -33,6 +33,7 @@ import {
   exportNotionMinedItemsCsv as exportNotionMinesUtil,
   exportRawMinesCsv as exportRawMinesUtil
 } from './utils/export';
+import { generateCode128BDataUrl, generateCode128BSvg } from './utils/code128';
 import {
   analyzeNotionCsv,
   combineImportedFiles,
@@ -1976,11 +1977,11 @@ const app = createApp({
       const sDate = sessionDate.value || '0911';
       return {
         id: 'preview_sample_1',
-        controlCode: `${prefix}${sDate}-002`,
-        controlNum: 2,
+        controlCode: `${prefix}${sDate}-022`,
+        controlNum: 22,
         tag: 'Pumice',
         description: '',
-        price: 500,
+        price: 9999,
         buyer: 'Screamcheese',
         date: 'Today',
         time: '13:02',
@@ -1989,6 +1990,23 @@ const app = createApp({
     });
 
     const samplePreviewQrDataUrl = ref('');
+    const samplePreviewBarcodeDataUrl = ref('');
+
+    function updateSamplePreviewBarcode() {
+      try {
+        const item = samplePreviewItem.value;
+        const text = (item.controlCode || (item.controlNum ? String(item.controlNum) : '001')).replace(/^\[\s*|\s*\]$/g, '').trim();
+        samplePreviewBarcodeDataUrl.value = generateCode128BDataUrl(text, 224, 64);
+      } catch (err) {
+        console.warn('Barcode preview generation error:', err);
+      }
+    }
+
+    function getCode128Svg(code: string, width: number = 200, height: number = 32): string {
+      const clean = (code || '001').replace(/^\[\s*|\s*\]$/g, '').trim();
+      return generateCode128BSvg(clean, width, height);
+    }
+
     async function updateSamplePreviewQr() {
       try {
         const item = samplePreviewItem.value;
@@ -2001,6 +2019,7 @@ const app = createApp({
       } catch (err) {
         console.warn('QR preview generation error:', err);
       }
+      updateSamplePreviewBarcode();
     }
 
     function applyReferenceLabelPreset() {
@@ -2293,6 +2312,75 @@ const app = createApp({
     const pasteCoordinatesText = ref<string>('');
 
     function getBuiltInLabelProfiles(): SavedLabelProfile[] {
+      // NEW TEMPLATE: Code 128 Subset B Modern Retail Template (from user image)
+      const code128RetailElements: VisualLabelElement[] = JSON.parse(JSON.stringify(defaultLabelElements));
+      const qrC128 = code128RetailElements.find(e => e.id === 'qrCode'); if (qrC128) qrC128.visible = false;
+      const storeC128 = code128RetailElements.find(e => e.id === 'storeName'); if (storeC128) storeC128.visible = false;
+      const dateC128 = code128RetailElements.find(e => e.id === 'sessionDate'); if (dateC128) dateC128.visible = false;
+      const footerC128 = code128RetailElements.find(e => e.id === 'footerText'); if (footerC128) footerC128.visible = false;
+      const divC128 = code128RetailElements.find(e => e.id === 'divider'); if (divC128) divC128.visible = false;
+      const priceC128 = code128RetailElements.find(e => e.id === 'price'); if (priceC128) priceC128.visible = false;
+      const tagC128 = code128RetailElements.find(e => e.id === 'tag'); if (tagC128) tagC128.visible = false;
+
+      // 1. Customer Handle at Top: Bold Black Sans-Serif
+      const buyerC128 = code128RetailElements.find(e => e.id === 'buyer');
+      if (buyerC128) {
+        buyerC128.visible = true;
+        buyerC128.x = 8;
+        buyerC128.y = 6;
+        buyerC128.fontSize = 24;
+        buyerC128.fontWeight = 'black';
+        buyerC128.align = 'left';
+      }
+
+      // 2. Price + Tag inline: "₱9999 - Pumice"
+      let priceTagC128 = code128RetailElements.find(e => e.id === 'priceTag');
+      if (!priceTagC128) {
+        priceTagC128 = { id: 'priceTag', name: 'Price + Tag (Inline)', visible: true, x: 8, y: 35, fontSize: 16, fontWeight: 'bold', align: 'left', prefix: '₱', fontFamily: 'sans' };
+        code128RetailElements.push(priceTagC128);
+      } else {
+        priceTagC128.visible = true;
+        priceTagC128.x = 8;
+        priceTagC128.y = 35;
+        priceTagC128.fontSize = 16;
+        priceTagC128.fontWeight = 'bold';
+        priceTagC128.align = 'left';
+        priceTagC128.prefix = '₱';
+      }
+
+      // 3. Code 128 (Subset B) Barcode: Spanning center horizontally
+      const barC128 = code128RetailElements.find(e => e.id === 'barcode');
+      if (barC128) {
+        barC128.visible = true;
+        barC128.x = 8;
+        barC128.y = 58;
+        barC128.width = 224;
+        barC128.height = 64;
+        barC128.align = 'center';
+      }
+
+      // 4. Control Code at Bottom-Left: "L0920-022"
+      const codeC128 = code128RetailElements.find(e => e.id === 'controlCode');
+      if (codeC128) {
+        codeC128.visible = true;
+        codeC128.x = 8;
+        codeC128.y = 128;
+        codeC128.fontSize = 18;
+        codeC128.fontWeight = 'black';
+        codeC128.align = 'left';
+      }
+
+      // 5. Time at Bottom-Right: "13:02"
+      const timeC128 = code128RetailElements.find(e => e.id === 'time');
+      if (timeC128) {
+        timeC128.visible = true;
+        timeC128.x = 232;
+        timeC128.y = 130;
+        timeC128.fontSize = 16;
+        timeC128.fontWeight = 'normal';
+        timeC128.align = 'right';
+      }
+
       const qrRefElements: VisualLabelElement[] = JSON.parse(JSON.stringify(defaultLabelElements));
 
       const barCenterElements: VisualLabelElement[] = JSON.parse(JSON.stringify(defaultLabelElements));
@@ -2322,6 +2410,7 @@ const app = createApp({
       const tagV = verticalElements.find(e => e.id === 'tag'); if (tagV) { tagV.visible = false; }
 
       return [
+        { id: 'code128_retail', name: '🏷️ Code 128 Retail Strip', createdAt: 0, labelSize: '30x20mm', isBuiltIn: true, elements: code128RetailElements, description: 'Code 128 Subset B barcode with top buyer & price tag, bottom control & time' },
         { id: 'reference_qr', name: '⭐ 30x20 QR Side (Default)', createdAt: 1, labelSize: '30x20mm', isBuiltIn: true, elements: qrRefElements, description: 'QR on right, customer & price on left' },
         { id: 'barcode_center', name: '||| 1D Barcode Centered', createdAt: 2, labelSize: '30x20mm', isBuiltIn: true, elements: barCenterElements, description: 'Centered linear barcode with info stack' },
         { id: 'minimal_text', name: '🔤 Bold Text Only', createdAt: 3, labelSize: '30x20mm', isBuiltIn: true, elements: minimalElements, description: 'Maximized typography without QR or barcode' },
@@ -3393,7 +3482,13 @@ const app = createApp({
       settings.value.activeLabelProfileId = presetName;
       localStorage.setItem('pos_active_label_profile_id', presetName);
 
-      if (presetName === 'reference_qr') {
+      if (presetName === 'code128_retail') {
+        const builtIn = getBuiltInLabelProfiles().find(p => p.id === 'code128_retail');
+        if (builtIn) {
+          settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(builtIn.elements));
+        }
+        showToast('Applied Code 128 Retail Strip Template!');
+      } else if (presetName === 'reference_qr') {
         settings.value.labelLayout.customElements = JSON.parse(JSON.stringify(defaultLabelElements));
         showToast('Applied 30x20mm QR Reference Layout!');
       } else if (presetName === 'barcode_center') {
@@ -3798,6 +3893,14 @@ const app = createApp({
           startPackingScanner();
         }, 350);
       }
+    }
+
+    function openAuditPage(buyer: BuyerBasket, defaultTab: 'scanner' | 'checklist' = 'scanner', selectAllSessions = false) {
+      openPackingModal(buyer, defaultTab, 'stage1', selectAllSessions);
+    }
+
+    function openPackPage(buyer: BuyerBasket, defaultTab: 'scanner' | 'checklist' = 'scanner', selectAllSessions = false) {
+      openPackingModal(buyer, defaultTab, 'stage2', selectAllSessions);
     }
 
     function setPackingWorkflowStage(stage: 'stage1' | 'stage2') {
@@ -4566,7 +4669,7 @@ const app = createApp({
       });
 
       saveAll();
-      playBeep(targetState ? 'success' : 'click', settings.value.soundEnabled);
+      playBeep(targetState ? 'success' : 'undo', settings.value.soundEnabled);
       showToast(targetState ? `Tagged session (${session.sessionDate}) for ${session.displayName} as Delivered` : `Marked session (${session.sessionDate}) as In-Transit`);
     }
 
@@ -5328,6 +5431,21 @@ const app = createApp({
           const day = String(d.getDate()).padStart(2, '0');
           return `${y}-${m}-${day}`;
         }
+        if (/^\d{4}$/.test(item.date.trim())) {
+          const nowYear = new Date().getFullYear();
+          const mm = item.date.trim().substring(0, 2);
+          const dd = item.date.trim().substring(2, 4);
+          return `${nowYear}-${mm}-${dd}`;
+        }
+      }
+      if (item.controlCode) {
+        const m = item.controlCode.match(/(\d{2})(\d{2})-\d+/);
+        if (m) {
+          const nowYear = new Date().getFullYear();
+          const mm = m[1];
+          const dd = m[2];
+          return `${nowYear}-${mm}-${dd}`;
+        }
       }
       return '';
     }
@@ -5373,7 +5491,11 @@ const app = createApp({
         if (minedItemsFilterDate.value === 'today') {
           list = list.filter(item => {
             const itemIso = getItemDateNormalized(item);
-            return itemIso === todayIso;
+            if (itemIso === todayIso) return true;
+            if (sessionDate.value && (item.date === sessionDate.value || (item.controlCode && item.controlCode.includes(sessionDate.value)))) {
+              return true;
+            }
+            return false;
           });
         } else if (minedItemsFilterDate.value === 'yesterday') {
           list = list.filter(item => {
@@ -5429,6 +5551,26 @@ const app = createApp({
       });
 
       return list;
+    });
+
+    const minedItemsStats = computed(() => {
+      const items = filteredMinedItems.value;
+      const totalItems = items.length;
+      let totalValue = 0;
+      const buyers = new Set<string>();
+
+      for (const item of items) {
+        totalValue += Number(item.price) || 0;
+        if (item.buyer) {
+          buyers.add(item.buyer.trim().toLowerCase());
+        }
+      }
+
+      return {
+        totalItems,
+        totalValue,
+        uniqueBuyers: buyers.size
+      };
     });
 
     // =========================================================================
@@ -7401,12 +7543,14 @@ const app = createApp({
     }
 
     function exportNotionMinedItemsCsv() {
-      if (allMines.value.length === 0) {
+      const itemsToExport = isMinedFiltered.value ? filteredMinedItems.value : allMines.value;
+      if (itemsToExport.length === 0) {
         showToast('No mined items to export');
         return;
       }
-      exportNotionMinesUtil(allMines.value, sessionDate.value);
-      showToast('Mined Items CSV exported for Notion');
+      exportNotionMinesUtil(itemsToExport, sessionDate.value);
+      const scopeDesc = isMinedFiltered.value ? `(${dateRangeLabel.value || 'Filtered'})` : '';
+      showToast(`Mined Items CSV ${scopeDesc} exported for Notion`);
     }
 
     // =========================================================================
@@ -8822,6 +8966,7 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       toggleMinedSort,
       uniqueMinedDates,
       filteredMinedItems,
+      minedItemsStats,
       isBulkSelectMinedMode,
       isBulkSelectCustomerMode,
       toggleBulkSelectMinedMode,
@@ -8928,6 +9073,9 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       oldPhotosCount,
       cleanupOldPhotos,
       samplePreviewQrDataUrl,
+      samplePreviewBarcodeDataUrl,
+      updateSamplePreviewBarcode,
+      getCode128Svg,
       updateSamplePreviewQr,
       applyReferenceLabelPreset,
       designerMode,
@@ -9048,6 +9196,8 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       getBuyerPackedCount,
       isBuyerAllPacked,
       openPackingModal,
+      openAuditPage,
+      openPackPage,
       closePackingModal,
       switchPackingTab,
       startPackingScanner,

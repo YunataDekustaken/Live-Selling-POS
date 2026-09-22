@@ -120,7 +120,7 @@ export interface LabelLayoutSettings {
 }
 
 export interface VisualLabelElement {
-  id: string; // 'controlCode' | 'time' | 'buyer' | 'tag' | 'price' | 'qrCode' | 'barcode' | 'storeName' | 'sessionDate' | 'footerText' | 'divider'
+  id: string; // 'controlCode' | 'time' | 'buyer' | 'tag' | 'price' | 'priceTag' | 'qrCode' | 'barcode' | 'storeName' | 'sessionDate' | 'footerText' | 'divider'
   name: string;
   visible: boolean;
   x: number; // in dots (0-240 for 30mm)

@@ -7,6 +7,7 @@
 import type { LabelLayoutSettings, ReceiptLayoutSettings } from '../types';
 import { defaultLabelLayout, defaultReceiptLayout, defaultInvoiceLayout } from '../data/defaultSettings';
 import QRCode from 'qrcode';
+import { drawCode128BToCanvas } from './code128';
 
 export class EscPosEncoder {
   private buffer: number[] = [];
@@ -338,25 +339,15 @@ export async function buildStickerCanvasRaster(
           console.warn('QR render error:', e);
         }
       } else if (elem.id === 'barcode') {
-        const barH = elem.height || 36;
-        const totalW = elem.width || 200;
-        ctx.fillStyle = '#000000';
-        const codeNum = (item.controlCode || (item.controlNum ? String(item.controlNum) : '001')).replace(/[^A-Za-z0-9]/g, '');
-        let bX = elem.x;
-        for (let i = 0; i < codeNum.length; i++) {
-          const charCode = codeNum.charCodeAt(i);
-          for (let b = 0; b < 7; b++) {
-            if ((charCode >> b) & 1) {
-              ctx.fillRect(bX, elem.y, 2, Math.max(16, barH - 12));
-            }
-            bX += 3;
-            if (bX >= elem.x + totalW) break;
-          }
-        }
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        ctx.font = '9px monospace';
-        ctx.fillText(`*${codeNum}*`, elem.x + (totalW / 2), elem.y + barH - 10);
+        const barH = elem.height || 64;
+        const totalW = elem.width || (stickerW - (elem.x * 2));
+        const rawCode = (item.controlCode || (item.controlNum ? String(item.controlNum) : '001')).replace(/^\[\s*|\s*\]$/g, '').trim();
+        // If a separate controlCode element is visible, do not duplicate text underneath barcode
+        const hasSeparateControlCode = cfg.customElements?.some(e => e.id === 'controlCode' && e.visible);
+        drawCode128BToCanvas(ctx, rawCode, elem.x, elem.y, totalW, barH, {
+          showHumanReadable: !hasSeparateControlCode,
+          fontSize: 9
+        });
       } else if (elem.id === 'divider') {
         const lineW = elem.width || (stickerW - 16);
         ctx.beginPath();
@@ -366,6 +357,28 @@ export async function buildStickerCanvasRaster(
         ctx.lineTo(elem.x + lineW, elem.y);
         ctx.stroke();
         ctx.setLineDash([]);
+      } else if (elem.id === 'priceTag') {
+        // Special inline "₱9999 - Pumice" element from the template
+        let cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || '₱');
+        if (cur === 'P') cur = '₱';
+        const pricePart = `${cur}${item.price.toLocaleString()}`;
+        const tagPart = item.tag || item.description || '';
+
+        const family = elem.fontFamily === 'mono' ? 'monospace' : 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'left';
+
+        // 1. Draw bold price
+        ctx.font = `900 ${elem.fontSize || 16}px ${family}`;
+        ctx.fillText(pricePart, elem.x, elem.y);
+        const priceMetrics = ctx.measureText(pricePart);
+
+        // 2. Draw regular tag with hyphen
+        if (tagPart) {
+          ctx.font = `normal ${Math.max(10, (elem.fontSize || 16) - 1)}px ${family}`;
+          ctx.fillText(` - ${tagPart}`, elem.x + priceMetrics.width, elem.y);
+        }
       } else {
         // Text element
         let val = '';
@@ -655,36 +668,15 @@ export async function buildStickerCanvasRaster(
     }
 
     // 5. Barcode (if enabled)
-    if (cfg.showBarcode && currY <= stickerH - 30) {
+    if (cfg.showBarcode && currY <= stickerH - 24) {
       const rawCode = item.controlCode || (item.controlNum ? String(item.controlNum) : '001');
-      const cleanCode = rawCode.replace(/[^A-Za-z0-9]/g, '') || '001';
-      
-      const barW = 1.6;
-      const barH = 14;
-      const startX = Math.round((stickerW - (cleanCode.length * 12 * barW)) / 2);
-      ctx.fillStyle = '#000000';
-      for (let c = 0; c < cleanCode.length; c++) {
-        const charCode = cleanCode.charCodeAt(c);
-        const pattern = [
-          (charCode & 1) ? 2 : 1,
-          (charCode & 2) ? 1 : 2,
-          (charCode & 4) ? 2 : 1,
-          (charCode & 8) ? 1 : 2,
-          (charCode & 16) ? 2 : 1
-        ];
-        let pX = startX + (c * 12 * barW);
-        for (let p = 0; p < pattern.length; p++) {
-          if (p % 2 === 0) {
-            ctx.fillRect(pX, currY, pattern[p] * barW, barH);
-          }
-          pX += pattern[p] * barW;
-        }
-      }
-      currY += barH + 2;
-      ctx.textAlign = 'center';
-      ctx.font = '9px monospace';
-      ctx.fillText(`*${cleanCode}*`, stickerW / 2, currY);
-      currY += 10;
+      const barH = 16;
+      const totalW = stickerW - (padX * 2);
+      drawCode128BToCanvas(ctx, rawCode, padX, currY, totalW, barH, {
+        showHumanReadable: true,
+        fontSize: 8
+      });
+      currY += barH + 10;
     }
 
     // 6. Custom Footer (if space allows)
@@ -973,9 +965,10 @@ export function buildStickerTSPL(
         const cellW = elem.width ? Math.max(2, Math.min(6, Math.floor(elem.width / 24))) : 4;
         tspl += `QRCODE ${elem.x},${elem.y},M,${cellW},A,0,"${qrText}"\r\n`;
       } else if (elem.id === 'barcode') {
-        const rawCode = (item.controlCode || (item.controlNum ? String(item.controlNum) : '001')).replace(/[^A-Za-z0-9]/g, '') || '001';
-        const bH = elem.height || 28;
-        tspl += `BARCODE ${elem.x},${elem.y},"128",${bH},1,0,2,2,"${rawCode}"\r\n`;
+        const rawCode = (item.controlCode || (item.controlNum ? String(item.controlNum) : '001')).replace(/^\[\s*|\s*\]$/g, '').trim() || '001';
+        const bH = elem.height || 48;
+        const hasSeparateControlCode = cfg.customElements?.some(e => e.id === 'controlCode' && e.visible);
+        tspl += `BARCODE ${elem.x},${elem.y},"128",${bH},${hasSeparateControlCode ? 0 : 1},0,2,2,"${rawCode}"\r\n`;
       } else if (elem.id === 'divider') {
         const lineW = elem.width || (widthMm * 8 - 16);
         tspl += `BAR ${elem.x},${elem.y},${lineW},1\r\n`;
@@ -993,6 +986,12 @@ export function buildStickerTSPL(
           let cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || '₱');
           if (cur === 'P') cur = '₱';
           val = `${cur}${item.price.toLocaleString()}`;
+        } else if (elem.id === 'priceTag') {
+          let cur = elem.prefix !== undefined ? elem.prefix : (profile.currency || '₱');
+          if (cur === 'P') cur = '₱';
+          const pricePart = `${cur}${item.price.toLocaleString()}`;
+          const tagPart = item.tag || item.description || '';
+          val = tagPart ? `${pricePart} - ${tagPart}` : pricePart;
         } else if (elem.id === 'storeName') {
           val = profile.name || 'Store';
         } else if (elem.id === 'sessionDate') {
