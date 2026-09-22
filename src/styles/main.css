@@ -24,10 +24,57 @@ body {
   border-radius: 9999px;
 }
 
-/* Html5Qrcode video element adjustment */
+/* Html5Qrcode single unified camera preview viewport */
+#packing-qr-reader {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  inset: 0 !important;
+  overflow: hidden !important;
+  background: #000000 !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
 #packing-qr-reader video {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
-  aspect-ratio: 1 / 1 !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Eliminate html5-qrcode's clunky nested boxes, borders, and duplicate shaded elements */
+#packing-qr-reader > div,
+#packing-qr-reader__scan_region {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Hide default html5-qrcode shaded region to prevent box-on-box layout */
+#packing-qr-reader #qr-shaded-region {
+  display: none !important;
+}
+
+/* Laser scan animation */
+@keyframes scanLaser {
+  0% { top: 6%; opacity: 0.2; }
+  50% { top: 92%; opacity: 0.95; }
+  100% { top: 6%; opacity: 0.2; }
+}
+
+.animate-scanLaser {
+  animation: scanLaser 2.2s ease-in-out infinite;
 }

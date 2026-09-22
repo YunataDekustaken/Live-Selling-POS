@@ -176,16 +176,15 @@ export class LiveScannerController {
       // 1. Discover all cameras on the device to locate Camera 0 / Main Rear Camera
       this.availableCameras = await LiveScannerController.queryCameras();
 
-      // Clean, high-performance scan configuration
+      // Clean, high-performance scan configuration supporting Code 128 barcodes and QR codes
       const scanConfig = {
         fps: 25,
         disableFlip: false,
         qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-          const edge = Math.max(160, Math.floor(minEdge * 0.88));
-          return { width: edge, height: edge };
-        },
-        aspectRatio: 1.0
+          const boxWidth = Math.min(viewfinderWidth * 0.88, 320);
+          const boxHeight = Math.min(viewfinderHeight * 0.70, 200);
+          return { width: Math.round(boxWidth), height: Math.round(boxHeight) };
+        }
       };
 
       // 2. Camera 0 / Main Rear Camera is the ONLY and default target:
