@@ -7502,6 +7502,126 @@ const app = createApp({
       };
     });
 
+    const dashboardDateScope = ref<'today' | 'all'>(
+      (safeGetItem('live_pos_dashboard_date_scope') as 'today' | 'all') || 'today'
+    );
+    function setDashboardDateScope(scope: 'today' | 'all') {
+      dashboardDateScope.value = scope;
+      safeSetItem('live_pos_dashboard_date_scope', scope);
+    }
+
+    // Today / Current Date Statistics
+    const todayStats = computed(() => {
+      const now = new Date();
+      const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const curSession = (sessionDate.value || '').trim();
+
+      const todayMines = allMines.value.filter(item => {
+        const itemIso = getItemDateNormalized(item);
+        if (itemIso === todayIso) return true;
+        if (curSession && (item.date === curSession || (item.controlCode && item.controlCode.includes(curSession)))) {
+          return true;
+        }
+        if (item.date && item.date.toLowerCase() === 'today') return true;
+        return false;
+      });
+
+      let totalSales = 0;
+      const buyersMap = new Map<string, { totalAmount: number; totalPaid: number }>();
+
+      for (const m of todayMines) {
+        const price = Number(m.price) || 0;
+        totalSales += price;
+        const buyerKey = (m.buyer || 'Unknown').trim().toLowerCase();
+        if (!buyersMap.has(buyerKey)) {
+          buyersMap.set(buyerKey, { totalAmount: 0, totalPaid: 0 });
+        }
+        buyersMap.get(buyerKey)!.totalAmount += price;
+      }
+
+      const todayPaymentsList = allPayments.value.filter(p => {
+        if (p.timestamp) {
+          const d = new Date(p.timestamp);
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            if (`${y}-${m}-${day}` === todayIso) return true;
+          }
+        }
+        if (p.date) {
+          if (p.date === todayIso || p.date.toLowerCase() === 'today') return true;
+          if (curSession && (p.date === curSession || p.date.includes(curSession))) return true;
+        }
+        return false;
+      });
+
+      let totalPayments = 0;
+      for (const p of todayPaymentsList) {
+        const amt = Number(p.amount) || 0;
+        totalPayments += amt;
+        const buyerKey = (p.buyer || 'Unknown').trim().toLowerCase();
+        if (buyersMap.has(buyerKey)) {
+          buyersMap.get(buyerKey)!.totalPaid += amt;
+        }
+      }
+
+      let settledBuyers = 0;
+      let owingBuyers = 0;
+      for (const [, b] of buyersMap.entries()) {
+        if (b.totalAmount <= b.totalPaid) {
+          settledBuyers++;
+        } else {
+          owingBuyers++;
+        }
+      }
+
+      const totalBalance = Math.max(0, totalSales - totalPayments);
+      const avgPrice = todayMines.length > 0 ? Math.round(totalSales / todayMines.length) : 0;
+
+      return {
+        totalMines: todayMines.length,
+        totalSales,
+        totalPayments,
+        totalBalance,
+        uniqueBuyers: buyersMap.size,
+        avgPrice,
+        paymentsCount: todayPaymentsList.length,
+        settledBuyers,
+        owingBuyers
+      };
+    });
+
+    const activeDashboardStats = computed(() => {
+      if (dashboardDateScope.value === 'today') {
+        return {
+          totalSales: todayStats.value.totalSales,
+          totalMines: todayStats.value.totalMines,
+          totalPayments: todayStats.value.totalPayments,
+          paymentsCount: todayStats.value.paymentsCount,
+          totalBalance: todayStats.value.totalBalance,
+          owingBuyers: todayStats.value.owingBuyers,
+          settledBuyers: todayStats.value.settledBuyers,
+          uniqueBuyers: todayStats.value.uniqueBuyers,
+          avgPrice: todayStats.value.avgPrice,
+          isToday: true
+        };
+      } else {
+        return {
+          totalSales: sessionStats.value.totalSales,
+          totalMines: sessionStats.value.totalMines,
+          totalPayments: sessionStats.value.totalPayments,
+          paymentsCount: allPayments.value.length,
+          totalBalance: sessionStats.value.totalBalance,
+          owingBuyers: owingBuyersCount.value,
+          settledBuyers: settledBuyersCount.value,
+          uniqueBuyers: sessionStats.value.uniqueBuyers,
+          avgPrice: avgMinePrice.value,
+          isToday: false
+        };
+      }
+    });
+
     const settingsModalOpen = ref(false);
     const appMenuOpen = ref(false);
     function openSettingsModal() {
@@ -9004,6 +9124,10 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       recordPayment,
       copyMessengerReceipt,
       sessionStats,
+      dashboardDateScope,
+      setDashboardDateScope,
+      todayStats,
+      activeDashboardStats,
       settingsModalOpen,
       appMenuOpen,
       openSettingsModal,

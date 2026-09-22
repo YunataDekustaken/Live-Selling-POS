@@ -854,62 +854,193 @@
             </div>
           </div>
 
-          <!-- 2. Primary KPI Summary Cards -->
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            <!-- Metric 1: Total Gross Sales -->
-            <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80">
-              <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Total Sales</div>
-              <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
-                {{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }}
+          <!-- 2. Primary KPI Summary Cards & Date Scope Control -->
+          <div class="space-y-2">
+            <!-- Date Scope Filter Strip -->
+            <div class="flex flex-wrap items-center justify-between gap-2 px-0.5">
+              <div class="flex items-center space-x-2 text-xs">
+                <span class="font-bold uppercase tracking-wider text-zinc-500 text-[11px]">Sales Performance</span>
+                <span v-if="dashboardDateScope === 'today'" class="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-emerald-100 text-emerald-800 flex items-center gap-1 border border-emerald-200">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Current Date (#{{ sessionDate }})
+                </span>
+                <span v-else class="text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold bg-zinc-200 text-zinc-700 border border-zinc-300">
+                  All Dates ({{ allMines.length }} items)
+                </span>
               </div>
-              <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">{{ sessionStats.totalMines }} items sold</div>
+              
+              <div class="inline-flex p-0.5 bg-zinc-200/80 rounded-xl border border-zinc-200 text-xs shadow-2xs">
+                <button 
+                  type="button" 
+                  id="dashboard-scope-today-btn"
+                  @click="setDashboardDateScope('today')"
+                  class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center space-x-1.5"
+                  :class="dashboardDateScope === 'today' ? 'bg-white text-zinc-900 shadow-2xs font-bold' : 'text-zinc-600 hover:text-zinc-900'">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-0.5" :class="dashboardDateScope === 'today' ? 'animate-pulse' : ''"></span>
+                  <span>Today (#{{ sessionDate }})</span>
+                </button>
+                <button 
+                  type="button" 
+                  id="dashboard-scope-all-btn"
+                  @click="setDashboardDateScope('all')"
+                  class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center space-x-1.5"
+                  :class="dashboardDateScope === 'all' ? 'bg-white text-zinc-900 shadow-2xs font-bold' : 'text-zinc-600 hover:text-zinc-900'">
+                  <span>All Dates</span>
+                </button>
+              </div>
             </div>
 
-            <!-- Metric 2: Payments Collected -->
-            <div class="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80">
-              <div class="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider">Cash Collected</div>
-              <div class="text-xl sm:text-2xl font-black font-mono text-emerald-700 mt-1">
-                {{ activeProfile.currency }}{{ sessionStats.totalPayments.toLocaleString() }}
-              </div>
-              <div class="text-[11px] text-emerald-600 mt-0.5 font-mono">{{ allPayments.length }} payments received</div>
-            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <!-- Metric 1: Total Gross Sales -->
+              <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80 flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between">
+                    <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+                      {{ dashboardDateScope === 'today' ? "Today's Sales" : "Total Sales" }}
+                    </div>
+                    <button 
+                      type="button"
+                      @click="setDashboardDateScope(dashboardDateScope === 'today' ? 'all' : 'today')"
+                      class="text-[10px] font-bold px-1.5 py-0.5 rounded font-mono transition-colors cursor-pointer"
+                      :class="dashboardDateScope === 'today' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-200' : 'bg-zinc-200 text-zinc-700 hover:bg-zinc-300 border border-zinc-300'"
+                      :title="'Click to view ' + (dashboardDateScope === 'today' ? 'All Dates' : 'Today')">
+                      {{ dashboardDateScope === 'today' ? ('#' + sessionDate) : 'All Dates' }}
+                    </button>
+                  </div>
+                  <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
+                    {{ activeProfile.currency }}{{ activeDashboardStats.totalSales.toLocaleString() }}
+                  </div>
+                  <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">
+                    {{ activeDashboardStats.totalMines }} items {{ dashboardDateScope === 'today' ? 'mined today' : 'sold total' }}
+                  </div>
+                </div>
 
-            <!-- Metric 3: Outstanding Unpaid Balance -->
-            <div class="p-3.5 rounded-xl border" :class="sessionStats.totalBalance > 0 ? 'bg-amber-50/60 border-amber-200/90' : 'bg-zinc-50/80 border-zinc-200/80'">
-              <div class="text-[11px] font-semibold uppercase tracking-wider" :class="sessionStats.totalBalance > 0 ? 'text-amber-900' : 'text-zinc-500'">Due Balance</div>
-              <div class="text-xl sm:text-2xl font-black font-mono mt-1" :class="sessionStats.totalBalance > 0 ? 'text-amber-800' : 'text-zinc-700'">
-                {{ activeProfile.currency }}{{ sessionStats.totalBalance.toLocaleString() }}
+                <!-- Today vs All-Time Split Sub-Row -->
+                <div class="mt-2.5 pt-2 border-t border-zinc-200/70 flex items-center justify-between text-[10px] font-mono">
+                  <template v-if="dashboardDateScope === 'today'">
+                    <span class="text-zinc-400">All-Time Total:</span>
+                    <span class="font-bold text-zinc-700">{{ activeProfile.currency }}{{ sessionStats.totalSales.toLocaleString() }} ({{ sessionStats.totalMines }} pcs)</span>
+                  </template>
+                  <template v-else>
+                    <span class="text-emerald-700 font-medium flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Today (#{{ sessionDate }}):
+                    </span>
+                    <span class="font-bold text-emerald-800">{{ activeProfile.currency }}{{ todayStats.totalSales.toLocaleString() }} ({{ todayStats.totalMines }} pcs)</span>
+                  </template>
+                </div>
               </div>
-              <div class="text-[11px] mt-0.5 font-mono" :class="sessionStats.totalBalance > 0 ? 'text-amber-700 font-semibold' : 'text-zinc-500'">
-                {{ owingBuyersCount }} buyers unpaid
-              </div>
-            </div>
 
-            <!-- Metric 4: Total Mined Items -->
-            <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80">
-              <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Mined Items</div>
-              <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
-                {{ sessionStats.totalMines }} <span class="text-sm font-semibold text-zinc-500">pcs</span>
+              <!-- Metric 2: Payments Collected -->
+              <div class="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80 flex flex-col justify-between">
+                <div>
+                  <div class="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider">Cash Collected</div>
+                  <div class="text-xl sm:text-2xl font-black font-mono text-emerald-700 mt-1">
+                    {{ activeProfile.currency }}{{ activeDashboardStats.totalPayments.toLocaleString() }}
+                  </div>
+                  <div class="text-[11px] text-emerald-600 mt-0.5 font-mono">
+                    {{ activeDashboardStats.paymentsCount }} payments {{ dashboardDateScope === 'today' ? 'today' : 'received' }}
+                  </div>
+                </div>
+                <div class="mt-2.5 pt-2 border-t border-emerald-200/60 flex items-center justify-between text-[10px] font-mono text-emerald-800">
+                  <template v-if="dashboardDateScope === 'today'">
+                    <span class="opacity-75">All-Time:</span>
+                    <span class="font-bold">{{ activeProfile.currency }}{{ sessionStats.totalPayments.toLocaleString() }} ({{ allPayments.length }})</span>
+                  </template>
+                  <template v-else>
+                    <span class="opacity-75">Today:</span>
+                    <span class="font-bold">{{ activeProfile.currency }}{{ todayStats.totalPayments.toLocaleString() }} ({{ todayStats.paymentsCount }})</span>
+                  </template>
+                </div>
               </div>
-              <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">Next code: {{ nextControlCode }}</div>
-            </div>
 
-            <!-- Metric 5: Unique Active Buyers -->
-            <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80">
-              <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Active Buyers</div>
-              <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
-                {{ sessionStats.uniqueBuyers }} <span class="text-sm font-semibold text-zinc-500">miners</span>
+              <!-- Metric 3: Outstanding Unpaid Balance -->
+              <div class="p-3.5 rounded-xl border flex flex-col justify-between" :class="activeDashboardStats.totalBalance > 0 ? 'bg-amber-50/60 border-amber-200/90' : 'bg-zinc-50/80 border-zinc-200/80'">
+                <div>
+                  <div class="text-[11px] font-semibold uppercase tracking-wider" :class="activeDashboardStats.totalBalance > 0 ? 'text-amber-900' : 'text-zinc-500'">Due Balance</div>
+                  <div class="text-xl sm:text-2xl font-black font-mono mt-1" :class="activeDashboardStats.totalBalance > 0 ? 'text-amber-800' : 'text-zinc-700'">
+                    {{ activeProfile.currency }}{{ activeDashboardStats.totalBalance.toLocaleString() }}
+                  </div>
+                  <div class="text-[11px] mt-0.5 font-mono" :class="activeDashboardStats.totalBalance > 0 ? 'text-amber-700 font-semibold' : 'text-zinc-500'">
+                    {{ activeDashboardStats.owingBuyers }} buyers unpaid {{ dashboardDateScope === 'today' ? 'today' : '' }}
+                  </div>
+                </div>
+                <div class="mt-2.5 pt-2 border-t flex items-center justify-between text-[10px] font-mono" :class="activeDashboardStats.totalBalance > 0 ? 'border-amber-200/70 text-amber-800' : 'border-zinc-200/70 text-zinc-500'">
+                  <template v-if="dashboardDateScope === 'today'">
+                    <span class="opacity-75">All-Time Due:</span>
+                    <span class="font-bold">{{ activeProfile.currency }}{{ sessionStats.totalBalance.toLocaleString() }} ({{ owingBuyersCount }} unpaid)</span>
+                  </template>
+                  <template v-else>
+                    <span class="opacity-75">Today Due:</span>
+                    <span class="font-bold">{{ activeProfile.currency }}{{ todayStats.totalBalance.toLocaleString() }} ({{ todayStats.owingBuyers }} unpaid)</span>
+                  </template>
+                </div>
               </div>
-              <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">{{ settledBuyersCount }} fully paid</div>
-            </div>
 
-            <!-- Metric 6: Average Item Value -->
-            <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80">
-              <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Avg Price / Item</div>
-              <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
-                {{ activeProfile.currency }}{{ avgMinePrice }}
+              <!-- Metric 4: Total Mined Items -->
+              <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80 flex flex-col justify-between">
+                <div>
+                  <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Mined Items</div>
+                  <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
+                    {{ activeDashboardStats.totalMines }} <span class="text-sm font-semibold text-zinc-500">pcs</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">Next code: {{ nextControlCode }}</div>
+                </div>
+                <div class="mt-2.5 pt-2 border-t border-zinc-200/70 flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                  <template v-if="dashboardDateScope === 'today'">
+                    <span class="text-zinc-400">All-Time Mined:</span>
+                    <span class="font-bold text-zinc-700">{{ sessionStats.totalMines }} pcs</span>
+                  </template>
+                  <template v-else>
+                    <span class="text-emerald-700 font-medium">Today Mined:</span>
+                    <span class="font-bold text-emerald-800">{{ todayStats.totalMines }} pcs</span>
+                  </template>
+                </div>
               </div>
-              <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">Based on current stream</div>
+
+              <!-- Metric 5: Unique Active Buyers -->
+              <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80 flex flex-col justify-between">
+                <div>
+                  <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Active Buyers</div>
+                  <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
+                    {{ activeDashboardStats.uniqueBuyers }} <span class="text-sm font-semibold text-zinc-500">miners</span>
+                  </div>
+                  <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">{{ activeDashboardStats.settledBuyers }} fully paid</div>
+                </div>
+                <div class="mt-2.5 pt-2 border-t border-zinc-200/70 flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                  <template v-if="dashboardDateScope === 'today'">
+                    <span class="text-zinc-400">All-Time Buyers:</span>
+                    <span class="font-bold text-zinc-700">{{ sessionStats.uniqueBuyers }} miners</span>
+                  </template>
+                  <template v-else>
+                    <span class="text-emerald-700 font-medium">Today Buyers:</span>
+                    <span class="font-bold text-emerald-800">{{ todayStats.uniqueBuyers }} miners</span>
+                  </template>
+                </div>
+              </div>
+
+              <!-- Metric 6: Average Item Value -->
+              <div class="p-3.5 rounded-xl bg-zinc-50/80 border border-zinc-200/80 flex flex-col justify-between">
+                <div>
+                  <div class="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Avg Price / Item</div>
+                  <div class="text-xl sm:text-2xl font-black font-mono text-zinc-900 mt-1">
+                    {{ activeProfile.currency }}{{ activeDashboardStats.avgPrice }}
+                  </div>
+                  <div class="text-[11px] text-zinc-500 mt-0.5 font-mono">
+                    {{ dashboardDateScope === 'today' ? ('Session #' + sessionDate) : 'All streams' }}
+                  </div>
+                </div>
+                <div class="mt-2.5 pt-2 border-t border-zinc-200/70 flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                  <template v-if="dashboardDateScope === 'today'">
+                    <span class="text-zinc-400">All-Time Avg:</span>
+                    <span class="font-bold text-zinc-700">{{ activeProfile.currency }}{{ avgMinePrice }}</span>
+                  </template>
+                  <template v-else>
+                    <span class="text-emerald-700 font-medium">Today Avg:</span>
+                    <span class="font-bold text-emerald-800">{{ activeProfile.currency }}{{ todayStats.avgPrice }}</span>
+                  </template>
+                </div>
+              </div>
             </div>
           </div>
         </div>
