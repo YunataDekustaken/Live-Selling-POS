@@ -78,7 +78,10 @@ import {
   fetchSecurityPinFromSupabase,
   clearCloudDataForProfile,
   clearAllCloudData,
-  replaceCloudDataWithBackup
+  replaceCloudDataWithBackup,
+  fetchAllMinedItemsForProfile,
+  fetchAllPaymentsForProfile,
+  fetchAllCustomerNotesForProfile
 } from './utils/supabase';
 import {
   isWebBluetoothSupported,
@@ -990,7 +993,9 @@ const app = createApp({
             buyer: m.buyer,
             timestamp: String(m.timestamp || Date.now())
           }));
-          await client.from('mined_items').upsert(minePayloads);
+          for (let i = 0; i < minePayloads.length; i += 100) {
+            await client.from('mined_items').upsert(minePayloads.slice(i, i + 100));
+          }
 
           // Back up and sync all photos to customer_notes table for multi-device cross-sync
           const photosToPush = activeMines
@@ -1011,7 +1016,9 @@ const app = createApp({
             reference: p.ref || '',
             timestamp: String(p.timestamp || Date.now())
           }));
-          await client.from('customer_payments').upsert(payPayloads);
+          for (let i = 0; i < payPayloads.length; i += 100) {
+            await client.from('customer_payments').upsert(payPayloads.slice(i, i + 100));
+          }
         }
 
         const notePayloads = Object.entries(customerNotes.value)
@@ -1022,7 +1029,9 @@ const app = createApp({
             notes
           }));
         if (notePayloads.length > 0) {
-          await client.from('customer_notes').upsert(notePayloads);
+          for (let i = 0; i < notePayloads.length; i += 100) {
+            await client.from('customer_notes').upsert(notePayloads.slice(i, i + 100));
+          }
         }
 
         const customLabelProfiles = savedLabelProfiles.value.filter(p => !p.isBuiltIn);
@@ -1186,6 +1195,7 @@ const app = createApp({
           .limit(1);
 
         let cloudWipedAt = 0;
+        const localWipedAt = Number(safeGetItem('live_pos_last_wiped_' + activeProfileId.value)) || 0;
         if (storeMeta && storeMeta.length > 0 && storeMeta[0].notes) {
           try {
             const parsedMeta = JSON.parse(storeMeta[0].notes);
@@ -1210,10 +1220,7 @@ const app = createApp({
 
         syncActiveStoreForm();
 
-        const { data: remoteMines, error: mErr } = await client
-          .from('mined_items')
-          .select('*')
-          .eq('profile_id', activeProfileId.value);
+        const { data: remoteMines, error: mErr } = await fetchAllMinedItemsForProfile(activeProfileId.value);
 
         // Fetch cloud-persisted photos and verifications from customer_notes for this profile
         const cloudPhotos = await fetchCloudPhotosForProfile(activeProfileId.value);
@@ -1296,6 +1303,7 @@ const app = createApp({
               });
               localMap.delete(rm.id);
             } else {
+              // Auto-recover missing cloud items into local storage
               mergedMines.push({
                 id: rm.id,
                 controlCode: rm.control_code || '',
@@ -1318,29 +1326,43 @@ const app = createApp({
             }
           }
 
-          // Retain recent offline items created on this device after the last wipe
-          const nowTs = Date.now();
+          // Retain local items that were not in remoteMines
+          // Auto-recover all valid local items that have not been explicitly deleted.
+          // Fallback to local session wipe time if cloud marker is absent or older, ensuring items
+          // created during the active session are preserved and safely synced to the cloud.
+          const effectiveWipeTs = Math.min(cloudWipedAt || localWipedAt || 0, localWipedAt || cloudWipedAt || 0);
+
           for (const [, localMine] of localMap.entries()) {
             if (!deletedMineIds.has(localMine.id)) {
               const itemTs = localMine.timestamp || 0;
-              const isAfterWipe = itemTs > cloudWipedAt;
-              const isRecentOffline = isAfterWipe && (nowTs - itemTs) < 300000;
-              if (isRecentOffline) {
+              // An item is kept if:
+              // 1. It belongs to the current session date, OR
+              // 2. Its timestamp is after the effective session wipe, OR
+              // 3. No wipe timestamp was ever recorded
+              const isSameDate = Boolean(localMine.date && sessionDate.value && (localMine.date === sessionDate.value || localMine.date.includes(sessionDate.value)));
+              const isAfterWipe = effectiveWipeTs === 0 || itemTs > effectiveWipeTs;
+
+              if (isSameDate || isAfterWipe) {
                 mergedMines.push(localMine);
+                // Also auto-recover to Supabase cloud if missing remotely
                 pushSingleMineToSupabase(localMine, activeProfileId.value, sessionDate.value);
               }
             }
           }
 
-          allMines.value = mergedMines.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          // Deduplicate mergedMines by id to guarantee zero duplicate items
+          const finalMinesMap = new Map<string, MinedItem>();
+          for (const m of mergedMines) {
+            if (!deletedMineIds.has(m.id)) {
+              finalMinesMap.set(m.id, m);
+            }
+          }
+          allMines.value = Array.from(finalMinesMap.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
           saveProfileData(activeProfileId.value);
           saveAll();
         }
 
-        const { data: remotePayments, error: pErr } = await client
-          .from('customer_payments')
-          .select('*')
-          .eq('profile_id', activeProfileId.value);
+        const { data: remotePayments, error: pErr } = await fetchAllPaymentsForProfile(activeProfileId.value);
 
         if (remotePayments && !pErr) {
           const validRemotePays: PaymentRecord[] = remotePayments.map((rp: any) => ({
@@ -1355,24 +1377,25 @@ const app = createApp({
           }));
 
           const remotePayIds = new Set(validRemotePays.map(p => p.id));
-          const nowTs = Date.now();
-          const recentOfflinePays = allPayments.value.filter(p => 
+          const effectivePayWipeTs = Math.min(cloudWipedAt || localWipedAt || 0, localWipedAt || cloudWipedAt || 0);
+          const offlinePaysToKeep = allPayments.value.filter(p => 
             !remotePayIds.has(p.id) && 
-            (p.timestamp || 0) > cloudWipedAt &&
-            (nowTs - (p.timestamp || 0)) < 300000
+            (effectivePayWipeTs === 0 || (p.timestamp || 0) > effectivePayWipeTs)
           );
 
-          for (const p of recentOfflinePays) {
+          for (const p of offlinePaysToKeep) {
             pushSinglePaymentToSupabase(p, activeProfileId.value);
           }
 
-          allPayments.value = [...validRemotePays, ...recentOfflinePays].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+          const combinedPays = [...validRemotePays, ...offlinePaysToKeep];
+          const payMap = new Map<string, PaymentRecord>();
+          for (const p of combinedPays) {
+            payMap.set(p.id, p);
+          }
+          allPayments.value = Array.from(payMap.values()).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
         }
 
-        const { data: remoteNotes, error: nErr } = await client
-          .from('customer_notes')
-          .select('*')
-          .eq('profile_id', activeProfileId.value);
+        const { data: remoteNotes, error: nErr } = await fetchAllCustomerNotesForProfile(activeProfileId.value);
 
         if (remoteNotes && !nErr) {
           const syncedNotes: Record<string, string> = {};
@@ -7197,15 +7220,8 @@ const app = createApp({
       try {
         const client = getSupabaseClient();
         if (client && navigator.onLine) {
-          const { data: remoteMines } = await client
-            .from('mined_items')
-            .select('*')
-            .eq('profile_id', targetProf);
-
-          const { data: remotePayments } = await client
-            .from('customer_payments')
-            .select('*')
-            .eq('profile_id', targetProf);
+          const { data: remoteMines } = await fetchAllMinedItemsForProfile(targetProf);
+          const { data: remotePayments } = await fetchAllPaymentsForProfile(targetProf);
 
           const cloudPhotos = await fetchCloudPhotosForProfile(targetProf);
           const cloudVerifications = await fetchCloudVerificationsForProfile(targetProf);

@@ -206,35 +206,199 @@ export async function deleteSinglePhotoFromSupabase(mineId: string, activeProfil
   }
 }
 
+export async function fetchAllMinedItemsForProfile(profileId: string): Promise<{ data: any[]; error: any }> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profileId) return { data: [], error: null };
+
+  const allRecords: any[] = [];
+  const seenIds = new Set<string>();
+  const pageSize = 1000;
+  let from = 0;
+
+  try {
+    while (true) {
+      const to = from + pageSize - 1;
+      const { data, error } = await client
+        .from('mined_items')
+        .select('*')
+        .eq('profile_id', profileId)
+        .order('timestamp', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to);
+
+      if (error) {
+        console.warn('fetchAllMinedItemsForProfile notice at range', from, to, error);
+        return { data: allRecords, error };
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      for (const item of data) {
+        const key = item.id || `${item.profile_id}_${item.control_code}_${item.timestamp}`;
+        if (!seenIds.has(key)) {
+          seenIds.add(key);
+          allRecords.push(item);
+        }
+      }
+
+      if (data.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
+    }
+    return { data: allRecords, error: null };
+  } catch (err) {
+    console.warn('fetchAllMinedItemsForProfile exception:', err);
+    return { data: allRecords, error: err };
+  }
+}
+
+export async function fetchAllPaymentsForProfile(profileId: string): Promise<{ data: any[]; error: any }> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profileId) return { data: [], error: null };
+
+  const allRecords: any[] = [];
+  const seenIds = new Set<string>();
+  const pageSize = 1000;
+  let from = 0;
+
+  try {
+    while (true) {
+      const to = from + pageSize - 1;
+      const { data, error } = await client
+        .from('customer_payments')
+        .select('*')
+        .eq('profile_id', profileId)
+        .order('timestamp', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, to);
+
+      if (error) {
+        console.warn('fetchAllPaymentsForProfile notice at range', from, to, error);
+        return { data: allRecords, error };
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      for (const item of data) {
+        const key = item.id || `${item.profile_id}_${item.buyer}_${item.timestamp}`;
+        if (!seenIds.has(key)) {
+          seenIds.add(key);
+          allRecords.push(item);
+        }
+      }
+
+      if (data.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
+    }
+    return { data: allRecords, error: null };
+  } catch (err) {
+    console.warn('fetchAllPaymentsForProfile exception:', err);
+    return { data: allRecords, error: err };
+  }
+}
+
+export async function fetchAllCustomerNotesForProfile(profileId: string): Promise<{ data: any[]; error: any }> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profileId) return { data: [], error: null };
+
+  const allRecords: any[] = [];
+  const seenKeys = new Set<string>();
+  const pageSize = 1000;
+  let from = 0;
+
+  try {
+    while (true) {
+      const to = from + pageSize - 1;
+      const { data, error } = await client
+        .from('customer_notes')
+        .select('*')
+        .eq('profile_id', profileId)
+        .order('buyer', { ascending: true })
+        .range(from, to);
+
+      if (error) {
+        console.warn('fetchAllCustomerNotesForProfile notice at range', from, to, error);
+        return { data: allRecords, error };
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
+      for (const item of data) {
+        const key = `${item.profile_id}_${item.buyer}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          allRecords.push(item);
+        }
+      }
+
+      if (data.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
+    }
+    return { data: allRecords, error: null };
+  } catch (err) {
+    console.warn('fetchAllCustomerNotesForProfile exception:', err);
+    return { data: allRecords, error: err };
+  }
+}
+
 export async function fetchCloudPhotosForProfile(profileId: string): Promise<Record<string, string>> {
   const client = getSupabaseClient();
   if (!client || !navigator.onLine || !profileId) return {};
   try {
-    let query = client
-      .from('customer_notes')
-      .select('buyer, notes')
-      .eq('profile_id', profileId);
-
-    if (typeof query.like === 'function') {
-      query = query.like('buyer', '__photo_%');
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.warn('fetchCloudPhotosForProfile notice:', error);
-      return {};
-    }
-
     const photoMap: Record<string, string> = {};
-    if (data && Array.isArray(data)) {
+    const pageSize = 1000;
+    let from = 0;
+
+    while (true) {
+      const to = from + pageSize - 1;
+      let query = client
+        .from('customer_notes')
+        .select('buyer, notes')
+        .eq('profile_id', profileId);
+
+      if (typeof query.like === 'function') {
+        query = query.like('buyer', '__photo_%');
+      }
+
+      const { data, error } = await query.range(from, to);
+
+      if (error) {
+        console.warn('fetchCloudPhotosForProfile notice:', error);
+        break;
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
       for (const row of data) {
         if (row.buyer && row.buyer.startsWith('__photo_') && row.notes) {
           const mineId = row.buyer.substring('__photo_'.length);
           photoMap[mineId] = row.notes;
         }
       }
+
+      if (data.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
     }
+
     return photoMap;
   } catch (e) {
     console.warn('fetchCloudPhotosForProfile error:', e);
@@ -246,24 +410,32 @@ export async function fetchCloudVerificationsForProfile(profileId: string): Prom
   const client = getSupabaseClient();
   if (!client || !navigator.onLine || !profileId) return {};
   try {
-    let query = client
-      .from('customer_notes')
-      .select('buyer, notes')
-      .eq('profile_id', profileId);
-
-    if (typeof query.like === 'function') {
-      query = query.like('buyer', '__verification_%');
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.warn('fetchCloudVerificationsForProfile notice:', error);
-      return {};
-    }
-
     const verMap: Record<string, any> = {};
-    if (data && Array.isArray(data)) {
+    const pageSize = 1000;
+    let from = 0;
+
+    while (true) {
+      const to = from + pageSize - 1;
+      let query = client
+        .from('customer_notes')
+        .select('buyer, notes')
+        .eq('profile_id', profileId);
+
+      if (typeof query.like === 'function') {
+        query = query.like('buyer', '__verification_%');
+      }
+
+      const { data, error } = await query.range(from, to);
+
+      if (error) {
+        console.warn('fetchCloudVerificationsForProfile notice:', error);
+        break;
+      }
+
+      if (!data || data.length === 0) {
+        break;
+      }
+
       for (const row of data) {
         if (row.buyer && row.buyer.startsWith('__verification_') && row.notes) {
           const mineId = row.buyer.substring('__verification_'.length);
@@ -272,7 +444,14 @@ export async function fetchCloudVerificationsForProfile(profileId: string): Prom
           } catch {}
         }
       }
+
+      if (data.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
     }
+
     return verMap;
   } catch (e) {
     console.warn('fetchCloudVerificationsForProfile error:', e);

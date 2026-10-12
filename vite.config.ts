@@ -128,8 +128,8 @@ export default defineConfig(({ mode }) => {
       port: 3000,
       host: '0.0.0.0',
       strictPort: true,
-      hmr: process.env.DISABLE_HMR !== 'true',
-      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      hmr: false,
+      watch: null,
     },
   };
 });

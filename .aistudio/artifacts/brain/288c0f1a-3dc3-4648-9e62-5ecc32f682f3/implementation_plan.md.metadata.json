@@ -1,0 +1,6 @@
+{
+  "summary":  "Architecture and implementation plan to resolve the 1,000 items Supabase query cap and prevent accidental local item deletions via auto-chunked pagination and local recovery reconciliation.",
+  "updatedAt":  "2026-10-12T00:59:18.965574925Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

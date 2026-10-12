@@ -18,6 +18,25 @@
   <link rel="icon" type="image/svg+xml" href="/icon.svg" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
+  <!-- Ignore dev WebSocket / HMR disconnection errors in iframe environment -->
+  <script>
+    window.addEventListener('unhandledrejection', function(event) {
+      var reason = event && event.reason;
+      var msg = (reason && (reason.message || reason.stack || String(reason))) || '';
+      if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('vite') !== -1) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    });
+    window.addEventListener('error', function(event) {
+      var msg = (event && (event.message || event.filename)) || '';
+      if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('@vite/client') !== -1) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    });
+  </script>
+
   <!-- Tailwind CSS (Local Vendored for 100% Offline Capability) -->
   <script src="/vendor/tailwindcss.js"></script>
   <script>
