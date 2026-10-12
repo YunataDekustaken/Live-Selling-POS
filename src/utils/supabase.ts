@@ -521,6 +521,24 @@ export async function deleteSingleMineFromSupabase(mineId: string) {
   }
 }
 
+export async function removeMineTombstoneFromSupabase(mineId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !mineId) return;
+  try {
+    const existing = await fetchCloudDeletedMines();
+    if (existing.includes(mineId)) {
+      const updated = existing.filter(id => id !== mineId);
+      await client.from('customer_notes').upsert([{
+        profile_id: '_meta_',
+        buyer: '__deleted_mines__',
+        notes: JSON.stringify(updated)
+      }]);
+    }
+  } catch (e) {
+    console.warn('removeMineTombstoneFromSupabase notice:', e);
+  }
+}
+
 export async function syncR2ConfigToSupabase(configJson: string) {
   const client = getSupabaseClient();
   if (!client || !navigator.onLine || !configJson) return;

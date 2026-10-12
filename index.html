@@ -218,6 +218,24 @@
                   <span class="truncate">Mined Items</span>
                 </button>
 
+                <!-- Deleted Items Page (Accidental Deletion & Trash Bin) -->
+                <button 
+                  @click="currentTab = 'deleted'; appMenuOpen = false"
+                  class="col-span-2 flex items-center justify-between p-2 rounded-xl transition-colors text-left cursor-pointer border"
+                  :class="currentTab === 'deleted' ? 'bg-rose-900 text-white font-semibold border-rose-800 shadow-xs' : 'bg-rose-50/80 hover:bg-rose-100 text-rose-950 border-rose-200'">
+                  <div class="flex items-center space-x-2">
+                    <svg class="w-4 h-4 shrink-0" :class="currentTab === 'deleted' ? 'text-white' : 'text-rose-600'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    <div>
+                      <div class="font-bold flex items-center space-x-1.5">
+                        <span>Deleted Items Page</span>
+                        <span v-if="deletedMines.length > 0" class="px-1.5 py-0.2 rounded-full text-[9px] font-mono font-bold" :class="currentTab === 'deleted' ? 'bg-white text-rose-900' : 'bg-rose-200 text-rose-900'">{{ deletedMines.length }}</span>
+                      </div>
+                      <div class="text-[10px] opacity-75">Restore accidental deletions or voided items</div>
+                    </div>
+                  </div>
+                  <span class="text-[10px] font-mono px-1.5 py-0.5 rounded font-bold" :class="currentTab === 'deleted' ? 'bg-white/30 text-white' : 'bg-rose-100 text-rose-800'">TRASH</span>
+                </button>
+
                 <button 
                   @click="openDesigner(); appMenuOpen = false"
                   class="col-span-2 flex items-center justify-between p-2 rounded-xl transition-colors text-left cursor-pointer border"
@@ -2877,6 +2895,199 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- =============================================================== -->
+      <!-- SCREEN: DELETED ITEMS / ACCIDENTAL DELETIONS                    -->
+      <!-- =============================================================== -->
+      <div v-if="currentTab === 'deleted'" class="space-y-3.5 animate-fadeIn">
+        
+        <!-- Header Banner: High Visibility, Anti-Slop, Touch-Friendly -->
+        <div class="bg-white border border-rose-200 rounded-2xl p-3.5 sm:p-4 shadow-xs">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center space-x-3">
+              <div class="w-10 h-10 rounded-xl bg-rose-100 border border-rose-200 flex items-center justify-center shrink-0 text-rose-700">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </div>
+              <div>
+                <div class="flex items-center space-x-2">
+                  <h1 class="text-base font-bold text-zinc-900">Deleted Items &amp; Trash</h1>
+                  <span class="px-2 py-0.5 rounded-full text-xs font-mono font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                    {{ deletedMines.length }} items
+                  </span>
+                </div>
+                <p class="text-xs text-zinc-500 mt-0.5">Accidental deletions and voided mines are safely preserved here. Recover any item back to active orders with 1 tap.</p>
+              </div>
+            </div>
+
+            <!-- Header Quick Action Buttons -->
+            <div class="flex items-center space-x-2 shrink-0">
+              <button 
+                @click="restoreAllDeletedMines()"
+                :disabled="deletedMines.length === 0"
+                type="button"
+                class="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 cursor-pointer shadow-2xs"
+                :class="deletedMines.length > 0 ? 'bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white' : 'bg-zinc-100 text-zinc-400 cursor-not-allowed'">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                <span>Restore All</span>
+              </button>
+
+              <button 
+                @click="emptyTrash()"
+                :disabled="deletedMines.length === 0"
+                type="button"
+                class="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-bold transition-colors flex items-center space-x-1.5 cursor-pointer border shadow-2xs"
+                :class="deletedMines.length > 0 ? 'bg-rose-50 hover:bg-rose-100 active:bg-rose-200 text-rose-800 border-rose-200' : 'bg-zinc-50 text-zinc-300 border-zinc-200 cursor-not-allowed'">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                <span>Empty Trash</span>
+              </button>
+
+              <button 
+                @click="currentTab = 'mining'"
+                type="button"
+                class="min-h-[44px] px-3.5 py-2 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 active:bg-zinc-300 text-zinc-800 transition-colors flex items-center space-x-1 cursor-pointer">
+                <span>Live Mining →</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary Stats Strip -->
+        <div class="grid grid-cols-3 gap-2 bg-white border border-zinc-200 rounded-xl p-3 shadow-xs text-center">
+          <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
+            <div class="text-[10px] text-zinc-500 font-semibold uppercase">Total In Trash</div>
+            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ deletedStats.totalItems }} pcs</div>
+          </div>
+          <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
+            <div class="text-[10px] text-zinc-500 font-semibold uppercase">Total Voided Value</div>
+            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ activeProfile.currency }}{{ deletedStats.totalValue.toLocaleString() }}</div>
+          </div>
+          <div class="p-2 rounded-lg bg-zinc-50 border border-zinc-100">
+            <div class="text-[10px] text-zinc-500 font-semibold uppercase">Affected Buyers</div>
+            <div class="text-sm font-bold font-mono text-zinc-900 mt-0.5">{{ deletedStats.uniqueBuyers }} buyers</div>
+          </div>
+        </div>
+
+        <!-- Search / Filter Bar -->
+        <div class="relative">
+          <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          </span>
+          <input 
+            v-model="deletedSearchQuery" 
+            type="text" 
+            placeholder="Search deleted items by buyer handle, control code, or description..." 
+            class="w-full bg-white border border-zinc-200 focus:border-zinc-900 rounded-xl pl-9 pr-8 py-2.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none transition-colors shadow-2xs">
+          <button 
+            v-if="deletedSearchQuery" 
+            @click="deletedSearchQuery = ''" 
+            type="button"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-700 text-xs cursor-pointer">✕</button>
+        </div>
+
+        <!-- Empty State -->
+        <div v-if="filteredDeletedMines.length === 0" class="bg-white border border-zinc-200 rounded-2xl p-10 text-center space-y-3 shadow-xs">
+          <div class="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto">
+            <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </div>
+          <div>
+            <div class="font-bold text-zinc-900 text-sm">
+              {{ deletedSearchQuery ? 'No matching deleted items found' : 'Trash is Empty' }}
+            </div>
+            <div class="text-xs text-zinc-500 max-w-sm mx-auto mt-1">
+              {{ deletedSearchQuery ? 'Try clearing your search query to see all deleted items.' : 'No items have been cancelled or deleted. When an item is voided or accidentally deleted, it will show up here so you can restore it with 1 tap.' }}
+            </div>
+          </div>
+          <div class="pt-2">
+            <button 
+              @click="currentTab = 'mining'" 
+              type="button"
+              class="min-h-[44px] px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs transition-colors cursor-pointer inline-flex items-center space-x-1.5 shadow-2xs">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              <span>Go to Live Mining</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Deleted Items List -->
+        <div v-else class="space-y-2">
+          <div 
+            v-for="item in filteredDeletedMines" 
+            :key="item.id"
+            class="bg-white border border-zinc-200 hover:border-zinc-300 rounded-xl p-3 shadow-xs transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            
+            <!-- Left Info: Photo + Details -->
+            <div class="flex items-center space-x-3 min-w-0">
+              <!-- Item Photo Thumbnail -->
+              <div class="relative shrink-0 w-12 h-12 rounded-lg bg-zinc-100 border border-zinc-200 overflow-hidden flex items-center justify-center">
+                <img 
+                  v-if="item.photo" 
+                  :src="item.photo" 
+                  alt="Mined photo" 
+                  class="w-full h-full object-cover cursor-pointer hover:opacity-90"
+                  @click="openPhotoZoom(item.photo, (item.controlNum ? '#' + item.controlNum : item.controlCode) + ' - ' + (item.description || item.tag))" />
+                <span v-else class="text-zinc-400 text-xs font-mono">📦</span>
+              </div>
+
+              <!-- Main details -->
+              <div class="min-w-0 space-y-0.5">
+                <div class="flex items-center space-x-2 flex-wrap">
+                  <span class="font-mono font-bold text-xs text-zinc-900">#{{ item.controlCode }}</span>
+                  <span class="px-1.5 py-0.2 rounded text-[11px] font-bold bg-zinc-100 text-zinc-800 font-mono">
+                    @{{ item.buyer }}
+                  </span>
+                  <span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                    {{ item.deletedReason || 'Voided' }}
+                  </span>
+                </div>
+                <div class="text-xs text-zinc-600 truncate">
+                  {{ item.description || item.tag || 'No description' }}
+                </div>
+                <div class="text-[10px] text-zinc-400 font-mono flex items-center space-x-2">
+                  <span>Logged: {{ item.date || 'Today' }} {{ item.time || '' }}</span>
+                  <span v-if="item.deletedAt">• Deleted: {{ new Date(item.deletedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right Info & Recovery Buttons -->
+            <div class="flex items-center justify-between sm:justify-end space-x-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-100">
+              <!-- Price display -->
+              <div class="text-right">
+                <div class="text-xs font-bold font-mono text-zinc-900">
+                  {{ activeProfile.currency }}{{ (Number(item.price) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}
+                </div>
+                <div v-if="item.quantity && item.quantity > 1" class="text-[10px] text-zinc-500 font-mono">
+                  {{ item.quantity }} pcs
+                </div>
+              </div>
+
+              <!-- Action Buttons (Touch Target >= 44px) -->
+              <div class="flex items-center space-x-1.5">
+                <!-- Restore Item Button (Prominent Emerald) -->
+                <button 
+                  @click="restoreDeletedMine(item)"
+                  type="button"
+                  title="Restore this item to active sales and customer balance"
+                  class="min-h-[44px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs transition-colors flex items-center space-x-1.5 cursor-pointer shadow-2xs">
+                  <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  <span>Restore Item</span>
+                </button>
+
+                <!-- Permanently Delete Button -->
+                <button 
+                  @click="permanentlyDeleteMine(item)"
+                  type="button"
+                  title="Permanently remove from trash"
+                  class="min-h-[44px] min-w-[44px] p-2.5 rounded-xl bg-zinc-100 hover:bg-rose-50 text-zinc-500 hover:text-rose-700 active:bg-rose-100 border border-zinc-200 hover:border-rose-200 text-xs transition-colors flex items-center justify-center cursor-pointer">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
 

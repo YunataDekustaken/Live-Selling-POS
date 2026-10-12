@@ -38,6 +38,11 @@ export interface MinedItem {
   deliveredAt?: string;
 }
 
+export interface DeletedMineItem extends MinedItem {
+  deletedAt: number;
+  deletedReason?: string;
+}
+
 export interface PaymentRecord {
   id: string;
   buyer: string;

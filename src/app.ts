@@ -14,7 +14,8 @@ import type {
   SavedLabelProfile,
   SavedReceiptProfile,
   VisualLabelElement,
-  ImportBackupSnapshot
+  ImportBackupSnapshot,
+  DeletedMineItem
 } from './types';
 import { defaultProfiles } from './data/defaultProfiles';
 import { defaultSettings, defaultLabelLayout, defaultReceiptLayout, defaultInvoiceLayout, defaultLabelElements, defaultReceiptSections, defaultInvoiceSections } from './data/defaultSettings';
@@ -57,6 +58,7 @@ import {
   removeDeletedProfileTombstone,
   pushSingleMineToSupabase,
   deleteSingleMineFromSupabase,
+  removeMineTombstoneFromSupabase,
   fetchCloudDeletedMines,
   pushSinglePaymentToSupabase,
   deleteSinglePaymentFromSupabase,
@@ -287,6 +289,38 @@ const app = createApp({
     const allPayments = ref<PaymentRecord[]>(
       safeParseJson(safeGetItem('live_pos_payments_' + activeProfileId.value) || safeGetItem('live_pos_payments'), [])
     );
+
+    // Deleted Items / Recycle Bin (Profile-isolated with local recovery)
+    const rawLoadedDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mines_' + activeProfileId.value) || safeGetItem('live_pos_deleted_mines'), []);
+    const deletedMines = ref<DeletedMineItem[]>(Array.isArray(rawLoadedDeletedMines) ? rawLoadedDeletedMines : []);
+
+    function saveDeletedMines() {
+      safeSetItem('live_pos_deleted_mines_' + activeProfileId.value, deletedMines.value);
+      safeSetItem('live_pos_deleted_mines', deletedMines.value);
+    }
+
+    const deletedSearchQuery = ref('');
+    const filteredDeletedMines = computed(() => {
+      const q = (deletedSearchQuery.value || '').trim().toLowerCase();
+      if (!q) return deletedMines.value;
+      return deletedMines.value.filter(m => {
+        return (m.controlCode && m.controlCode.toLowerCase().includes(q)) ||
+               (m.buyer && m.buyer.toLowerCase().includes(q)) ||
+               (m.description && m.description.toLowerCase().includes(q)) ||
+               (m.tag && m.tag.toLowerCase().includes(q));
+      });
+    });
+
+    const deletedStats = computed(() => {
+      const items = deletedMines.value;
+      const totalValue = items.reduce((sum, m) => sum + (Number(m.price) || 0), 0);
+      const uniqueBuyers = new Set(items.map(m => (m.buyer || '').trim().toLowerCase()).filter(Boolean)).size;
+      return {
+        totalItems: items.length,
+        totalValue,
+        uniqueBuyers
+      };
+    });
 
     // Compute appropriate sequence number for a given date (resets to 1 every new day unless items exist for today)
     function computeSequenceForDate(targetDate: string, targetProfile: Profile | null, minesList: MinedItem[], storedSeq?: number): number {
@@ -1094,10 +1128,18 @@ const app = createApp({
         const deletedMineIds = new Set<string>([...localDeletedMines, ...cloudDeletedMines]);
         safeSetItem('live_pos_deleted_mine_ids', Array.from(deletedMineIds));
 
-        // Immediately purge any deleted mines from local state
-        const remainingLocalMines = allMines.value.filter(m => !deletedMineIds.has(m.id));
-        if (remainingLocalMines.length !== allMines.value.length) {
-          allMines.value = remainingLocalMines;
+        // Immediately purge any deleted mines from active local state, moving to deletedMines so accidental deletions can be restored
+        const purgedMines = allMines.value.filter(m => deletedMineIds.has(m.id));
+        if (purgedMines.length > 0) {
+          const existingDeletedMap = new Set(deletedMines.value.map(d => d.id));
+          const newTrashed = purgedMines
+            .filter(p => !existingDeletedMap.has(p.id))
+            .map(p => ({ ...p, deletedAt: Date.now(), deletedReason: 'Synced deletion' }));
+          if (newTrashed.length > 0) {
+            deletedMines.value = [...newTrashed, ...deletedMines.value];
+            saveDeletedMines();
+          }
+          allMines.value = allMines.value.filter(m => !deletedMineIds.has(m.id));
           safeSetItem('live_pos_mines_' + activeProfileId.value, allMines.value);
         }
 
@@ -4451,26 +4493,131 @@ const app = createApp({
 
     function undoMine(mine: MinedItem) {
       const itemLabel = mine.description ? `${mine.controlCode} (${mine.description})` : mine.controlCode;
-      if (!confirm(`Cancel and delete ${itemLabel} for ${mine.buyer} - ${activeProfile.value.currency}${mine.price}?`)) {
+      if (!confirm(`Cancel and delete ${itemLabel} for ${mine.buyer} - ${activeProfile.value.currency}${mine.price}?\n\nThis item will be moved to the Deleted Items page where you can restore it anytime.`)) {
         return;
       }
-      // 1. Add to local deleted mine tombstones so it is never re-added on sync
+      // 1. Move to deletedMines trash bin
+      const deletedEntry: DeletedMineItem = {
+        ...mine,
+        deletedAt: Date.now(),
+        deletedReason: 'Voided by cashier'
+      };
+      deletedMines.value = [deletedEntry, ...deletedMines.value.filter(d => d.id !== mine.id)];
+      saveDeletedMines();
+
+      // 2. Add to local deleted mine tombstones so it is never re-added on sync
       const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
       if (!localDeletedMines.includes(mine.id)) {
         localDeletedMines.push(mine.id);
         safeSetItem('live_pos_deleted_mine_ids', localDeletedMines);
       }
 
-      // 2. Remove locally and persist
+      // 3. Remove locally and persist
       allMines.value = allMines.value.filter(m => m.id !== mine.id);
       saveAll();
 
-      // 3. Delete from Supabase database and update cloud tombstone
+      // 4. Delete from Supabase database and update cloud tombstone
       deleteSingleMineFromSupabase(mine.id);
 
       refreshActiveInvoiceBuyer();
       playBeep('undo', settings.value.soundEnabled);
-      showToast(`Removed ${itemLabel}`);
+      showToast(`Removed ${itemLabel} (Moved to Deleted Items)`);
+    }
+
+    // =========================================================================
+    // DELETED ITEMS / RECYCLE BIN RECOVERY & RESTORATION
+    // =========================================================================
+    function restoreDeletedMine(item: DeletedMineItem) {
+      // 1. Remove from deletedMines trash bin
+      deletedMines.value = deletedMines.value.filter(d => d.id !== item.id);
+      saveDeletedMines();
+
+      // 2. Remove from local deleted tombstones
+      const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
+      const updatedTombstones = localDeletedMines.filter((id: string) => id !== item.id);
+      safeSetItem('live_pos_deleted_mine_ids', updatedTombstones);
+
+      // 3. Remove cloud tombstone
+      removeMineTombstoneFromSupabase(item.id);
+
+      // 4. Restore into active allMines
+      const { deletedAt, deletedReason, ...restoredMine } = item;
+      if (!allMines.value.some(m => m.id === restoredMine.id)) {
+        allMines.value.push(restoredMine as MinedItem);
+      }
+      allMines.value.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      saveAll();
+
+      // 5. Re-sync restored item to Supabase cloud
+      pushSingleMineToSupabase(restoredMine as MinedItem, activeProfileId.value, sessionDate.value);
+
+      refreshActiveInvoiceBuyer();
+      playBeep('success', settings.value.soundEnabled);
+      showToast(`Restored ${item.controlCode} for @${item.buyer}`);
+    }
+
+    function restoreAllDeletedMines() {
+      if (deletedMines.value.length === 0) return;
+      const count = deletedMines.value.length;
+      if (!confirm(`Restore all ${count} deleted items back to active records?`)) return;
+
+      const itemsToRestore = [...deletedMines.value];
+      const restoredIds = new Set(itemsToRestore.map(i => i.id));
+
+      // 1. Clear trash bin
+      deletedMines.value = [];
+      saveDeletedMines();
+
+      // 2. Clean up local tombstones
+      const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
+      const updatedTombstones = localDeletedMines.filter((id: string) => !restoredIds.has(id));
+      safeSetItem('live_pos_deleted_mine_ids', updatedTombstones);
+
+      // 3. Clean up cloud tombstones and push back to active state
+      for (const item of itemsToRestore) {
+        removeMineTombstoneFromSupabase(item.id);
+        const { deletedAt, deletedReason, ...cleanMine } = item;
+        if (!allMines.value.some(m => m.id === cleanMine.id)) {
+          allMines.value.push(cleanMine as MinedItem);
+        }
+        pushSingleMineToSupabase(cleanMine as MinedItem, activeProfileId.value, sessionDate.value);
+      }
+
+      allMines.value.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      saveAll();
+      refreshActiveInvoiceBuyer();
+      playBeep('success', settings.value.soundEnabled);
+      showToast(`Restored all ${count} items`);
+    }
+
+    function permanentlyDeleteMine(item: DeletedMineItem) {
+      if (!confirm(`Permanently remove ${item.controlCode} (${item.buyer})? This cannot be undone.`)) {
+        return;
+      }
+      deletedMines.value = deletedMines.value.filter(d => d.id !== item.id);
+      saveDeletedMines();
+
+      const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
+      if (!localDeletedMines.includes(item.id)) {
+        localDeletedMines.push(item.id);
+        safeSetItem('live_pos_deleted_mine_ids', localDeletedMines);
+      }
+      deleteSingleMineFromSupabase(item.id);
+      showToast(`Permanently removed ${item.controlCode}`);
+    }
+
+    function emptyTrash() {
+      if (deletedMines.value.length === 0) return;
+      const count = deletedMines.value.length;
+      if (!confirm(`Are you sure you want to permanently delete all ${count} items in the trash?\n\nThis cannot be undone.`)) {
+        return;
+      }
+      for (const item of deletedMines.value) {
+        deleteSingleMineFromSupabase(item.id);
+      }
+      deletedMines.value = [];
+      saveDeletedMines();
+      showToast(`Trash emptied (${count} items purged)`);
     }
 
     // =========================================================================
@@ -5651,7 +5798,17 @@ const app = createApp({
       const idsToDelete = [...selectedMineIds.value];
       const idSet = new Set(idsToDelete);
 
-      // 1. Add to local deleted mine tombstones so they are never re-added on sync
+      // 1. Move to deletedMines trash bin for accidental recovery
+      const itemsToTrash = allMines.value.filter(m => idSet.has(m.id));
+      const newDeletedEntries: DeletedMineItem[] = itemsToTrash.map(item => ({
+        ...item,
+        deletedAt: Date.now(),
+        deletedReason: 'Bulk voided'
+      }));
+      deletedMines.value = [...newDeletedEntries, ...deletedMines.value.filter(d => !idSet.has(d.id))];
+      saveDeletedMines();
+
+      // 2. Add to local deleted mine tombstones so they are never re-added on sync
       const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
       for (const id of idsToDelete) {
         if (!localDeletedMines.includes(id)) {
@@ -5660,20 +5817,20 @@ const app = createApp({
       }
       safeSetItem('live_pos_deleted_mine_ids', localDeletedMines);
 
-      // 2. Remove locally and persist
+      // 3. Remove locally and persist
       allMines.value = allMines.value.filter(m => !idSet.has(m.id));
       saveAll();
 
-      // 3. Delete from Supabase database
+      // 4. Delete from Supabase database
       for (const id of idsToDelete) {
         deleteSingleMineFromSupabase(id);
       }
 
-      // 4. Clear selection and sound/toast
+      // 5. Clear selection and sound/toast
       selectedMineIds.value = [];
       refreshActiveInvoiceBuyer();
       playBeep('undo', settings.value.soundEnabled);
-      showToast(`Voided and deleted ${count} mined items`);
+      showToast(`Voided ${count} items (Moved to Deleted Items)`);
     }
 
     async function printBulkStickers() {
@@ -5750,7 +5907,16 @@ const app = createApp({
       const minesToDelete = allMines.value.filter(m => handlesToDelete.has(m.buyer) || handlesToDelete.has('@' + m.buyer) || handlesToDelete.has(m.buyer.replace(/^@+/, '')));
       const mineIdsToDelete = minesToDelete.map(m => m.id);
 
-      // 1. Add to tombstone
+      // 1. Move mined items to deletedMines trash bin
+      const newDeletedEntries: DeletedMineItem[] = minesToDelete.map(item => ({
+        ...item,
+        deletedAt: Date.now(),
+        deletedReason: 'Customer voided'
+      }));
+      deletedMines.value = [...newDeletedEntries, ...deletedMines.value.filter(d => !mineIdsToDelete.includes(d.id))];
+      saveDeletedMines();
+
+      // 2. Add to tombstone
       const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
       for (const id of mineIdsToDelete) {
         if (!localDeletedMines.includes(id)) {
@@ -5759,7 +5925,7 @@ const app = createApp({
       }
       safeSetItem('live_pos_deleted_mine_ids', localDeletedMines);
 
-      // 2. Delete mines locally & in cloud
+      // 3. Delete mines locally & in cloud
       allMines.value = allMines.value.filter(m => !mineIdsToDelete.includes(m.id));
       for (const id of mineIdsToDelete) {
         deleteSingleMineFromSupabase(id);
@@ -5826,6 +5992,7 @@ const app = createApp({
       try {
         safeSetItem('live_pos_mines_' + profId, allMines.value);
         safeSetItem('live_pos_payments_' + profId, allPayments.value);
+        safeSetItem('live_pos_deleted_mines_' + profId, deletedMines.value);
         safeSetItem('live_pos_customer_notes_' + profId, customerNotes.value);
         safeSetItem('live_pos_sequence_counter_' + profId, String(sequenceCounter.value));
         safeSetItem('live_pos_session_date_' + profId, sessionDate.value);
@@ -5833,6 +6000,7 @@ const app = createApp({
 
         safeSetItem('live_pos_mines', allMines.value);
         safeSetItem('live_pos_payments', allPayments.value);
+        safeSetItem('live_pos_deleted_mines', deletedMines.value);
         safeSetItem('live_pos_customer_notes', customerNotes.value);
         safeSetItem('live_pos_sequence_counter', String(sequenceCounter.value));
         safeSetItem('live_pos_session_date', sessionDate.value);
@@ -5855,6 +6023,16 @@ const app = createApp({
           allMines.value = legacyMines ? safeParseJson(legacyMines as string, []).filter((m: MinedItem) => m && m.id && !deletedMineIds.has(m.id)) : [];
         } else {
           allMines.value = [];
+        }
+
+        const storedDeleted = safeGetItem('live_pos_deleted_mines_' + profId);
+        if (storedDeleted) {
+          deletedMines.value = safeParseJson(storedDeleted as string, []);
+        } else if (profId === 'prof_main') {
+          const legacyDeleted = safeGetItem('live_pos_deleted_mines');
+          deletedMines.value = legacyDeleted ? safeParseJson(legacyDeleted as string, []) : [];
+        } else {
+          deletedMines.value = [];
         }
 
         const storedPayments = safeGetItem('live_pos_payments_' + profId);
@@ -9363,7 +9541,15 @@ Michelle,₱540.00,13,"September 1, 2026",Loam soil (9 bags),,`;
       selectAllSessionsForAction,
       selectUnpaidSessionsOnlyForAction,
       selectPaidSessionsOnlyForAction,
-      executeSessionSelectionAction
+      executeSessionSelectionAction,
+      deletedMines,
+      deletedSearchQuery,
+      filteredDeletedMines,
+      deletedStats,
+      restoreDeletedMine,
+      restoreAllDeletedMines,
+      permanentlyDeleteMine,
+      emptyTrash
     };
   }
 });
