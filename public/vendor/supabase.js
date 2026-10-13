@@ -95,12 +95,34 @@
       }
 
       order(col, { ascending = true } = {}) {
-        this._params.set('order', col + '.' + (ascending ? 'asc' : 'desc'));
+        const orderClause = col + '.' + (ascending ? 'asc' : 'desc');
+        const existing = this._params.get('order');
+        if (existing) {
+          this._params.set('order', existing + ',' + orderClause);
+        } else {
+          this._params.set('order', orderClause);
+        }
         return this;
       }
 
       limit(n) {
         this._params.set('limit', String(n));
+        return this;
+      }
+
+      offset(n) {
+        this._params.set('offset', String(n));
+        return this;
+      }
+
+      range(from, to) {
+        const fromNum = Math.max(0, parseInt(from, 10) || 0);
+        const toNum = Math.max(fromNum, parseInt(to, 10) || fromNum);
+        const limitCount = toNum - fromNum + 1;
+        this._params.set('offset', String(fromNum));
+        this._params.set('limit', String(limitCount));
+        this._headers['Range'] = `${fromNum}-${toNum}`;
+        this._headers['Range-Unit'] = 'items';
         return this;
       }
 

@@ -1,4 +1,4 @@
-import type { Profile, MinedItem, PaymentRecord } from '../types';
+import type { Profile, MinedItem, PaymentRecord, DeletedMineItem } from '../types';
 
 export const SUPABASE_URL = 'https://vvbsszhgduzqqcciroac.supabase.co';
 export const SUPABASE_ANON_KEY = 'sb_publishable_slqI77J9z1oz9HO_qBcI6Q_lmqtg8Cx';
@@ -218,17 +218,27 @@ export async function fetchAllMinedItemsForProfile(profileId: string): Promise<{
   try {
     while (true) {
       const to = from + pageSize - 1;
-      const { data, error } = await client
+      let query = client
         .from('mined_items')
         .select('*')
         .eq('profile_id', profileId)
         .order('timestamp', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, to);
+        .order('id', { ascending: true });
+
+      if (typeof query.range === 'function') {
+        query = query.range(from, to);
+      } else if (typeof query.limit === 'function') {
+        query = query.limit(pageSize);
+        if (typeof query.offset === 'function') {
+          query = query.offset(from);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.warn('fetchAllMinedItemsForProfile notice at range', from, to, error);
-        return { data: allRecords, error };
+        return { data: allRecords, error: allRecords.length > 0 ? null : error };
       }
 
       if (!data || data.length === 0) {
@@ -252,7 +262,7 @@ export async function fetchAllMinedItemsForProfile(profileId: string): Promise<{
     return { data: allRecords, error: null };
   } catch (err) {
     console.warn('fetchAllMinedItemsForProfile exception:', err);
-    return { data: allRecords, error: err };
+    return { data: allRecords, error: allRecords.length > 0 ? null : err };
   }
 }
 
@@ -268,17 +278,27 @@ export async function fetchAllPaymentsForProfile(profileId: string): Promise<{ d
   try {
     while (true) {
       const to = from + pageSize - 1;
-      const { data, error } = await client
+      let query = client
         .from('customer_payments')
         .select('*')
         .eq('profile_id', profileId)
         .order('timestamp', { ascending: true })
-        .order('id', { ascending: true })
-        .range(from, to);
+        .order('id', { ascending: true });
+
+      if (typeof query.range === 'function') {
+        query = query.range(from, to);
+      } else if (typeof query.limit === 'function') {
+        query = query.limit(pageSize);
+        if (typeof query.offset === 'function') {
+          query = query.offset(from);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.warn('fetchAllPaymentsForProfile notice at range', from, to, error);
-        return { data: allRecords, error };
+        return { data: allRecords, error: allRecords.length > 0 ? null : error };
       }
 
       if (!data || data.length === 0) {
@@ -302,7 +322,7 @@ export async function fetchAllPaymentsForProfile(profileId: string): Promise<{ d
     return { data: allRecords, error: null };
   } catch (err) {
     console.warn('fetchAllPaymentsForProfile exception:', err);
-    return { data: allRecords, error: err };
+    return { data: allRecords, error: allRecords.length > 0 ? null : err };
   }
 }
 
@@ -318,16 +338,26 @@ export async function fetchAllCustomerNotesForProfile(profileId: string): Promis
   try {
     while (true) {
       const to = from + pageSize - 1;
-      const { data, error } = await client
+      let query = client
         .from('customer_notes')
         .select('*')
         .eq('profile_id', profileId)
-        .order('buyer', { ascending: true })
-        .range(from, to);
+        .order('buyer', { ascending: true });
+
+      if (typeof query.range === 'function') {
+        query = query.range(from, to);
+      } else if (typeof query.limit === 'function') {
+        query = query.limit(pageSize);
+        if (typeof query.offset === 'function') {
+          query = query.offset(from);
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.warn('fetchAllCustomerNotesForProfile notice at range', from, to, error);
-        return { data: allRecords, error };
+        return { data: allRecords, error: allRecords.length > 0 ? null : error };
       }
 
       if (!data || data.length === 0) {
@@ -351,7 +381,7 @@ export async function fetchAllCustomerNotesForProfile(profileId: string): Promis
     return { data: allRecords, error: null };
   } catch (err) {
     console.warn('fetchAllCustomerNotesForProfile exception:', err);
-    return { data: allRecords, error: err };
+    return { data: allRecords, error: allRecords.length > 0 ? null : err };
   }
 }
 
@@ -537,6 +567,58 @@ export async function removeMineTombstoneFromSupabase(mineId: string) {
   } catch (e) {
     console.warn('removeMineTombstoneFromSupabase notice:', e);
   }
+}
+
+export async function syncDeletedMinesToSupabase(deletedMines: DeletedMineItem[], profileId: string) {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profileId) return;
+  try {
+    // Keep up to 500 most recent deleted items, strip out huge base64 photos to save bandwidth
+    const sanitizedTrash = (deletedMines || []).slice(0, 500).map(item => ({
+      id: item.id,
+      controlCode: item.controlCode || '',
+      controlNum: item.controlNum || 0,
+      tag: item.tag || '',
+      description: item.description || '',
+      price: Number(item.price) || 0,
+      buyer: item.buyer || '',
+      photo: (item.photo && item.photo.length > 500) ? '' : (item.photo || ''),
+      date: item.date || '',
+      time: item.time || '',
+      timestamp: Number(item.timestamp) || Date.now(),
+      deletedAt: Number(item.deletedAt) || Date.now(),
+      deletedReason: item.deletedReason || 'Voided'
+    }));
+
+    await client.from('customer_notes').upsert([{
+      profile_id: profileId,
+      buyer: '__trash_items_' + profileId,
+      notes: JSON.stringify(sanitizedTrash)
+    }]);
+  } catch (e) {
+    console.warn('syncDeletedMinesToSupabase notice:', e);
+  }
+}
+
+export async function fetchDeletedMinesFromSupabase(profileId: string): Promise<DeletedMineItem[]> {
+  const client = getSupabaseClient();
+  if (!client || !navigator.onLine || !profileId) return [];
+  try {
+    const { data, error } = await client
+      .from('customer_notes')
+      .select('notes')
+      .eq('profile_id', profileId)
+      .eq('buyer', '__trash_items_' + profileId)
+      .limit(1);
+
+    if (!error && data && data.length > 0 && data[0].notes) {
+      const parsed = JSON.parse(data[0].notes);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (e) {
+    console.warn('fetchDeletedMinesFromSupabase notice:', e);
+  }
+  return [];
 }
 
 export async function syncR2ConfigToSupabase(configJson: string) {

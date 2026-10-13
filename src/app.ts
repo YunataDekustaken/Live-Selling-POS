@@ -60,6 +60,8 @@ import {
   deleteSingleMineFromSupabase,
   removeMineTombstoneFromSupabase,
   fetchCloudDeletedMines,
+  syncDeletedMinesToSupabase,
+  fetchDeletedMinesFromSupabase,
   pushSinglePaymentToSupabase,
   deleteSinglePaymentFromSupabase,
   pushCustomerNoteToSupabase,
@@ -1141,6 +1143,30 @@ const app = createApp({
           }
           allMines.value = allMines.value.filter(m => !deletedMineIds.has(m.id));
           safeSetItem('live_pos_mines_' + activeProfileId.value, allMines.value);
+        }
+
+        // 2b. Synchronize Deleted Items / Trash with Cloud across devices
+        try {
+          const cloudTrash = await fetchDeletedMinesFromSupabase(activeProfileId.value);
+          if (cloudTrash && cloudTrash.length > 0) {
+            const localTrashMap = new Map<string, DeletedMineItem>(deletedMines.value.map(d => [d.id, d]));
+            let trashChanged = false;
+            for (const ct of cloudTrash) {
+              if (!localTrashMap.has(ct.id)) {
+                localTrashMap.set(ct.id, ct);
+                trashChanged = true;
+              }
+            }
+            if (trashChanged) {
+              deletedMines.value = Array.from(localTrashMap.values())
+                .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0));
+              saveDeletedMines();
+            }
+          } else if (deletedMines.value.length > 0) {
+            await syncDeletedMinesToSupabase(deletedMines.value, activeProfileId.value);
+          }
+        } catch (trashErr) {
+          console.warn('Trash sync notice:', trashErr);
         }
 
         // 3. Immediately purge any deleted profiles from local state
@@ -4518,6 +4544,7 @@ const app = createApp({
 
       // 4. Delete from Supabase database and update cloud tombstone
       deleteSingleMineFromSupabase(mine.id);
+      syncDeletedMinesToSupabase(deletedMines.value, activeProfileId.value);
 
       refreshActiveInvoiceBuyer();
       playBeep('undo', settings.value.soundEnabled);
@@ -4531,6 +4558,7 @@ const app = createApp({
       // 1. Remove from deletedMines trash bin
       deletedMines.value = deletedMines.value.filter(d => d.id !== item.id);
       saveDeletedMines();
+      syncDeletedMinesToSupabase(deletedMines.value, activeProfileId.value);
 
       // 2. Remove from local deleted tombstones
       const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
@@ -4567,6 +4595,7 @@ const app = createApp({
       // 1. Clear trash bin
       deletedMines.value = [];
       saveDeletedMines();
+      syncDeletedMinesToSupabase([], activeProfileId.value);
 
       // 2. Clean up local tombstones
       const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
@@ -4596,6 +4625,7 @@ const app = createApp({
       }
       deletedMines.value = deletedMines.value.filter(d => d.id !== item.id);
       saveDeletedMines();
+      syncDeletedMinesToSupabase(deletedMines.value, activeProfileId.value);
 
       const localDeletedMines = safeParseJson(safeGetItem('live_pos_deleted_mine_ids'), []);
       if (!localDeletedMines.includes(item.id)) {
@@ -4617,6 +4647,7 @@ const app = createApp({
       }
       deletedMines.value = [];
       saveDeletedMines();
+      syncDeletedMinesToSupabase([], activeProfileId.value);
       showToast(`Trash emptied (${count} items purged)`);
     }
 
@@ -5825,6 +5856,7 @@ const app = createApp({
       for (const id of idsToDelete) {
         deleteSingleMineFromSupabase(id);
       }
+      syncDeletedMinesToSupabase(deletedMines.value, activeProfileId.value);
 
       // 5. Clear selection and sound/toast
       selectedMineIds.value = [];
@@ -5930,6 +5962,7 @@ const app = createApp({
       for (const id of mineIdsToDelete) {
         deleteSingleMineFromSupabase(id);
       }
+      syncDeletedMinesToSupabase(deletedMines.value, activeProfileId.value);
 
       // 3. Find and delete payments for these customers
       const paymentsToDelete = allPayments.value.filter(p => handlesToDelete.has(p.buyer) || handlesToDelete.has('@' + p.buyer) || handlesToDelete.has(p.buyer.replace(/^@+/, '')));
